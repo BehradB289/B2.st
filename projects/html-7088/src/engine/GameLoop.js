@@ -1,45 +1,57 @@
 /**
- * Fixed timestep game loop for deterministic physics simulation.
+ * حلقه اصلی بازی با گام زمانی ثابت (Fixed Timestep Accumulator)
+ * جهت شبیه‌سازی فیزیک قطعی در تمامی نرخ‌های نوسازی مانیتور (60Hz, 144Hz, 240Hz)
  */
 export class GameLoop {
-  constructor(updateFn, renderFn, timestep = 1 / 60) {
-    this.update = updateFn;
-    this.render = renderFn;
-    this.timestep = timestep;
-    this.lastTime = 0;
-    this.accumulator = 0;
-    this.running = false;
-    this.rafId = null;
-  }
+    /**
+     * @param {Function} updateFn تابع به‌روزرسانی با مقدار dt ثابت
+     * @param {Function} renderFn تابع ترسیم
+     * @param {number} fixedStep ثانیه در هر تیک فیزیک (مثلاً 1/60)
+     */
+    constructor(updateFn, renderFn, fixedStep = 1 / 60) {
+        this.updateFn = updateFn;
+        this.renderFn = renderFn;
+        this.fixedStep = fixedStep;
 
-  start() {
-    this.running = true;
-    this.lastTime = performance.now();
-    const frame = (time) => {
-      if (!this.running) return;
-      const delta = (time - this.lastTime) / 1000;
-      this.lastTime = time;
-
-      // Cap delta time to prevent spiral of death
-      this.accumulator += Math.min(delta, 0.1);
-
-      while (this.accumulator >= this.timestep) {
-        this.update(this.timestep);
-        this.accumulator -= this.timestep;
-      }
-
-      this.render();
-      this.rafId = requestAnimationFrame(frame);
-    };
-
-    this.rafId = requestAnimationFrame(frame);
-  }
-
-  stop() {
-    this.running = false;
-    if (this.rafId) {
-      cancelAnimationFrame(this.rafId);
-      this.rafId = null;
+        this.lastTime = 0;
+        this.accumulator = 0;
+        this.animationFrameId = null;
+        this.isRunning = false;
     }
-  }
+
+    start() {
+        if (this.isRunning) return;
+        this.isRunning = true;
+        this.lastTime = performance.now();
+        this.animationFrameId = requestAnimationFrame(this._tick.bind(this));
+    }
+
+    stop() {
+        this.isRunning = false;
+        if (this.animationFrameId) {
+            cancelAnimationFrame(this.animationFrameId);
+        }
+    }
+
+    _tick(currentTime) {
+        if (!this.isRunning) return;
+
+        let frameTime = (currentTime - this.lastTime) / 1000;
+        this.lastTime = currentTime;
+
+        // ممانعت از اثر Spiral of Death در لگ‌های شدید سیستمی
+        if (frameTime > 0.1) {
+            frameTime = 0.1;
+        }
+
+        this.accumulator += frameTime;
+
+        while (this.accumulator >= this.fixedStep) {
+            this.updateFn(this.fixedStep);
+            this.accumulator -= this.fixedStep;
+        }
+
+        this.renderFn();
+        this.animationFrameId = requestAnimationFrame(this._tick.bind(this));
+    }
 }

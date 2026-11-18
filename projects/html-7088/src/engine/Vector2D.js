@@ -1,6 +1,8 @@
 /**
- * 2D Vector mathematics helper for physics calculations
+ * 2D Vector Mathematical Representation
+ * Studio: B2.st
  */
+
 export class Vector2D {
   constructor(x = 0, y = 0) {
     this.x = x;
@@ -13,42 +15,47 @@ export class Vector2D {
     return this;
   }
 
-  add(v) {
-    this.x += v.x;
-    this.y += v.y;
+  add(vector) {
+    return new Vector2D(this.x + vector.x, this.y + vector.y);
+  }
+
+  addMutate(vector) {
+    this.x += vector.x;
+    this.y += vector.y;
     return this;
   }
 
-  sub(v) {
-    this.x -= v.x;
-    this.y -= v.y;
-    return this;
+  sub(vector) {
+    return new Vector2D(this.x - vector.x, this.y - vector.y);
   }
 
-  scale(scalar) {
+  multiply(scalar) {
+    return new Vector2D(this.x * scalar, this.y * scalar);
+  }
+
+  multiplyMutate(scalar) {
     this.x *= scalar;
     this.y *= scalar;
     return this;
+  }
+
+  magnitude() {
+    return Math.hypot(this.x, this.y);
+  }
+
+  normalize() {
+    const mag = this.magnitude();
+    return mag > 0 ? this.multiply(1 / mag) : new Vector2D(0, 0);
   }
 
   clone() {
     return new Vector2D(this.x, this.y);
   }
 
-  lengthSq() {
-    return this.x * this.x + this.y * this.y;
-  }
-
-  length() {
-    return Math.sqrt(this.lengthSq());
-  }
-
-  normalize() {
-    const len = this.length();
-    if (len > 0) {
-      this.x /= len;
-      this.y /= len;
-    }
-    return this;
+  equals(vector, epsilon = 0.0001) {
+    return (
+      Math.abs(this.x - vector.x) <= epsilon &&
+      Math.abs(this.y - vector.y) <= epsilon
+    );
   }
 }

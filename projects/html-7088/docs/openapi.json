@@ -1,0 +1,640 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "B2.st Super Mario WebEngine REST API",
+    "description": "Interactive RESTful API and Telemetry Service specification for B2.st modular NES Mario game engine, level streaming, leaderboard synchronization, and player state management.",
+    "version": "1.0.0",
+    "contact": {
+      "name": "B2.st Studio Core Engineering Team",
+      "url": "https://b2.st",
+      "email": "dev@b2.st"
+    },
+    "license": {
+      "name": "MIT",
+      "url": "https://opensource.org/licenses/MIT"
+    }
+  },
+  "servers": [
+    {
+      "url": "http://localhost:3000/api/v1",
+      "description": "Local Development Server"
+    },
+    {
+      "url": "https://mario.b2.st/api/v1",
+      "description": "Production Game Cluster (Global Edge)"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Health",
+      "description": "Service heartbeat and diagnostic telemetry"
+    },
+    {
+      "name": "Config",
+      "description": "Runtime physics engine parameters and visual viewport settings"
+    },
+    {
+      "name": "Levels",
+      "description": "Level layout matrices, entity spawn definitions and validation"
+    },
+    {
+      "name": "Sessions",
+      "description": "Live player gameplay state, checkpoint sync and physics snapshots"
+    },
+    {
+      "name": "Leaderboard",
+      "description": "Player high scores, speedrun records and anti-cheat verified completions"
+    },
+    {
+      "name": "Telemetry",
+      "description": "High-frequency gameplay event stream (deaths, stomps, coin pickups)"
+    }
+  ],
+  "paths": {
+    "/health": {
+      "get": {
+        "tags": ["Health"],
+        "summary": "Check API and game engine service status",
+        "description": "Returns cluster health, uptime, memory usage, and operational status for frontend engine hooks.",
+        "operationId": "getHealth",
+        "responses": {
+          "200": {
+            "description": "API is operational",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthStatus"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/config": {
+      "get": {
+        "tags": ["Config"],
+        "summary": "Retrieve game engine physics and canvas configuration",
+        "description": "Fetches current physics coefficients (gravity, velocities, collision bounds) used by the client simulation loop.",
+        "operationId": "getGameConfig",
+        "responses": {
+          "200": {
+            "description": "Engine configuration parameters",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EngineConfig"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/levels": {
+      "get": {
+        "tags": ["Levels"],
+        "summary": "List all playable levels",
+        "description": "Returns metadata catalog of available World and Course maps in the B2.st Mario repository.",
+        "operationId": "listLevels",
+        "responses": {
+          "200": {
+            "description": "List of level metadata",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/LevelSummary"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/levels/{levelId}": {
+      "get": {
+        "tags": ["Levels"],
+        "summary": "Fetch full level tilemap and spawn entity definitions",
+        "description": "Retrieves the full 2D grid matrix and entity spawn coordinates for instantiating the course.",
+        "operationId": "getLevelById",
+        "parameters": [
+          {
+            "name": "levelId",
+            "in": "path",
+            "required": true,
+            "description": "Unique identifier of the course (e.g. world-1-1)",
+            "schema": {
+              "type": "string",
+              "example": "world-1-1"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Complete level schema including matrix and spawns",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LevelDetail"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Level not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/levels/{levelId}/validate": {
+      "post": {
+        "tags": ["Levels"],
+        "summary": "Validate custom tilemap matrix geometry",
+        "description": "Validates that a tilemap contains required boundaries, flagpole target, and no unescapable floor pits.",
+        "operationId": "validateLevel",
+        "parameters": [
+          {
+            "name": "levelId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TileMapMatrix"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Validation result report",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationResult"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/session/start": {
+      "post": {
+        "tags": ["Sessions"],
+        "summary": "Initialize a new player game session",
+        "description": "Generates a cryptographic session token and initial state vector for anti-tamper run verification.",
+        "operationId": "startSession",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SessionStartRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Session initialized successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GameSession"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/session/{sessionId}/state": {
+      "get": {
+        "tags": ["Sessions"],
+        "summary": "Get real-time snapshot of active game session",
+        "operationId": "getSessionState",
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Current snapshot of session state",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlayerState"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Session expired or not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": ["Sessions"],
+        "summary": "Synchronize Mario position and physics snapshot",
+        "operationId": "updateSessionState",
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlayerState"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Session state updated successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlayerState"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/leaderboard": {
+      "get": {
+        "tags": ["Leaderboard"],
+        "summary": "Fetch top player high scores and speedruns",
+        "operationId": "getLeaderboard",
+        "parameters": [
+          {
+            "name": "levelId",
+            "in": "query",
+            "required": false,
+            "description": "Filter by level identifier",
+            "schema": {
+              "type": "string",
+              "default": "world-1-1"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 10
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Ranked leaderboard list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/LeaderboardEntry"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": ["Leaderboard"],
+        "summary": "Submit authenticated score upon level completion",
+        "operationId": "submitScore",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ScoreSubmission"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Score accepted and ranked",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LeaderboardEntry"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid submission or failed checksum",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/telemetry/events": {
+      "post": {
+        "tags": ["Telemetry"],
+        "summary": "Ingest batch of game physics events and metrics",
+        "description": "Collects telemetry points including jump counts, enemy stomps, pit deaths, and power-up events.",
+        "operationId": "submitTelemetry",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TelemetryBatch"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Telemetry ingested for analytics aggregation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "recorded": { "type": "integer", "example": 5 },
+                    "status": { "type": "string", "example": "queued" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "HealthStatus": {
+        "type": "object",
+        "required": ["status", "uptimeSeconds", "engineVersion", "timestamp"],
+        "properties": {
+          "status": { "type": "string", "example": "healthy" },
+          "uptimeSeconds": { "type": "number", "example": 8420.45 },
+          "engineVersion": { "type": "string", "example": "1.0.0" },
+          "activeSessions": { "type": "integer", "example": 142 },
+          "timestamp": { "type": "string", "format": "date-time", "example": "2025-02-23T12:00:00Z" }
+        }
+      },
+      "EngineConfig": {
+        "type": "object",
+        "properties": {
+          "canvas": {
+            "type": "object",
+            "properties": {
+              "width": { "type": "integer", "example": 256 },
+              "height": { "type": "integer", "example": 240 },
+              "scale": { "type": "integer", "example": 3 },
+              "backgroundColor": { "type": "string", "example": "#5c94fc" }
+            }
+          },
+          "physics": {
+            "type": "object",
+            "properties": {
+              "gravity": { "type": "number", "example": 980 },
+              "walkSpeed": { "type": "number", "example": 110 },
+              "runSpeed": { "type": "number", "example": 180 },
+              "jumpForce": { "type": "number", "example": -350 },
+              "tileSize": { "type": "integer", "example": 16 }
+            }
+          }
+        }
+      },
+      "LevelSummary": {
+        "type": "object",
+        "required": ["id", "title", "world", "difficulty"],
+        "properties": {
+          "id": { "type": "string", "example": "world-1-1" },
+          "title": { "type": "string", "example": "Grassland Gateway" },
+          "world": { "type": "string", "example": "1-1" },
+          "timeLimit": { "type": "integer", "example": 400 },
+          "difficulty": { "type": "string", "enum": ["easy", "medium", "hard"], "example": "easy" }
+        }
+      },
+      "LevelDetail": {
+        "type": "object",
+        "required": ["id", "width", "height", "tileSize", "matrix", "spawnMario"],
+        "properties": {
+          "id": { "type": "string", "example": "world-1-1" },
+          "width": { "type": "integer", "example": 1920 },
+          "height": { "type": "integer", "example": 240 },
+          "tileSize": { "type": "integer", "example": 16 },
+          "spawnMario": {
+            "$ref": "#/components/schemas/Vector2D"
+          },
+          "matrix": {
+            "type": "array",
+            "items": {
+              "type": "array",
+              "items": { "type": "integer" }
+            }
+          },
+          "spawns": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SpawnDefinition"
+            }
+          }
+        }
+      },
+      "SpawnDefinition": {
+        "type": "object",
+        "required": ["type", "x", "y"],
+        "properties": {
+          "type": { "type": "string", "enum": ["goomba", "koopa", "coin", "mushroom"], "example": "goomba" },
+          "x": { "type": "number", "example": 220 },
+          "y": { "type": "number", "example": 190 }
+        }
+      },
+      "TileMapMatrix": {
+        "type": "object",
+        "required": ["rows", "cols", "tiles"],
+        "properties": {
+          "rows": { "type": "integer", "example": 15 },
+          "cols": { "type": "integer", "example": 120 },
+          "tiles": {
+            "type": "array",
+            "items": {
+              "type": "array",
+              "items": { "type": "integer" }
+            }
+          }
+        }
+      },
+      "ValidationResult": {
+        "type": "object",
+        "required": ["isValid", "errors"],
+        "properties": {
+          "isValid": { "type": "boolean", "example": true },
+          "errors": {
+            "type": "array",
+            "items": { "type": "string" },
+            "example": []
+          },
+          "flagPoleDetected": { "type": "boolean", "example": true }
+        }
+      },
+      "SessionStartRequest": {
+        "type": "object",
+        "required": ["playerId", "levelId"],
+        "properties": {
+          "playerId": { "type": "string", "example": "b2st-player-42" },
+          "levelId": { "type": "string", "example": "world-1-1" }
+        }
+      },
+      "GameSession": {
+        "type": "object",
+        "required": ["sessionId", "playerId", "levelId", "startedAt", "token"],
+        "properties": {
+          "sessionId": { "type": "string", "format": "uuid", "example": "a3bb189e-8bf9-4888-9912-ace4e6543002" },
+          "playerId": { "type": "string", "example": "b2st-player-42" },
+          "levelId": { "type": "string", "example": "world-1-1" },
+          "startedAt": { "type": "string", "format": "date-time" },
+          "token": { "type": "string", "example": "jwt.eyJzdWIiOiJiMnN0In0..." }
+        }
+      },
+      "PlayerState": {
+        "type": "object",
+        "required": ["score", "coins", "lives", "timeRemaining", "powerUpState", "position", "velocity"],
+        "properties": {
+          "score": { "type": "integer", "example": 1240 },
+          "coins": { "type": "integer", "example": 8 },
+          "lives": { "type": "integer", "example": 3 },
+          "timeRemaining": { "type": "number", "example": 342.5 },
+          "powerUpState": { "type": "string", "enum": ["SMALL", "SUPER", "INVINCIBLE", "DEAD"], "example": "SMALL" },
+          "position": { "$ref": "#/components/schemas/Vector2D" },
+          "velocity": { "$ref": "#/components/schemas/Vector2D" },
+          "isGrounded": { "type": "boolean", "example": true }
+        }
+      },
+      "Vector2D": {
+        "type": "object",
+        "required": ["x", "y"],
+        "properties": {
+          "x": { "type": "number", "example": 124.5 },
+          "y": { "type": "number", "example": 192.0 }
+        }
+      },
+      "ScoreSubmission": {
+        "type": "object",
+        "required": ["sessionId", "playerId", "levelId", "score", "coins", "clearTimeSeconds", "runHash"],
+        "properties": {
+          "sessionId": { "type": "string", "format": "uuid" },
+          "playerId": { "type": "string", "example": "SpeedDemon99" },
+          "levelId": { "type": "string", "example": "world-1-1" },
+          "score": { "type": "integer", "example": 8500 },
+          "coins": { "type": "integer", "example": 24 },
+          "clearTimeSeconds": { "type": "number", "example": 48.7 },
+          "runHash": { "type": "string", "example": "8f4b23cd70ef118e9a263158c5a01bc8" }
+        }
+      },
+      "LeaderboardEntry": {
+        "type": "object",
+        "required": ["rank", "playerId", "score", "coins", "clearTimeSeconds", "submittedAt"],
+        "properties": {
+          "rank": { "type": "integer", "example": 1 },
+          "playerId": { "type": "string", "example": "SpeedDemon99" },
+          "score": { "type": "integer", "example": 8500 },
+          "coins": { "type": "integer", "example": 24 },
+          "clearTimeSeconds": { "type": "number", "example": 48.7 },
+          "submittedAt": { "type": "string", "format": "date-time", "example": "2025-02-23T11:45:00Z" }
+        }
+      },
+      "TelemetryBatch": {
+        "type": "object",
+        "required": ["sessionId", "events"],
+        "properties": {
+          "sessionId": { "type": "string", "format": "uuid" },
+          "events": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TelemetryEvent"
+            }
+          }
+        }
+      },
+      "TelemetryEvent": {
+        "type": "object",
+        "required": ["eventType", "timestamp"],
+        "properties": {
+          "eventType": {
+            "type": "string",
+            "enum": ["JUMP", "STOMP_ENEMY", "COIN_COLLECT", "BLOCK_HIT", "MARIO_DEATH", "FLAGPOLE_REACHED"],
+            "example": "STOMP_ENEMY"
+          },
+          "timestamp": { "type": "number", "example": 14.28 },
+          "coordinates": { "$ref": "#/components/schemas/Vector2D" },
+          "extra": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        }
+      },
+      "ApiError": {
+        "type": "object",
+        "required": ["error", "message", "statusCode"],
+        "properties": {
+          "error": { "type": "string", "example": "NOT_FOUND" },
+          "message": { "type": "string", "example": "Level ID world-9-9 does not exist" },
+          "statusCode": { "type": "integer", "example": 404 }
+        }
+      }
+    }
+  }
+}

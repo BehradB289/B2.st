@@ -1,481 +1,449 @@
-import React from "react";
+/**
+ * VoiceProposal - استودیو B2.st
+ * کامپوننت رندرینگ اسناد رسمی PDF با @react-pdf/renderer
+ * طراحی اختصاصی Glassmorphism و دارک تم مدرن B2.st با پشتیبانی کامل از RTL و فونت وزیرمتن
+ */
+import React from 'react';
 import {
   Document,
   Page,
   Text,
   View,
   StyleSheet,
-  Font,
-} from "@react-pdf/renderer";
-import type { ProposalData } from "@/types/proposal";
+} from '@react-pdf/renderer';
+import { Proposal } from '../../lib/validations/proposal';
+import { registerPersianFonts, VAZIRMATN_FONT_FAMILY } from '../../../config/fonts.config';
 
-Font.register({
-  family: "Inter",
-  fonts: [
-    {
-      src: "https://cdnjs.cloudflare.com/ajax/libs/inter-ui/3.19.3/Inter-Regular.woff",
-      fontWeight: "normal",
-    },
-    {
-      src: "https://cdnjs.cloudflare.com/ajax/libs/inter-ui/3.19.3/Inter-Bold.woff",
-      fontWeight: "bold",
-    },
-  ],
-});
+// اطمینان از ثبت فونت فارسی
+registerPersianFonts();
+
+// فرمت‌کننده ارقام به ۳ رقم ۳ رقم
+export const formatNumberPersian = (num: number): string => {
+  return new Intl.NumberFormat('fa-IR').format(num);
+};
+
+// نگاشت نماد ارز
+export const getCurrencyLabel = (currency: string): string => {
+  switch (currency) {
+    case 'TOMAN':
+      return 'تومان';
+    case 'IRR':
+      return 'ریال';
+    case 'USD':
+      return 'دلار';
+    case 'USDT':
+      return 'تتر';
+    default:
+      return 'تومان';
+  }
+};
 
 const styles = StyleSheet.create({
   page: {
-    padding: 36,
-    backgroundColor: "#0B0F19",
-    color: "#E2E8F0",
-    fontFamily: "Helvetica",
-    fontSize: 9,
-    lineHeight: 1.4,
+    fontFamily: VAZIRMATN_FONT_FAMILY,
+    backgroundColor: '#090D16',
+    color: '#F3F4F6',
+    padding: 32,
+    direction: 'rtl',
   },
   headerContainer: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    marginBottom: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: "#1E293B",
+    display: 'flex',
+    flexDirection: 'row-reverse',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    borderBottomWidth: 1.5,
+    borderBottomColor: '#6D28D9',
     paddingBottom: 16,
+    marginBottom: 20,
   },
-  titleGroup: {
-    maxWidth: "60%",
+  brandTitle: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    color: '#A78BFA',
   },
-  brandTag: {
-    color: "#8B5CF6",
-    fontSize: 8,
-    letterSpacing: 1.2,
-    textTransform: "uppercase",
-    marginBottom: 4,
-    fontWeight: "bold",
+  brandSubtitle: {
+    fontSize: 10,
+    color: '#9CA3AF',
+    marginTop: 4,
   },
-  documentTitle: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: "#FFFFFF",
-    marginBottom: 4,
-  },
-  proposalSubtitle: {
-    fontSize: 9,
-    color: "#94A3B8",
-  },
-  metaGroup: {
-    alignItems: "flex-end",
-  },
-  badgePill: {
-    backgroundColor: "#1E1B4B",
-    borderWidth: 1,
-    borderColor: "#4338CA",
-    borderRadius: 999,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    marginBottom: 6,
-  },
-  badgeText: {
-    color: "#C7D2FE",
-    fontSize: 8,
-    fontWeight: "bold",
+  metaBlock: {
+    alignItems: 'flex-start',
   },
   metaText: {
-    fontSize: 8,
-    color: "#94A3B8",
-    marginTop: 2,
+    fontSize: 9,
+    color: '#D1D5DB',
+    marginBottom: 2,
   },
-  section: {
-    marginBottom: 16,
+  partiesWrapper: {
+    display: 'flex',
+    flexDirection: 'row-reverse',
+    justifyContent: 'space-between',
+    marginBottom: 20,
+    gap: 12,
   },
-  sectionTitle: {
+  partyCard: {
+    flex: 1,
+    backgroundColor: '#111827',
+    borderWidth: 1,
+    borderColor: '#374151',
+    borderRadius: 8,
+    padding: 12,
+  },
+  partyCardHeader: {
     fontSize: 11,
-    fontWeight: "bold",
-    color: "#F8FAFC",
-    marginBottom: 8,
+    fontWeight: 'bold',
+    color: '#C4B5FD',
+    marginBottom: 6,
     borderBottomWidth: 0.5,
-    borderBottomColor: "#334155",
+    borderBottomColor: '#4C1D95',
     paddingBottom: 4,
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
   },
-  twoColumn: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: 14,
+  partyCardRow: {
+    fontSize: 9,
+    color: '#E5E7EB',
+    marginBottom: 3,
   },
-  columnCard: {
-    width: "48%",
-    backgroundColor: "#111827",
-    borderColor: "#1F2937",
+  projectSection: {
+    backgroundColor: '#131B2E',
     borderWidth: 1,
-    borderRadius: 6,
-    padding: 10,
+    borderColor: '#4338CA',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 20,
   },
-  columnLabel: {
-    color: "#64748B",
-    fontSize: 7.5,
-    textTransform: "uppercase",
-    marginBottom: 4,
-    fontWeight: "bold",
-  },
-  partyName: {
-    color: "#FFFFFF",
-    fontSize: 10,
-    fontWeight: "bold",
-  },
-  partySubtext: {
-    color: "#94A3B8",
-    fontSize: 8.5,
-    marginTop: 2,
-  },
-  summaryBox: {
-    backgroundColor: "#0F172A",
-    borderColor: "#1E293B",
-    borderWidth: 1,
-    borderRadius: 6,
-    padding: 10,
-    marginBottom: 14,
-  },
-  summaryText: {
-    color: "#CBD5E1",
-    fontSize: 8.5,
-    lineHeight: 1.5,
-  },
-  table: {
-    width: "100%",
-    borderRadius: 6,
-    overflow: "hidden",
-    borderWidth: 1,
-    borderColor: "#1F2937",
-  },
-  tableHeader: {
-    flexDirection: "row",
-    backgroundColor: "#182234",
-    borderBottomWidth: 1,
-    borderBottomColor: "#334155",
-    paddingVertical: 6,
-    paddingHorizontal: 8,
-  },
-  tableRow: {
-    flexDirection: "row",
-    borderBottomWidth: 0.5,
-    borderBottomColor: "#1F2937",
-    paddingVertical: 6,
-    paddingHorizontal: 8,
-    backgroundColor: "#0F172A",
-  },
-  colDescription: {
-    width: "55%",
-    paddingRight: 8,
-  },
-  colQty: {
-    width: "15%",
-    textAlign: "center",
-  },
-  colUnitPrice: {
-    width: "15%",
-    textAlign: "right",
-  },
-  colTotal: {
-    width: "15%",
-    textAlign: "right",
-  },
-  headerCellText: {
-    fontSize: 7.5,
-    fontWeight: "bold",
-    color: "#94A3B8",
-    textTransform: "uppercase",
-  },
-  cellText: {
-    fontSize: 8,
-    color: "#E2E8F0",
-  },
-  phaseCard: {
-    backgroundColor: "#111827",
-    borderWidth: 1,
-    borderColor: "#1F2937",
-    borderRadius: 6,
-    padding: 8,
+  sectionHeading: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    color: '#F9FAFB',
     marginBottom: 6,
   },
-  phaseHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 4,
-  },
-  phaseTitle: {
-    color: "#F8FAFC",
-    fontWeight: "bold",
+  summaryText: {
     fontSize: 9,
+    lineHeight: 1.6,
+    color: '#D1D5DB',
   },
-  phaseBadge: {
-    backgroundColor: "rgba(16, 185, 129, 0.15)",
-    borderWidth: 0.5,
-    borderColor: "#10B981",
-    borderRadius: 4,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-  },
-  phaseBadgeText: {
-    color: "#10B981",
-    fontSize: 7,
-    fontWeight: "bold",
-    textTransform: "uppercase",
-  },
-  deliverableItem: {
-    fontSize: 7.5,
-    color: "#94A3B8",
-    marginLeft: 6,
-    marginVertical: 1,
-  },
-  totalsContainer: {
-    alignSelf: "flex-end",
-    width: "45%",
-    marginTop: 8,
-    backgroundColor: "#111827",
-    borderWidth: 1,
-    borderColor: "#1F2937",
+  // جدول مالی
+  table: {
+    width: '100%',
+    marginBottom: 20,
     borderRadius: 6,
-    padding: 8,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: '#374151',
+  },
+  tableHeader: {
+    display: 'flex',
+    flexDirection: 'row-reverse',
+    backgroundColor: '#1F2937',
+    paddingVertical: 8,
+    paddingHorizontal: 6,
+    borderBottomWidth: 1,
+    borderBottomColor: '#4B5563',
+  },
+  tableHeaderCell: {
+    fontSize: 9,
+    fontWeight: 'bold',
+    color: '#E5E7EB',
+    textAlign: 'center',
+  },
+  tableRow: {
+    display: 'flex',
+    flexDirection: 'row-reverse',
+    paddingVertical: 7,
+    paddingHorizontal: 6,
+    borderBottomWidth: 0.5,
+    borderBottomColor: '#374151',
+    backgroundColor: '#0F172A',
+  },
+  tableCell: {
+    fontSize: 8.5,
+    color: '#D1D5DB',
+    textAlign: 'center',
+  },
+  cellIndex: { width: '8%' },
+  cellDesc: { width: '42%', textAlign: 'right', paddingRight: 4 },
+  cellQty: { width: '12%' },
+  cellPrice: { width: '18%' },
+  cellTotal: { width: '20%' },
+
+  // جمع‌بندی مالی
+  totalsContainer: {
+    display: 'flex',
+    flexDirection: 'row-reverse',
+    justifyContent: 'flex-start',
+    marginBottom: 20,
+  },
+  totalsBox: {
+    width: '45%',
+    backgroundColor: '#1E1B4B',
+    borderWidth: 1,
+    borderColor: '#6D28D9',
+    borderRadius: 8,
+    padding: 10,
   },
   totalRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginVertical: 2,
-  },
-  grandTotalRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginTop: 4,
-    paddingTop: 4,
-    borderTopWidth: 1,
-    borderTopColor: "#334155",
-  },
-  totalLabel: {
-    fontSize: 8,
-    color: "#94A3B8",
-  },
-  totalValue: {
-    fontSize: 8,
-    color: "#F1F5F9",
-    fontWeight: "bold",
-  },
-  grandTotalLabel: {
-    fontSize: 9,
-    color: "#A78BFA",
-    fontWeight: "bold",
-  },
-  grandTotalValue: {
-    fontSize: 10,
-    color: "#FFFFFF",
-    fontWeight: "bold",
-  },
-  clauseBox: {
-    backgroundColor: "#0B1120",
-    borderLeftWidth: 2,
-    borderLeftColor: "#6366F1",
-    padding: 6,
+    display: 'flex',
+    flexDirection: 'row-reverse',
+    justifyContent: 'space-between',
     marginBottom: 4,
   },
-  clauseText: {
-    fontSize: 7.5,
-    color: "#94A3B8",
-    lineHeight: 1.3,
+  totalLabel: {
+    fontSize: 8.5,
+    color: '#C7D2FE',
   },
+  totalValue: {
+    fontSize: 8.5,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+  },
+  finalTotalRow: {
+    display: 'flex',
+    flexDirection: 'row-reverse',
+    justifyContent: 'space-between',
+    borderTopWidth: 1,
+    borderTopColor: '#8B5CF6',
+    paddingTop: 6,
+    marginTop: 4,
+  },
+  finalTotalLabel: {
+    fontSize: 10,
+    fontWeight: 'bold',
+    color: '#A78BFA',
+  },
+  finalTotalValue: {
+    fontSize: 11,
+    fontWeight: 'bold',
+    color: '#34D399',
+  },
+
+  // مایل‌استون‌ها
+  milestoneSection: {
+    marginBottom: 20,
+  },
+  milestoneCard: {
+    backgroundColor: '#111827',
+    borderLeftWidth: 3,
+    borderLeftColor: '#8B5CF6',
+    borderRadius: 6,
+    padding: 8,
+    marginBottom: 8,
+  },
+  milestoneHeader: {
+    display: 'flex',
+    flexDirection: 'row-reverse',
+    justifyContent: 'space-between',
+    marginBottom: 4,
+  },
+  milestoneTitle: {
+    fontSize: 9.5,
+    fontWeight: 'bold',
+    color: '#E0E7FF',
+  },
+  milestoneMeta: {
+    fontSize: 8.5,
+    color: '#A5B4FC',
+  },
+  milestoneDeliverable: {
+    fontSize: 8,
+    color: '#9CA3AF',
+    marginRight: 6,
+  },
+
+  // بندهای حقوقی
+  legalSection: {
+    backgroundColor: '#0F172A',
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#1E293B',
+    padding: 10,
+    marginBottom: 16,
+  },
+  legalClauseText: {
+    fontSize: 7.5,
+    color: '#94A3B8',
+    lineHeight: 1.5,
+    marginBottom: 4,
+  },
+
   footer: {
-    position: "absolute",
-    bottom: 24,
-    left: 36,
-    right: 36,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
+    marginTop: 'auto',
     borderTopWidth: 0.5,
-    borderTopColor: "#1E293B",
+    borderTopColor: '#374151',
     paddingTop: 8,
+    display: 'flex',
+    flexDirection: 'row-reverse',
+    justifyContent: 'space-between',
   },
   footerText: {
-    fontSize: 7,
-    color: "#64748B",
+    fontSize: 7.5,
+    color: '#6B7280',
   },
 });
 
-interface ProposalDocumentProps {
-  data: ProposalData;
+export interface ProposalDocumentProps {
+  proposal: Proposal;
 }
 
-export const ProposalDocument: React.FC<ProposalDocumentProps> = ({ data }) => {
-  const formatCurrency = (val: number) => {
-    return `${data.pricing.currency} ${val.toLocaleString(undefined, {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    })}`;
-  };
+export const ProposalDocument: React.FC<ProposalDocumentProps> = ({ proposal }) => {
+  const currencyTitle = getCurrencyLabel(proposal.currency);
 
   return (
-    <Document
-      title={`Proposal_${data.proposalNumber}_${data.client.company}`}
-      author={data.provider.name}
-      subject={data.title}
-      creator="VoiceProposal AI - B2.st Engine"
-    >
+    <Document title={`پیش‌فاکتور ${proposal.proposalNumber} - ${proposal.title}`}>
       <Page size="A4" style={styles.page}>
-        {/* Header */}
+        {/* سربرگ پیش‌فاکتور */}
         <View style={styles.headerContainer}>
-          <View style={styles.titleGroup}>
-            <Text style={styles.brandTag}>VoiceProposal AI • B2.st</Text>
-            <Text style={styles.documentTitle}>{data.title}</Text>
-            <Text style={styles.proposalSubtitle}>Ref: {data.proposalNumber}</Text>
+          <View>
+            <Text style={styles.brandTitle}>وویس‌پروپوزال | VoiceProposal</Text>
+            <Text style={styles.brandSubtitle}>پیش‌فاکتور رسمی و شرح خدمات فریلنسری - استودیو B2.st</Text>
           </View>
-          <View style={styles.metaGroup}>
-            <View style={styles.badgePill}>
-              <Text style={styles.badgeText}>CLIENT PREVIEW</Text>
-            </View>
-            <Text style={styles.metaText}>Issued: {data.issueDate}</Text>
-            <Text style={styles.metaText}>Valid Until: {data.validUntil}</Text>
+          <View style={styles.metaBlock}>
+            <Text style={styles.metaText}>شماره سند: {proposal.proposalNumber}</Text>
+            <Text style={styles.metaText}>تاریخ صدور: {proposal.issueDate}</Text>
+            <Text style={styles.metaText}>مدت اعتبار: {proposal.validityDays} روز کاری</Text>
           </View>
         </View>
 
-        {/* Counterparties */}
-        <View style={styles.twoColumn}>
-          <View style={styles.columnCard}>
-            <Text style={styles.columnLabel}>Prepared For</Text>
-            <Text style={styles.partyName}>{data.client.name}</Text>
-            <Text style={styles.partySubtext}>{data.client.company}</Text>
-            <Text style={styles.partySubtext}>{data.client.email}</Text>
+        {/* مشخصات طرفین */}
+        <View style={styles.partiesWrapper}>
+          {/* مجری / فریلنسر */}
+          <View style={styles.partyCard}>
+            <Text style={styles.partyCardHeader}>مشخصات مجری (فریلنسر)</Text>
+            <Text style={styles.partyCardRow}>نام: {proposal.freelancer.name}</Text>
+            <Text style={styles.partyCardRow}>شرکت / برند: {proposal.freelancer.company || 'فریلنسر مستقل'}</Text>
+            {proposal.freelancer.phone && (
+              <Text style={styles.partyCardRow}>تماس: {proposal.freelancer.phone}</Text>
+            )}
+            {proposal.freelancer.email && (
+              <Text style={styles.partyCardRow}>ایمیل: {proposal.freelancer.email}</Text>
+            )}
           </View>
-          <View style={styles.columnCard}>
-            <Text style={styles.columnLabel}>Service Provider</Text>
-            <Text style={styles.partyName}>{data.provider.name}</Text>
-            <Text style={styles.partySubtext}>{data.provider.title}</Text>
-            <Text style={styles.partySubtext}>{data.provider.email}</Text>
+
+          {/* کارفرما */}
+          <View style={styles.partyCard}>
+            <Text style={styles.partyCardHeader}>مشخصات کارفرما (مشتری)</Text>
+            <Text style={styles.partyCardRow}>نام: {proposal.client.name}</Text>
+            <Text style={styles.partyCardRow}>سازمان: {proposal.client.company || 'شخص حقیقی'}</Text>
+            {proposal.client.phone && (
+              <Text style={styles.partyCardRow}>تماس: {proposal.client.phone}</Text>
+            )}
+            {proposal.client.email && (
+              <Text style={styles.partyCardRow}>ایمیل: {proposal.client.email}</Text>
+            )}
           </View>
         </View>
 
-        {/* Executive Summary */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Executive Summary & Scope</Text>
-          <View style={styles.summaryBox}>
-            <Text style={styles.summaryText}>{data.summary}</Text>
-          </View>
+        {/* عنوان و خلاصه دامنه کار */}
+        <View style={styles.projectSection}>
+          <Text style={styles.sectionHeading}>پروژه: {proposal.title}</Text>
+          <Text style={styles.summaryText}>{proposal.summary}</Text>
         </View>
 
-        {/* Milestones / Phases */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Project Phases & Milestones</Text>
-          {data.phases.map((phase, idx) => (
-            <View key={phase.id || idx} style={styles.phaseCard}>
-              <View style={styles.phaseHeader}>
-                <Text style={styles.phaseTitle}>
-                  Phase {idx + 1}: {phase.title} ({phase.duration})
-                </Text>
-                <View style={styles.phaseBadge}>
-                  <Text style={styles.phaseBadgeText}>{phase.status}</Text>
-                </View>
-              </View>
-              {phase.deliverables.map((del, dIdx) => (
-                <Text key={dIdx} style={styles.deliverableItem}>
-                  • {del}
-                </Text>
-              ))}
+        {/* جدول ریز اقلام مالی */}
+        <View style={styles.table}>
+          <View style={styles.tableHeader}>
+            <Text style={[styles.tableHeaderCell, styles.cellIndex]}>#</Text>
+            <Text style={[styles.tableHeaderCell, styles.cellDesc]}>شرح خدمات / نیازمندی</Text>
+            <Text style={[styles.tableHeaderCell, styles.cellQty]}>تعداد/واحد</Text>
+            <Text style={[styles.tableHeaderCell, styles.cellPrice]}>فی ({currencyTitle})</Text>
+            <Text style={[styles.tableHeaderCell, styles.cellTotal]}>مبلغ کل ({currencyTitle})</Text>
+          </View>
+
+          {proposal.items.map((item, index) => (
+            <View key={item.id || index} style={styles.tableRow}>
+              <Text style={[styles.tableCell, styles.cellIndex]}>{index + 1}</Text>
+              <Text style={[styles.tableCell, styles.cellDesc]}>{item.title}</Text>
+              <Text style={[styles.tableCell, styles.cellQty]}>
+                {item.quantity} {item.unit}
+              </Text>
+              <Text style={[styles.tableCell, styles.cellPrice]}>{formatNumberPersian(item.unitPrice)}</Text>
+              <Text style={[styles.tableCell, styles.cellTotal]}>{formatNumberPersian(item.totalPrice)}</Text>
             </View>
           ))}
         </View>
 
-        {/* Line Items Table */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Fee Breakdown & Deliverables</Text>
-          <View style={styles.table}>
-            <View style={styles.tableHeader}>
-              <View style={styles.colDescription}>
-                <Text style={styles.headerCellText}>Description</Text>
-              </View>
-              <View style={styles.colQty}>
-                <Text style={styles.headerCellText}>Qty / Units</Text>
-              </View>
-              <View style={styles.colUnitPrice}>
-                <Text style={styles.headerCellText}>Unit Rate</Text>
-              </View>
-              <View style={styles.colTotal}>
-                <Text style={styles.headerCellText}>Total</Text>
-              </View>
-            </View>
-            {data.lineItems.map((item, index) => (
-              <View key={item.id || index} style={styles.tableRow}>
-                <View style={styles.colDescription}>
-                  <Text style={styles.cellText}>{item.description}</Text>
-                </View>
-                <View style={styles.colQty}>
-                  <Text style={[styles.cellText, { textAlign: "center" }]}>
-                    {item.quantity}
-                  </Text>
-                </View>
-                <View style={styles.colUnitPrice}>
-                  <Text style={[styles.cellText, { textAlign: "right" }]}>
-                    {formatCurrency(item.unitPrice)}
-                  </Text>
-                </View>
-                <View style={styles.colTotal}>
-                  <Text style={[styles.cellText, { textAlign: "right", fontWeight: "bold" }]}>
-                    {formatCurrency(item.total)}
-                  </Text>
-                </View>
-              </View>
-            ))}
-          </View>
-
-          {/* Pricing Totals */}
-          <View style={styles.totalsContainer}>
+        {/* جمع کل و مبالغ */}
+        <View style={styles.totalsContainer}>
+          <View style={styles.totalsBox}>
             <View style={styles.totalRow}>
-              <Text style={styles.totalLabel}>Subtotal</Text>
-              <Text style={styles.totalValue}>{formatCurrency(data.pricing.subtotal)}</Text>
+              <Text style={styles.totalLabel}>جمع کل اقلام:</Text>
+              <Text style={styles.totalValue}>
+                {formatNumberPersian(proposal.subtotalAmount)} {currencyTitle}
+              </Text>
             </View>
-            {data.pricing.discountAmount > 0 && (
+            {proposal.totalDiscount > 0 && (
               <View style={styles.totalRow}>
-                <Text style={styles.totalLabel}>Discount</Text>
-                <Text style={[styles.totalValue, { color: "#34D399" }]}>
-                  -{formatCurrency(data.pricing.discountAmount)}
+                <Text style={styles.totalLabel}>تخفیف ویژه:</Text>
+                <Text style={styles.totalValue}>
+                  {formatNumberPersian(proposal.totalDiscount)} {currencyTitle}
                 </Text>
               </View>
             )}
-            <View style={styles.totalRow}>
-              <Text style={styles.totalLabel}>Tax ({data.pricing.taxRate}%)</Text>
-              <Text style={styles.totalValue}>{formatCurrency(data.pricing.taxAmount)}</Text>
-            </View>
-            <View style={styles.grandTotalRow}>
-              <Text style={styles.grandTotalLabel}>Grand Total</Text>
-              <Text style={styles.grandTotalValue}>{formatCurrency(data.pricing.total)}</Text>
+            {proposal.taxAmount > 0 && (
+              <View style={styles.totalRow}>
+                <Text style={styles.totalLabel}>مالیات بر ارزش افزوده:</Text>
+                <Text style={styles.totalValue}>
+                  {formatNumberPersian(proposal.taxAmount)} {currencyTitle}
+                </Text>
+              </View>
+            )}
+            <View style={styles.finalTotalRow}>
+              <Text style={styles.finalTotalLabel}>مبلغ قابل پرداخت نهایی:</Text>
+              <Text style={styles.finalTotalValue}>
+                {formatNumberPersian(proposal.finalTotalAmount)} {currencyTitle}
+              </Text>
             </View>
           </View>
         </View>
 
-        {/* Legal & Force Majeure */}
-        <View style={styles.section} wrap={false}>
-          <Text style={styles.sectionTitle}>Terms & Legal Safeguards</Text>
-          {data.legalTerms.map((term, i) => (
-            <View key={i} style={styles.clauseBox}>
-              <Text style={styles.clauseText}>§ {term}</Text>
-            </View>
-          ))}
-          <View style={[styles.clauseBox, { borderLeftColor: "#EF4444", marginTop: 4 }]}>
-            <Text style={[styles.clauseText, { color: "#FCA5A5" }]}>
-              FORCE MAJEURE: {data.forceMajeure}
+        {/* فازبندی پرداخت و تحویل (Milestones) */}
+        {proposal.milestones && proposal.milestones.length > 0 && (
+          <View style={styles.milestoneSection}>
+            <Text style={styles.sectionHeading}>فازبندی پرداخت و نقاط عطف پروژه</Text>
+            {proposal.milestones.map((m, idx) => (
+              <View key={m.id || idx} style={styles.milestoneCard}>
+                <View style={styles.milestoneHeader}>
+                  <Text style={styles.milestoneTitle}>
+                    فاز {idx + 1}: {m.title} ({m.percentage}٪)
+                  </Text>
+                  <Text style={styles.milestoneMeta}>
+                    {formatNumberPersian(m.amount)} {currencyTitle} | زمان تحویل: {m.durationDays} روز
+                  </Text>
+                </View>
+                <Text style={styles.milestoneDeliverable}>
+                  اقلام تحویلی: {m.deliverables.join(' • ')}
+                </Text>
+              </View>
+            ))}
+          </View>
+        )}
+
+        {/* شرایط حقوقی و فورس‌ماژور */}
+        {proposal.legalClauses && (
+          <View style={styles.legalSection}>
+            <Text style={styles.sectionHeading}>بندهای حقوقی و تعهدات اجرایی</Text>
+            <Text style={styles.legalClauseText}>
+              • محرمانگی (NDA): {proposal.legalClauses.confidentiality}
+            </Text>
+            <Text style={styles.legalClauseText}>
+              • مالکیت معنوی: {proposal.legalClauses.ipRights}
+            </Text>
+            <Text style={styles.legalClauseText}>
+              • شرایط فورس‌ماژور: {proposal.legalClauses.forceMajeure}
+            </Text>
+            <Text style={styles.legalClauseText}>
+              • حل اختلاف: {proposal.legalClauses.disputeResolution}
             </Text>
           </View>
-        </View>
+        )}
 
-        {/* Footer */}
-        <View style={styles.footer} fixed>
-          <Text style={styles.footerText}>
-            Generated securely via VoiceProposal Zero-Server Engine • Cryptographic Verification B2.st
-          </Text>
-          <Text
-            style={styles.footerText}
-            render={({ pageNumber, totalPages }) => `Page ${pageNumber} of ${totalPages}`}
-          />
+        {/* فوتر سند */}
+        <View style={styles.footer}>
+          <Text style={styles.footerText}>تولید شده توسط سرویس ابری VoiceProposal - استودیو فناوری B2.st</Text>
+          <Text style={styles.footerText}>سند دیجیتال معتبر بدون نیاز به مهر فیزیکی</Text>
         </View>
       </Page>
     </Document>
   );
 };
+
+export default ProposalDocument;

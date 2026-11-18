@@ -9,14 +9,17 @@
 ```text
 projects/html-7088/
 ├── .env.example
+├── .gitignore
 ├── Dockerfile
 ├── config/constants.js
 ├── config/database.config.js
 ├── config/game.config.js
+├── config/game.config.json
 ├── config/game_config.js
 ├── config/nginx.conf
 ├── docker-compose.yml
 ├── docs/ARCHITECTURE.md
+├── docs/CLI_GUIDE.md
 ├── docs/DATABASE_SCHEMA.md
 ├── docs/DEBUG_SYNTAX.md
 ├── docs/DEPLOYMENT.md
@@ -33,7 +36,9 @@ projects/html-7088/
 ├── scripts/deploy.sh
 ├── scripts/rollback.sh
 ├── src/.dockerignore
+├── src/cli.js
 ├── src/core/error_shield.js
+├── src/core/health_monitor.js
 ├── src/core/memory_guard.js
 ├── src/core/performance_cache.js
 ├── src/db/database_layer.js
@@ -44,6 +49,7 @@ projects/html-7088/
 ├── src/db/models/save_state_model.js
 ├── src/db/models/settings_model.js
 ├── src/db/security/crypto_vault.js
+├── src/db/transaction_lock.js
 ├── src/docker-compose.dev.yml
 ├── src/engine/AABB.js
 ├── src/engine/Audio.js
@@ -81,8 +87,10 @@ projects/html-7088/
 ├── src/utils/validator.js
 ├── src/vitest.config.js
 ├── src/world/Level.js
+├── tests/cli.test.js
 ├── tests/collision.test.js
 ├── tests/database_layer.test.js
+├── tests/health_monitor.test.js
 ├── tests/integration.test.js
 ├── tests/physics.test.js
 ├── tests/physics_cache.test.js

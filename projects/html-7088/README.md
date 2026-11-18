@@ -8,6 +8,7 @@
 ## 🗂️ Folder Structure
 ```text
 projects/html-7088/
+├── config/game_config.js
 ├── docs/ARCHITECTURE.md
 ├── docs/DEBUG_SYNTAX.md
 ├── docs/TEST_SPEC.md
@@ -16,8 +17,11 @@ projects/html-7088/
 ├── package.json
 ├── public/index.html
 ├── public/style.css
+├── src/core/error_shield.js
+├── src/core/performance_cache.js
 ├── src/engine/AABB.js
 ├── src/engine/Audio.js
+├── src/engine/AudioEngine.js
 ├── src/engine/AudioSystem.js
 ├── src/engine/Camera.js
 ├── src/engine/EventEmitter.js
@@ -35,6 +39,7 @@ projects/html-7088/
 ├── src/entities/Particle.js
 ├── src/game.js
 ├── src/levels/Level1.js
+├── src/levels/SpriteSheet.js
 ├── src/levels/TileMap.js
 ├── src/levels/World1_1.js
 ├── src/main.js
@@ -42,4 +47,5 @@ projects/html-7088/
 ├── src/world/Level.js
 ├── tests/collision.test.js
 ├── tests/physics.test.js
+├── tests/physics_cache.test.js
 ```

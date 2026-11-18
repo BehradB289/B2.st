@@ -1,49 +1,45 @@
 /**
- * چرخه بازی بر پایه Fixed Timestep با اکومولاتور زمان
+ * Fixed timestep game loop for deterministic physics simulation.
  */
 export class GameLoop {
-  constructor(updateFn, renderFn, fixedStep = 1 / 60) {
-    this.updateFn = updateFn;
-    this.renderFn = renderFn;
-    this.fixedStep = fixedStep;
-    this.accumulatedTime = 0;
+  constructor(updateFn, renderFn, timestep = 1 / 60) {
+    this.update = updateFn;
+    this.render = renderFn;
+    this.timestep = timestep;
     this.lastTime = 0;
-    this.isRunning = false;
+    this.accumulator = 0;
+    this.running = false;
     this.rafId = null;
-
-    this.tick = this.tick.bind(this);
   }
 
   start() {
-    if (this.isRunning) return;
-    this.isRunning = true;
+    this.running = true;
     this.lastTime = performance.now();
-    this.rafId = requestAnimationFrame(this.tick);
+    const frame = (time) => {
+      if (!this.running) return;
+      const delta = (time - this.lastTime) / 1000;
+      this.lastTime = time;
+
+      // Cap delta time to prevent spiral of death
+      this.accumulator += Math.min(delta, 0.1);
+
+      while (this.accumulator >= this.timestep) {
+        this.update(this.timestep);
+        this.accumulator -= this.timestep;
+      }
+
+      this.render();
+      this.rafId = requestAnimationFrame(frame);
+    };
+
+    this.rafId = requestAnimationFrame(frame);
   }
 
   stop() {
-    this.isRunning = false;
+    this.running = false;
     if (this.rafId) {
       cancelAnimationFrame(this.rafId);
       this.rafId = null;
     }
-  }
-
-  tick(currentTime) {
-    if (!this.isRunning) return;
-
-    let delta = (currentTime - this.lastTime) / 1000;
-    if (delta > 0.1) delta = 0.1; // جلوگیری از افت فاحش (spiral of death)
-
-    this.accumulatedTime += delta;
-    this.lastTime = currentTime;
-
-    while (this.accumulatedTime >= this.fixedStep) {
-      this.updateFn(this.fixedStep);
-      this.accumulatedTime -= this.fixedStep;
-    }
-
-    this.renderFn(this.accumulatedTime / this.fixedStep);
-    this.rafId = requestAnimationFrame(this.tick);
   }
 }

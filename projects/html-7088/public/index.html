@@ -1,29 +1,71 @@
 <!DOCTYPE html>
-<html lang="fa" dir="rtl">
+<html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <meta http-equiv="X-Content-Type-Options" content="nosniff">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' data: blob:;">
-    <title>Super Mario Bros - B2.st Hardened Edition</title>
-    <link rel="stylesheet" href="style.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Super Mario NES - B2.st Studio</title>
+  <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-    <div id="game-container">
-        <canvas id="gameCanvas" width="320" height="240"></canvas>
-        
-        <!-- لایه کنترلی لمسی برای موبایل (بدون تداخل با تاچ اسکرول مرورگر) -->
-        <div id="touch-controls">
-            <div class="touch-cluster dpad">
-                <button id="btn-left" class="t-btn" aria-label="Left">◀</button>
-                <button id="btn-right" class="t-btn" aria-label="Right">▶</button>
-            </div>
-            <div class="touch-cluster action">
-                <button id="btn-b" class="t-btn round" aria-label="Run">B</button>
-                <button id="btn-a" class="t-btn round" aria-label="Jump">A</button>
-            </div>
-        </div>
+
+  <div class="arcade-cabinet">
+    <div class="hud-panel">
+      <div class="hud-item">
+        <span>MARIO</span>
+        <span id="hud-score">000000</span>
+      </div>
+      <div class="hud-item">
+        <span>COINS</span>
+        <span id="hud-coins">🪙 x00</span>
+      </div>
+      <div class="hud-item">
+        <span>WORLD</span>
+        <span>1-1</span>
+      </div>
+      <div class="hud-item">
+        <span>TIME</span>
+        <span id="hud-time">400</span>
+      </div>
+      <div class="hud-item">
+        <span>LIVES</span>
+        <span id="hud-lives">x3</span>
+      </div>
     </div>
-    <script src="game.js"></script>
+
+    <div class="screen-container">
+      <canvas id="gameCanvas" width="256" height="240"></canvas>
+    </div>
+
+    <div class="instructions-bar">
+      Controls: <kbd>◀</kbd> <kbd>▶</kbd> Walk &bull; <kbd>Z</kbd> / <kbd>Space</kbd> Jump &bull; <kbd>X</kbd> / <kbd>Shift</kbd> Run
+    </div>
+  </div>
+
+  <script type="module">
+    import { GameEngine } from '../src/engine/GameEngine.js';
+
+    window.addEventListener('DOMContentLoaded', () => {
+      const canvas = document.getElementById('gameCanvas');
+      const engine = new GameEngine(canvas);
+
+      // HUD Element Bindings
+      const scoreEl = document.getElementById('hud-score');
+      const coinsEl = document.getElementById('hud-coins');
+      const timeEl = document.getElementById('hud-time');
+      const livesEl = document.getElementById('hud-lives');
+
+      const originalRender = engine.render.bind(engine);
+      engine.render = () => {
+        originalRender();
+        // Sync HUD with Player State
+        scoreEl.textContent = String(engine.mario.score).padStart(6, '0');
+        coinsEl.textContent = `🪙 x${String(engine.mario.coins).padStart(2, '0')}`;
+        timeEl.textContent = String(engine.timeRemaining).padStart(3, '0');
+        livesEl.textContent = `x${Math.max(0, engine.mario.lives)}`;
+      };
+
+      engine.start();
+    });
+  </script>
 </body>
 </html>

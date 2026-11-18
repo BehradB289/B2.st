@@ -1,126 +1,198 @@
-import { Entity } from './Entity.js';
-import { GameConfig } from '../../config/game_config.js';
-
 /**
- * موجودیت بازیکن اصلی ماریو
+ * Master Mario Entity - Complete State Machine, Morphing, Invincibility & Actions
  */
+
+import { Entity } from './Entity.js';
+import { CONFIG } from '../../config/game.config.js';
+import { Physics } from '../engine/Physics.js';
+import { Fireball } from './PowerUps.js';
+import { sound } from '../engine/Audio.js';
+
 export class Mario extends Entity {
-    /**
-     * @param {number} x 
-     * @param {number} y 
-     * @param {import('../levels/SpriteSheet.js').SpriteSheet} spriteSheet 
-     * @param {import('../engine/AudioEngine.js').AudioEngine} audio 
-     */
-    constructor(x, y, spriteSheet, audio) {
-        super(x, y, 14, 16); // محدوده برخورد فیزیکی دقیق
-        this.spriteSheet = spriteSheet;
-        this.audio = audio;
-        this.tag = 'mario';
+  constructor(x, y) {
+    super(x, y, 16, 16);
 
-        this.facingRight = true;
-        this.animTimer = 0;
-        this.animFrame = 0;
-        this.invulnerableTimer = 0;
+    this.powerState = 'SMALL'; // 'SMALL', 'SUPER', 'FIRE'
+    this.isCrouching = false;
+    this.isInvulnerable = false;
+    this.invulnerableTimer = 0;
+
+    this.isStarPowered = false;
+    this.starTimer = 0;
+
+    this.jumpHoldTimer = 0;
+    this.isJumping = false;
+
+    this.fireCooldown = 0;
+    this.comboCounter = 0;
+
+    this.wonGame = false;
+    this.slidingFlag = false;
+  }
+
+  growToSuper() {
+    if (this.powerState === 'SMALL') {
+      this.powerState = 'SUPER';
+      this.height = 32;
+      this.y -= 16;
+      sound.playPowerUp();
+    }
+  }
+
+  growToFire() {
+    this.growToSuper();
+    this.powerState = 'FIRE';
+    sound.playPowerUp();
+  }
+
+  activateStar() {
+    this.isStarPowered = true;
+    this.starTimer = CONFIG.MARIO.STAR_POWER_TIME;
+    sound.playPowerUp();
+  }
+
+  takeDamage() {
+    if (this.isInvulnerable || this.isStarPowered) return;
+
+    if (this.powerState === 'FIRE') {
+      this.powerState = 'SUPER';
+      this._makeInvulnerable();
+      sound.playPowerDown();
+    } else if (this.powerState === 'SUPER') {
+      this.powerState = 'SMALL';
+      this.height = 16;
+      this.y += 16;
+      this._makeInvulnerable();
+      sound.playPowerDown();
+    } else {
+      this.die();
+    }
+  }
+
+  _makeInvulnerable() {
+    this.isInvulnerable = true;
+    this.invulnerableTimer = CONFIG.MARIO.INVULNERABLE_TIME;
+  }
+
+  die() {
+    if (this.isDead) return;
+    this.isDead = true;
+    this.vx = 0;
+    this.vy = -340;
+    this.customGravity = 700;
+    sound.playDie();
+  }
+
+  update(dt, input, level, particleSystem, onSpawnFireball) {
+    if (this.isDead) {
+      this.vy += (this.customGravity || 700) * dt;
+      this.y += this.vy * dt;
+      return;
     }
 
-    update(dt, input) {
-        if (this.isDead) {
-            // شبیه‌سازی انیمیشن مرگ و جهش به بالا و سقوط
-            this.velocity.y += GameConfig.WORLD.GRAVITY * 0.7 * dt;
-            this.position.y += this.velocity.y * dt;
-            return;
-        }
-
-        // بررسی زمان مصونیت پس از آسیب
-        if (this.invulnerableTimer > 0) {
-            this.invulnerableTimer -= dt;
-        }
-
-        const accel = input.keys.run ? GameConfig.MARIO.RUN_ACCELERATION : GameConfig.MARIO.MOVE_ACCELERATION;
-        const maxSpeed = input.keys.run ? GameConfig.MARIO.MAX_RUN_SPEED : GameConfig.MARIO.MAX_WALK_SPEED;
-
-        // ورودی افقی
-        if (input.keys.right) {
-            this.velocity.x += accel * dt;
-            this.facingRight = true;
-        } else if (input.keys.left) {
-            this.velocity.x -= accel * dt;
-            this.facingRight = false;
-        } else {
-            // اعمال اصطکاک سطح
-            this.velocity.x *= GameConfig.WORLD.FRICTION;
-            if (Math.abs(this.velocity.x) < 5) this.velocity.x = 0;
-        }
-
-        // محدودسازی حداکثر سرعت افقی
-        if (this.velocity.x > maxSpeed) this.velocity.x = maxSpeed;
-        if (this.velocity.x < -maxSpeed) this.velocity.x = -maxSpeed;
-
-        // فرمان پرش
-        if (input.keys.jump && this.isGrounded) {
-            this.velocity.y = -GameConfig.MARIO.JUMP_FORCE;
-            this.isGrounded = false;
-            this.audio.playJump();
-        }
-
-        // اعمال گرانش جهانی
-        this.velocity.y += GameConfig.WORLD.GRAVITY * dt;
-        if (this.velocity.y > GameConfig.WORLD.MAX_FALL_SPEED) {
-            this.velocity.y = GameConfig.WORLD.MAX_FALL_SPEED;
-        }
-
-        // انیمیشن دویدن
-        if (Math.abs(this.velocity.x) > 10 && this.isGrounded) {
-            this.animTimer += dt * (Math.abs(this.velocity.x) / 10);
-            if (this.animTimer > 0.12) {
-                this.animFrame = (this.animFrame + 1) % 2;
-                this.animTimer = 0;
-            }
-        } else {
-            this.animFrame = 0;
-        }
+    if (this.slidingFlag) {
+      this.y += 100 * dt;
+      if (this.y >= 13 * CONFIG.TILES.SIZE - this.height) {
+        this.y = 13 * CONFIG.TILES.SIZE - this.height;
+        this.slidingFlag = false;
+        this.wonGame = true;
+      }
+      return;
     }
 
-    bounce() {
-        this.velocity.y = -GameConfig.MARIO.BOUNCE_FORCE;
-        this.isGrounded = false;
+    // Timers
+    if (this.isInvulnerable) {
+      this.invulnerableTimer -= dt;
+      if (this.invulnerableTimer <= 0) this.isInvulnerable = false;
     }
 
-    die() {
-        if (this.isDead) return;
-        this.isDead = true;
-        this.velocity.x = 0;
-        this.velocity.y = -260; // پرش کوتاه قبل از افتادن
-        this.audio.playDie();
+    if (this.isStarPowered) {
+      this.starTimer -= dt;
+      if (this.starTimer <= 0) this.isStarPowered = false;
     }
 
-    render(ctx, camera) {
-        // در صورت مصونیت چشمک بزند
-        if (this.invulnerableTimer > 0 && Math.floor(performance.now() / 60) % 2 === 0) {
-            return;
-        }
+    if (this.fireCooldown > 0) this.fireCooldown -= dt;
 
-        const renderX = Math.floor(this.position.x - camera.x);
-        const renderY = Math.floor(this.position.y - camera.y);
+    if (this.onGround) this.comboCounter = 0;
 
-        let sprite;
-        if (this.isDead) {
-            sprite = this.spriteSheet.getMarioJump();
-        } else if (!this.isGrounded) {
-            sprite = this.spriteSheet.getMarioJump();
-        } else if (Math.abs(this.velocity.x) > 10) {
-            sprite = this.spriteSheet.getMarioRun(this.animFrame);
-        } else {
-            sprite = this.spriteSheet.getMarioIdle();
-        }
+    // Crouch handling
+    this.isCrouching = this.powerState !== 'SMALL' && input.isDownAction && this.onGround;
 
-        ctx.save();
-        if (!this.facingRight) {
-            ctx.scale(-1, 1);
-            ctx.drawImage(sprite, -renderX - this.size.x, renderY);
-        } else {
-            ctx.drawImage(sprite, renderX, renderY);
-        }
-        ctx.restore();
+    // Horizontal Movement
+    const accel = input.isRunOrShoot ? CONFIG.MARIO.RUN_ACCEL : CONFIG.MARIO.WALK_ACCEL;
+    const maxSpeed = this.isStarPowered
+      ? CONFIG.MARIO.MAX_RUN_SPEED * 1.25
+      : input.isRunOrShoot
+      ? CONFIG.MARIO.MAX_RUN_SPEED
+      : CONFIG.MARIO.MAX_WALK_SPEED;
+
+    if (!this.isCrouching) {
+      if (input.isLeft) {
+        this.vx -= accel * dt;
+        this.facing = -1;
+      } else if (input.isRight) {
+        this.vx += accel * dt;
+        this.facing = 1;
+      } else {
+        // Apply friction
+        this.vx *= this.onGround ? CONFIG.PHYSICS.FRICTION : CONFIG.PHYSICS.AIR_RESISTANCE;
+        if (Math.abs(this.vx) < 5) this.vx = 0;
+      }
+    } else {
+      this.vx *= 0.8;
     }
+
+    // Speed clamping
+    if (this.vx > maxSpeed) this.vx = maxSpeed;
+    if (this.vx < -maxSpeed) this.vx = -maxSpeed;
+
+    // Jump Physics
+    if (input.isJumpJustPressed && this.onGround && !this.isCrouching) {
+      this.vy = CONFIG.MARIO.JUMP_IMPULSE;
+      this.isJumping = true;
+      this.jumpHoldTimer = CONFIG.MARIO.HIGH_JUMP_HOLD_TIME;
+      sound.playJump(this.powerState !== 'SMALL');
+    }
+
+    if (input.isJump && this.isJumping && this.jumpHoldTimer > 0) {
+      this.vy -= 400 * dt; // Sustained jump boost
+      this.jumpHoldTimer -= dt;
+    } else {
+      this.isJumping = false;
+    }
+
+    // Fireball attack
+    if (
+      this.powerState === 'FIRE' &&
+      input.isShootJustPressed &&
+      this.fireCooldown <= 0 &&
+      !this.isCrouching
+    ) {
+      const fbX = this.facing === 1 ? this.x + this.width : this.x - 8;
+      const fb = new Fireball(fbX, this.y + 6, this.facing);
+      onSpawnFireball(fb);
+      this.fireCooldown = 0.22;
+      sound.playFireball();
+    }
+
+    // Apply standard tilemap physics
+    Physics.resolveEntityVsTilemap(this, level, dt);
+
+    // Fall in pit death
+    if (this.y > CONFIG.CANVAS.INTERNAL_HEIGHT + 32) {
+      this.die();
+    }
+
+    // Animation frame progression
+    super.update(dt, level);
+  }
+
+  bounceOnEnemy() {
+    this.vy = CONFIG.MARIO.BOUNCE_IMPULSE;
+    this.comboCounter++;
+  }
+
+  onCollideCeiling(tx, ty, level) {
+    level.bumpBlock(tx, ty, this);
+  }
 }

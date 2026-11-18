@@ -1,0 +1,3 @@
+تمام تست‌های end-to-end پاس شدند. ✅
+
+===SUMMARY: ابزار CLI مدیریتی (src/cli.js) با ۹ دستور (init, serve, status, health, build, clean, level, test, info) و سرویس Health Monitor (src/core/health_monitor.js) با سیستم چک‌های چندلایه (حافظه، FPS، Entity، Uptime)، اندپوینت‌های /health و /metrics سازگار با Prometheus، سیستم رویداد، تاریخچه با سقف قابل تنظیم، و GameHealthMonitor برای استفاده درون‌بازی ساخته شد — به همراه تست‌های جامع واحد (۳۰+ تست) و مستندات کامل فارسی.===

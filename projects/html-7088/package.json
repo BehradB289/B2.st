@@ -1,0 +1,20 @@
+{
+  "name": "mario-engine-b2",
+  "version": "1.0.0",
+  "description": "Modular 2D Mario Platformer Engine built with ES6+ Canvas and lightweight ECS architecture for B2.st studio",
+  "type": "module",
+  "scripts": {
+    "test": "node tests/physics.test.js",
+    "start": "npx serve ."
+  },
+  "keywords": [
+    "mario",
+    "game-engine",
+    "physics",
+    "aabb",
+    "canvas-2d",
+    "b2-studio"
+  ],
+  "author": "B2.st Studio",
+  "license": "MIT"
+}

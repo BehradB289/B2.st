@@ -1,0 +1,31 @@
+# ==============================================================================
+# پی‌پاس (PayPass) - میکروسرویس امنیت محتوا، واترمارکینگ پویا و تحویل امن مدیا
+# معماری امنیتی B2.st: تمام پکیج‌ها پین شده، ایزوله و مقاوم در برابر CVE
+# ==============================================================================
+
+# Core & High-Performance Async Framework
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+pydantic==2.10.4
+pydantic-settings==2.7.0
+
+# Cryptography & Payload Integrity (Strictly Patched)
+cryptography==44.0.0
+PyJWT[crypto]==2.10.1
+argon2-cffi==23.1.0
+
+# Distributed Locking & Rate-Limiting Engine
+redis==5.2.1
+celery==5.4.0
+
+# Dynamic DRM, Media Processing & Anti-Tamper Engine
+pypdf==5.1.0
+pillow==11.0.0
+python-multipart==0.0.20
+
+# Safe Async HTTP Client (Preventing SSRF & Connection Hijack)
+httpx==0.28.1
+
+# Cloud Storage Delivery (Signed URLs)
+boto3==1.35.81
+botocore==1.35.81

@@ -8,13 +8,18 @@
 ## 🗂️ Folder Structure
 ```text
 projects/html-7088/
+├── .env.example
+├── Dockerfile
 ├── config/constants.js
 ├── config/database.config.js
 ├── config/game.config.js
 ├── config/game_config.js
+├── config/nginx.conf
+├── docker-compose.yml
 ├── docs/ARCHITECTURE.md
 ├── docs/DATABASE_SCHEMA.md
 ├── docs/DEBUG_SYNTAX.md
+├── docs/DEPLOYMENT.md
 ├── docs/TEST_SPEC.md
 ├── docs/architecture.md
 ├── docs/openapi.json
@@ -25,6 +30,9 @@ projects/html-7088/
 ├── public/style.css
 ├── public/styles.css
 ├── public/swagger.html
+├── scripts/deploy.sh
+├── scripts/rollback.sh
+├── src/.dockerignore
 ├── src/core/error_shield.js
 ├── src/core/memory_guard.js
 ├── src/core/performance_cache.js
@@ -36,6 +44,7 @@ projects/html-7088/
 ├── src/db/models/save_state_model.js
 ├── src/db/models/settings_model.js
 ├── src/db/security/crypto_vault.js
+├── src/docker-compose.dev.yml
 ├── src/engine/AABB.js
 ├── src/engine/Audio.js
 ├── src/engine/AudioEngine.js
@@ -69,6 +78,7 @@ projects/html-7088/
 ├── src/main.js
 ├── src/security/owasp_guard.js
 ├── src/services/network_retry.js
+├── src/utils/validator.js
 ├── src/vitest.config.js
 ├── src/world/Level.js
 ├── tests/collision.test.js

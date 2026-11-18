@@ -1,44 +1,39 @@
 /**
- * 2D Scrolling Camera with forward-only tracking lock (Classic NES Mario style)
- * Studio: B2.st
+ * @file Camera.js
+ * @description Dynamic tracking viewport camera with viewport clamping and smooth scrolling.
  */
+import { Vector2D } from './Vector2D.js';
 
 export class Camera {
-  constructor(viewportWidth = 256, viewportHeight = 240) {
+  constructor(viewportWidth, viewportHeight, levelWidth, levelHeight) {
     this.viewportWidth = viewportWidth;
     this.viewportHeight = viewportHeight;
-    this.x = 0;
-    this.y = 0;
-    this.deadZoneLeadX = viewportWidth * 0.45;
+    this.levelWidth = levelWidth;
+    this.levelHeight = levelHeight;
+    this.position = new Vector2D(0, 0);
+    this.target = null;
+    this.deadzoneX = viewportWidth * 0.35; // Mario leads until center-left
   }
 
-  update(targetX) {
-    const desiredX = targetX - this.deadZoneLeadX;
-    // In classic Mario 1-1, camera never scrolls backward
-    if (desiredX > this.x) {
-      this.x = desiredX;
+  follow(entity) {
+    this.target = entity;
+  }
+
+  update() {
+    if (!this.target) return;
+
+    // NES Mario camera primarily advances rightwards, but here allows smooth deadzone tracking
+    const targetScreenX = this.target.x - this.position.x;
+
+    if (targetScreenX > this.deadzoneX) {
+      this.position.x += (targetScreenX - this.deadzoneX);
     }
-  }
 
-  reset() {
-    this.x = 0;
-    this.y = 0;
-  }
-
-  isVisible(box) {
-    return (
-      box.right >= this.x &&
-      box.left <= this.x + this.viewportWidth &&
-      box.bottom >= this.y &&
-      box.top <= this.y + this.viewportHeight
-    );
-  }
-
-  worldToScreenX(worldX) {
-    return Math.floor(worldX - this.x);
-  }
-
-  worldToScreenY(worldY) {
-    return Math.floor(worldY - this.y);
+    // Clamp horizontally to level boundaries
+    const maxX = Math.max(0, this.levelWidth - this.viewportWidth);
+    this.position.x = Math.max(0, Math.min(this.position.x, maxX));
+    
+    // Fixed vertical camera matching classic NES 1-1 ground baseline
+    this.position.y = 0;
   }
 }

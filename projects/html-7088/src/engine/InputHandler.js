@@ -1,73 +1,83 @@
 /**
- * مدیریت کلیدهای صفحه‌کلید با پشتیبانی از سیستم ضدتداخل
+ * Cross-platform Keyboard and Virtual Touch Input Handler
  */
 export class InputHandler {
-    constructor() {
-        this.keys = {
-            left: false,
-            right: false,
-            jump: false,
-            run: false,
-            down: false
-        };
+  constructor() {
+    this.keys = new Map();
+    this.prevKeys = new Map();
 
-        this._setupListeners();
+    this.bindings = {
+      ArrowLeft: 'left',
+      KeyA: 'left',
+      ArrowRight: 'right',
+      KeyD: 'right',
+      ArrowUp: 'jump',
+      KeyW: 'jump',
+      Space: 'jump',
+      ShiftLeft: 'run',
+      KeyJ: 'run',
+      KeyK: 'jump',
+      KeyP: 'pause',
+      KeyM: 'mute'
+    };
+
+    this.state = {
+      left: false,
+      right: false,
+      jump: false,
+      run: false,
+      pause: false,
+      mute: false
+    };
+
+    this.justPressed = {
+      jump: false,
+      pause: false,
+      mute: false
+    };
+
+    this._bindEvents();
+  }
+
+  _bindEvents() {
+    window.addEventListener('keydown', (e) => {
+      const action = this.bindings[e.code];
+      if (action) {
+        if (!this.keys.get(action)) {
+          this.justPressed[action] = true;
+        }
+        this.keys.set(action, true);
+        if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) {
+          e.preventDefault();
+        }
+      }
+    });
+
+    window.addEventListener('keyup', (e) => {
+      const action = this.bindings[e.code];
+      if (action) {
+        this.keys.set(action, false);
+      }
+    });
+  }
+
+  update() {
+    for (const action in this.state) {
+      const isDown = !!this.keys.get(action);
+      this.state[action] = isDown;
     }
+  }
 
-    _setupListeners() {
-        window.addEventListener('keydown', (e) => {
-            switch (e.code) {
-                case 'ArrowLeft':
-                case 'KeyA':
-                    this.keys.left = true;
-                    break;
-                case 'ArrowRight':
-                case 'KeyD':
-                    this.keys.right = true;
-                    break;
-                case 'Space':
-                case 'KeyW':
-                case 'ArrowUp':
-                    this.keys.jump = true;
-                    e.preventDefault();
-                    break;
-                case 'ShiftLeft':
-                case 'ShiftRight':
-                case 'KeyJ':
-                    this.keys.run = true;
-                    break;
-                case 'ArrowDown':
-                case 'KeyS':
-                    this.keys.down = true;
-                    break;
-            }
-        });
-
-        window.addEventListener('keyup', (e) => {
-            switch (e.code) {
-                case 'ArrowLeft':
-                case 'KeyA':
-                    this.keys.left = false;
-                    break;
-                case 'ArrowRight':
-                case 'KeyD':
-                    this.keys.right = false;
-                    break;
-                case 'Space':
-                case 'KeyW':
-                case 'ArrowUp':
-                    this.keys.jump = false;
-                    break;
-                case 'ShiftLeft':
-                case 'ShiftRight':
-                case 'KeyJ':
-                    this.keys.run = false;
-                    break;
-                case 'ArrowDown':
-                case 'KeyS':
-                    this.keys.down = false;
-                    break;
-            }
-        });
+  postUpdate() {
+    for (const key in this.justPressed) {
+      this.justPressed[key] = false;
     }
+  }
+
+  setVirtualAction(action, isDown) {
+    if (isDown && !this.keys.get(action)) {
+      this.justPressed[action] = true;
+    }
+    this.keys.set(action, isDown);
+  }
 }

@@ -1,110 +1,35 @@
-/**
- * B2.st Studio | PayPass TypeScript Database Schema Definitions
- * تعاریف نوع‌داده‌های پایگاه‌داده Supabase برای آیتم‌ها و سفارش‌ها
- */
+export type ItemContentType = 'link' | 'text' | 'file' | 'license_key';
+export type OrderStatus = 'pending' | 'completed' | 'failed' | 'refunded';
 
-export type OrderStatus = 'pending' | 'completed' | 'failed';
-
-export interface Item {
+export interface ItemRecord {
   id: string;
-  slug: string;
+  creator_id: string;
   title: string;
-  encrypted_content: string;
+  description: string | null;
   price: number;
-  seller_iban: string;
+  currency: string;
+  encrypted_content: string;
+  content_type: ItemContentType;
+  slug: string;
   is_active: boolean;
   created_at: string;
   updated_at: string;
 }
 
-export interface ItemPublic {
-  id: string;
-  slug: string;
-  title: string;
-  price: number;
-  created_at: string;
-}
-
-export interface Order {
+export interface OrderRecord {
   id: string;
   item_id: string;
-  gateway_authority: string;
   amount: number;
   platform_fee: number;
+  creator_amount: number;
+  currency: string;
+  authority: string | null;
+  ref_id: string | null;
+  card_pan: string | null;
+  buyer_email: string | null;
+  buyer_phone: string | null;
   status: OrderStatus;
-  customer_identifier: string | null;
-  payment_metadata: Record<string, unknown> | null;
   created_at: string;
   updated_at: string;
-}
-
-export interface Database {
-  public: {
-    Tables: {
-      items: {
-        Row: Item;
-        Insert: {
-          id?: string;
-          slug: string;
-          title?: string;
-          encrypted_content: string;
-          price: number;
-          seller_iban: string;
-          is_active?: boolean;
-          created_at?: string;
-          updated_at?: string;
-        };
-        Update: {
-          id?: string;
-          slug?: string;
-          title?: string;
-          encrypted_content?: string;
-          price?: number;
-          seller_iban?: string;
-          is_active?: boolean;
-          updated_at?: string;
-        };
-      };
-      orders: {
-        Row: Order;
-        Insert: {
-          id?: string;
-          item_id: string;
-          gateway_authority: string;
-          amount: number;
-          platform_fee: number;
-          status?: OrderStatus;
-          customer_identifier?: string | null;
-          payment_metadata?: Record<string, unknown> | null;
-          created_at?: string;
-          updated_at?: string;
-        };
-        Update: {
-          id?: string;
-          item_id?: string;
-          gateway_authority?: string;
-          amount?: number;
-          platform_fee?: number;
-          status?: OrderStatus;
-          customer_identifier?: string | null;
-          payment_metadata?: Record<string, unknown> | null;
-          updated_at?: string;
-        };
-      };
-    };
-    Views: {
-      items_public: {
-        Row: ItemPublic;
-      };
-    };
-    Functions: {
-      calculate_platform_fee: {
-        Args: { amount: number };
-        Returns: number;
-      };
-    };
-    Enums: {
-      order_status: OrderStatus;
-    };
-  };
+  verified_at: string | null;
 }

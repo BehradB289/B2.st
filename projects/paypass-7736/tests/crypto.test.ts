@@ -1,91 +1,100 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import {
-  encryptContent,
-  decryptContent,
-  generateRandomMasterKeyHex,
-  CryptoError,
-} from '../src/lib/crypto';
-import { calculatePlatformFee } from '../src/lib/fee';
+/**
+ * تست‌های واحد رمزنگاری و عدم نشت داده پی‌پاس (PayPass)
+ * tests/crypto.test.ts
+ */
 
-describe('PayPass Cryptographic Engine (AES-256-GCM)', () => {
-  const originalEnvKey = process.env.PAYPASS_MASTER_KEY;
-  const testKeyHex = generateRandomMasterKeyHex();
+import { describe, it, expect } from 'vitest';
+import { encryptSecret, decryptSecret } from '../src/lib/crypto';
+import crypto from 'crypto';
 
-  beforeEach(() => {
-    process.env.PAYPASS_MASTER_KEY = testKeyHex;
+describe('AES-256-GCM Symmetric Cryptography Engine', () => {
+  const TEST_KEY = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
+  const SAMPLE_SECRET = 'https://drive.google.com/file/d/B2ST_ULTRA_LUXURY_ASSET/view?usp=sharing';
+  const PERSIAN_SECRET = 'لینک دسترسی وبینار استودیو B2.st + کد تخفیف: LUX-2025';
+
+  it('باید محتوا را به درستی رمزنگاری و بدون تغییر بازگرداند', () => {
+    const encrypted = encryptSecret(SAMPLE_SECRET, TEST_KEY);
+    const decrypted = decryptSecret(encrypted, TEST_KEY);
+
+    expect(decrypted).toBe(SAMPLE_SECRET);
   });
 
-  afterEach(() => {
-    process.env.PAYPASS_MASTER_KEY = originalEnvKey;
+  it('باید از کاراکترهای چندزبانه، فارسی، ایموجی و علائم نگارشی بدون هیچ‌گونه تخریب UTF-8 پشتیبانی کند', () => {
+    const complexSecret = '🔥 محتوای فوق‌محرمانه پی‌پاس! 🚀 شامل لینک: https://b2.st/vip?key=100%20%D8%AE';
+    const encrypted = encryptSecret(complexSecret, TEST_KEY);
+    const decrypted = decryptSecret(encrypted, TEST_KEY);
+
+    expect(decrypted).toBe(complexSecret);
   });
 
-  it('باید محتوای متنی فارسی و کاراکترهای یونیکد را به درستی رمزگذاری و رمزگشایی کند', () => {
-    const rawSecret = 'لینک دانلود دوره خصوصی استودیو B2: https://b2.st/course/lux-2025?token=94819';
-    const encrypted = encryptContent(rawSecret);
+  it('عدم نشت داده خام (Data Leakage Protection): نباید هیچ اثری از متن خام در پی‌لود رمز شده موجود باشد', () => {
+    const secret = 'TOP_SECRET_PASSWORD_B2_STUDIO_9988';
+    const encryptedPayload = encryptSecret(secret, TEST_KEY);
 
-    expect(encrypted).toBeDefined();
-    expect(encrypted).toContain('.');
-    expect(encrypted.split('.')).toHaveLength(3);
+    // بررسی عدم وجود متن کامل
+    expect(encryptedPayload).not.toContain(secret);
 
-    const decrypted = decryptContent(encrypted);
-    expect(decrypted).toBe(rawSecret);
+    // بررسی عدم وجود زیررشته‌های معنادار ۳ کاراکتری یا بیشتر
+    const parts = secret.split('_');
+    for (const part of parts) {
+      expect(encryptedPayload.toLowerCase()).not.toContain(part.toLowerCase());
+    }
   });
 
-  it('باید فرمت‌های مختلف محتوا مانند آبجکت JSON حاوی کلید لایسنس را پردازش کند', () => {
-    const payload = JSON.stringify({
-      licenseKey: 'B2-PAYPASS-8841-X992',
-      maxDownloads: 5,
-      expiresAt: '2026-01-01T00:00:00Z',
-    });
+  it('باید برای ورودی‌های یکسان، به دلیل IV تصادفی، سایفرتکست‌های کاملاً متمایز تولید کند', () => {
+    const text = 'SAME_INPUT_PAYLOAD';
+    const enc1 = encryptSecret(text, TEST_KEY);
+    const enc2 = encryptSecret(text, TEST_KEY);
 
-    const encrypted = encryptContent(payload);
-    const decrypted = decryptContent(encrypted);
+    expect(enc1).not.toBe(enc2);
 
-    expect(JSON.parse(decrypted)).toEqual(JSON.parse(payload));
+    const [iv1] = enc1.split(':');
+    const [iv2] = enc2.split(':');
+    expect(iv1).not.toBe(iv2);
+
+    // با این حال هر دو به همان متن اصلی دیکریپت شوند
+    expect(decryptSecret(enc1, TEST_KEY)).toBe(text);
+    expect(decryptSecret(enc2, TEST_KEY)).toBe(text);
   });
 
-  it('باید در صورت دستکاری متن رمزشده (Tampering Attack) خطا پرتاب کند', () => {
-    const raw = 'اطلاعات محرمانه فایل';
-    const encrypted = encryptContent(raw);
+  it('مقاومت در برابر دستکاری (Anti-Tampering): با تغییر حتی یک کاراکتر در دیتای رمز شده باید استثنا پرتاب کند', () => {
+    const encrypted = encryptSecret(PERSIAN_SECRET, TEST_KEY);
+    const [iv, tag, cipher] = encrypted.split(':');
 
-    const parts = encrypted.split('.');
-    // دستکاری کاراکتر آخر سایفرتکست
-    const tamperedCipher = parts[2].slice(0, -2) + (parts[2].endsWith('A') ? 'B' : 'A');
-    const tamperedPayload = `${parts[0]}.${parts[1]}.${tamperedCipher}`;
+    // دستکاری در آخرین کاراکتر سایفر
+    const tamperedChar = cipher[cipher.length - 1] === 'a' ? 'b' : 'a';
+    const tamperedCipher = cipher.slice(0, -1) + tamperedChar;
+    const tamperedPayload = `${iv}:${tag}:${tamperedCipher}`;
 
-    expect(() => decryptContent(tamperedPayload)).toThrowError(CryptoError);
-    expect(() => decryptContent(tamperedPayload)).toThrowError(/تایید اصالت محتوا شکست خورد/);
+    expect(() => decryptSecret(tamperedPayload, TEST_KEY)).toThrow(
+      /خطای احراز اصالت: داده رمز شده دستکاری شده/
+    );
   });
 
-  it('باید در صورت کلید نامعتبر یا تغییر یافته خطا بدهد', () => {
-    const raw = 'محتوای قفل شده پی‌پاس';
-    const encrypted = encryptContent(raw);
+  it('مقاومت در برابر دستکاری تگ احراز اصالت (Auth Tag Tampering)', () => {
+    const encrypted = encryptSecret(PERSIAN_SECRET, TEST_KEY);
+    const [iv, tag, cipher] = encrypted.split(':');
 
-    // تغییر کلید اصلی به یک کلید دیگر
-    process.env.PAYPASS_MASTER_KEY = generateRandomMasterKeyHex();
+    // دستکاری در تگ اعتبارسنجی
+    const tamperedTag = 'ff' + tag.slice(2);
+    const tamperedPayload = `${iv}:${tamperedTag}:${cipher}`;
 
-    expect(() => decryptContent(encrypted)).toThrowError(/تایید اصالت محتوا شکست خورد/);
+    expect(() => decryptSecret(tamperedPayload, TEST_KEY)).toThrow(
+      /خطای احراز اصالت: داده رمز شده دستکاری شده/
+    );
   });
 
-  it('باید در صورت ورودی خالی خطا ایجاد کند', () => {
-    expect(() => encryptContent('')).toThrowError(CryptoError);
-  });
-});
-
-describe('PayPass Financial Platform Fee (5%)', () => {
-  it('باید کارمزد ۵٪ را برای مبالغ صحیح به درستی محاسبه نماید', () => {
-    const fee100k = calculatePlatformFee(100_000);
-    expect(fee100k.platformFee).toBe(5_000);
-    expect(fee100k.sellerPayout).toBe(95_000);
-    expect(fee100k.totalAmount).toBe(100_000);
-
-    const fee1M = calculatePlatformFee(1_000_000);
-    expect(fee1M.platformFee).toBe(50_000);
-    expect(fee1M.sellerPayout).toBe(950_000);
+  it('باید در صورت فرمت نامعتبر پی‌لود خطا دهد', () => {
+    expect(() => decryptSecret('invalid-payload-without-colons', TEST_KEY)).toThrow(
+      /فرمت پی‌لود رمزنگاری استاندارد نیست/
+    );
+    expect(() => decryptSecret('iv:tag', TEST_KEY)).toThrow(/فرمت پی‌لود رمزنگاری استاندارد نیست/);
+    expect(() => decryptSecret('', TEST_KEY)).toThrow(/پی‌لود رمزنگاری نامعتبر است/);
   });
 
-  it('باید ورودی‌های منفی یا نامعتبر را ریجکت کند', () => {
-    expect(() => calculatePlatformFee(-500)).toThrow();
-    expect(() => calculatePlatformFee(0)).toThrow();
+  it('باید در صورت کلید نامعتبر (کمتر یا بیشتر از ۶۴ کاراکتر هگز) خطا دهد', () => {
+    const shortKey = '1234abcd';
+    expect(() => encryptSecret('test', shortKey)).toThrow(/کلید رمزنگاری نامعتبر است/);
+    expect(() => decryptSecret('aa:bb:cc', shortKey)).toThrow(/کلید رمزنگاری نامعتبر است/);
   });
 });

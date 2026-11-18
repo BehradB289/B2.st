@@ -1,37 +1,36 @@
+import { Vector2D } from '../engine/Vector2D.js';
+
 /**
- * Base Game Entity Class
+ * Base Entity Component System Object
  */
-
 export class Entity {
-  constructor(x, y, width, height) {
-    this.x = x;
-    this.y = y;
-    this.width = width;
-    this.height = height;
+  constructor(x = 0, y = 0, width = 16, height = 16, tag = 'entity') {
+    this.position = new Vector2D(x, y);
+    this.velocity = new Vector2D(0, 0);
+    this.size = new Vector2D(width, height);
+    this.collisionOffset = new Vector2D(0, 0);
+    this.tag = tag;
 
-    this.vx = 0;
-    this.vy = 0;
-    this.onGround = false;
+    this.isGrounded = false;
     this.isDead = false;
-    this.facing = 1; // 1: Right, -1: Left
-    this.animTimer = 0;
-    this.animFrame = 0;
+    this.markedForRemoval = false;
+    this.dt = 1 / 60;
   }
 
-  update(dt, level) {
-    this.animTimer += dt;
-    if (this.animTimer > 0.12) {
-      this.animTimer = 0;
-      this.animFrame = (this.animFrame + 1) % 4;
-    }
-  }
-
-  get bounds() {
+  getBounds() {
     return {
-      x: this.x,
-      y: this.y,
-      width: this.width,
-      height: this.height
+      x: this.position.x + this.collisionOffset.x,
+      y: this.position.y + this.collisionOffset.y,
+      width: this.size.x,
+      height: this.size.y
     };
+  }
+
+  update(dt) {
+    this.dt = dt;
+  }
+
+  render(ctx, camera) {
+    // Base render placeholder overridden by subclasses
   }
 }

@@ -9,11 +9,20 @@
 ```text
 projects/paypass-7736/
 ├── .env.example
+├── config/env.ts
 ├── config/supabase.sql
 ├── docs/ARCHITECTURE_CRYPTO.md
+├── docs/PAYMENT_FLOW.md
+├── src/app/actions/payment.ts
+├── src/app/checkout/verify/page.tsx
 ├── src/lib/crypto.ts
 ├── src/lib/fee.ts
+├── src/lib/payment/zarinpal.ts
 ├── src/lib/supabase.ts
+├── src/lib/supabase/server.ts
 ├── src/types/database.ts
+├── src/types/payment.ts
+├── supabase/migrations/20240101_init_paypass.sql
 ├── tests/crypto.test.ts
+├── tests/payment.test.ts
 ```

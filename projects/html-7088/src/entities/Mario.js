@@ -1,138 +1,130 @@
-import { Entity } from './Entity.js';
-import { GAME_CONFIG } from '../../config/game.config.js';
-
 /**
- * Super Mario Character Entity
+ * Mario Player Entity
+ * Studio: B2.st
  */
+
+import { Entity } from './Entity.js';
+import { MARIO_CONFIG, SCORES } from '../../config/constants.js';
+
 export class Mario extends Entity {
-  constructor(x, y) {
-    super(x, y, 14, 16, 'mario');
-    this.facing = 1; // 1: Right, -1: Left
-    this.state = 'SMALL'; // SMALL | SUPER | DEAD
+  constructor(x = 32, y = 160) {
+    super(x, y, MARIO_CONFIG.WIDTH, MARIO_CONFIG.HEIGHT, 'mario');
+    this.lives = MARIO_CONFIG.INITIAL_LIVES;
+    this.score = 0;
+    this.coins = 0;
+    this.isBig = false;
     this.invulnerableTimer = 0;
-    this.jumpTimer = 0;
-    this.isJumping = false;
-    this.walkAnimTimer = 0;
-    this.walkFrame = 0;
+    this.animFrame = 0;
+    this.animTimer = 0;
   }
 
-  update(dt, input, soundEngine) {
-    super.update(dt);
-
-    if (this.state === 'DEAD') {
-      this.position.y += this.velocity.y * dt;
-      this.velocity.y += 600 * dt;
+  update(dt, input) {
+    if (!this.isAlive) {
+      this.invulnerableTimer = 0;
       return;
     }
 
     if (this.invulnerableTimer > 0) {
-      this.invulnerableTimer -= dt;
+      this.invulnerableTimer = Math.max(0, this.invulnerableTimer - dt);
     }
 
-    const { WALK_SPEED, RUN_SPEED, ACCELERATION, FRICTION, JUMP_FORCE, JUMP_HOLD_GRAVITY_MOD } =
-      GAME_CONFIG.PHYSICS;
+    if (!input) return;
 
-    const maxSpeed = input.state.run ? RUN_SPEED : WALK_SPEED;
+    const currentSpeed = input.keys.run ? MARIO_CONFIG.RUN_SPEED : MARIO_CONFIG.WALK_SPEED;
 
-    // Horizontal Movement
-    if (input.state.left) {
+    if (input.keys.left && !input.keys.right) {
+      this.vx = -currentSpeed;
       this.facing = -1;
-      if (this.velocity.x > 0) {
-        this.velocity.x -= FRICTION * 1.5 * dt; // Turn-around skidding
-      } else {
-        this.velocity.x = Math.max(-maxSpeed, this.velocity.x - ACCELERATION * dt);
-      }
-    } else if (input.state.right) {
+    } else if (input.keys.right && !input.keys.left) {
+      this.vx = currentSpeed;
       this.facing = 1;
-      if (this.velocity.x < 0) {
-        this.velocity.x += FRICTION * 1.5 * dt; // Turn-around skidding
-      } else {
-        this.velocity.x = Math.min(maxSpeed, this.velocity.x + ACCELERATION * dt);
-      }
     } else {
-      // Natural Deceleration / Friction
-      if (this.velocity.x > 0) {
-        this.velocity.x = Math.max(0, this.velocity.x - FRICTION * dt);
-      } else if (this.velocity.x < 0) {
-        this.velocity.x = Math.min(0, this.velocity.x + FRICTION * dt);
-      }
+      this.vx = 0;
     }
 
-    // Animation cycle
-    if (this.isGrounded && Math.abs(this.velocity.x) > 10) {
-      this.walkAnimTimer += dt * (Math.abs(this.velocity.x) / 30);
-      this.walkFrame = Math.floor(this.walkAnimTimer) % 3;
-    } else {
-      this.walkFrame = 0;
-    }
-
-    // Jump Logic with Variable Height Impulse
-    if (input.justPressed.jump && this.isGrounded) {
-      this.velocity.y = JUMP_FORCE;
+    if (input.keys.jump && this.isGrounded) {
+      this.vy = MARIO_CONFIG.JUMP_FORCE;
       this.isGrounded = false;
-      this.isJumping = true;
-      soundEngine?.playJump();
     }
 
-    // Variable Jump Cutoff
-    if (!input.state.jump && this.velocity.y < 0) {
-      this.velocity.y += GAME_CONFIG.PHYSICS.GRAVITY * JUMP_HOLD_GRAVITY_MOD * dt;
+    // Animation frame progression
+    if (this.vx !== 0 && this.isGrounded) {
+      this.animTimer += dt;
+      if (this.animTimer > 0.08) {
+        this.animTimer = 0;
+        this.animFrame = (this.animFrame + 1) % 3;
+      }
+    } else {
+      this.animFrame = 0;
     }
   }
 
-  kill(soundEngine) {
-    if (this.state === 'DEAD') return;
-    this.state = 'DEAD';
-    this.velocity.set(0, -320);
-    soundEngine?.playDeath();
+  stomp() {
+    this.vy = MARIO_CONFIG.BOUNCE_FORCE;
+    this.isGrounded = false;
+    this.score += SCORES.GOOMBA_STOMP;
+  }
+
+  collectCoin() {
+    this.coins += 1;
+    this.score += SCORES.COIN;
+    if (this.coins >= 100) {
+      this.lives += 1;
+      this.coins -= 100;
+    }
+  }
+
+  takeDamage() {
+    if (this.invulnerableTimer > 0) return false;
+
+    if (this.isBig) {
+      this.isBig = false;
+      this.height = MARIO_CONFIG.HEIGHT;
+      this.invulnerableTimer = MARIO_CONFIG.INVULNERABILITY_TIME;
+      return true;
+    }
+
+    this.lives -= 1;
+    if (this.lives <= 0) {
+      this.die();
+    } else {
+      this.invulnerableTimer = MARIO_CONFIG.INVULNERABILITY_TIME;
+    }
+    return true;
+  }
+
+  die() {
+    this.isAlive = false;
+    this.vx = 0;
+    this.vy = MARIO_CONFIG.BOUNCE_FORCE;
   }
 
   render(ctx, camera) {
-    if (this.invulnerableTimer > 0 && Math.floor(Date.now() / 80) % 2 === 0) {
-      return; // Flicker effect when invincible
-    }
+    if (!ctx) return;
+    const sx = camera ? camera.worldToScreenX(this.x) : this.x;
+    const sy = camera ? camera.worldToScreenY(this.y) : this.y;
 
-    const screenPos = camera.worldToScreen(this.position.x, this.position.y);
-    const w = this.size.x;
-    const h = this.size.y;
+    // Flickering during invulnerability
+    if (this.invulnerableTimer > 0 && Math.floor(this.invulnerableTimer * 15) % 2 === 0) {
+      return;
+    }
 
     ctx.save();
-    ctx.translate(screenPos.x + w / 2, screenPos.y + h / 2);
-    if (this.facing === -1) {
-      ctx.scale(-1, 1);
-    }
+    // NES Classic Mario Colors: Red (#B81800), Brown (#887000)
+    ctx.fillStyle = '#b81800';
+    ctx.fillRect(sx, sy, this.width, this.height);
 
-    // Pixel Art Procedural Canvas Drawing: Classic Red/Blue 8-bit Mario
-    ctx.fillStyle = '#b81c00'; // Mario Red cap and shirt
-    ctx.fillRect(-w / 2 + 3, -h / 2, 8, 4); // Cap
-    ctx.fillRect(-w / 2 + 1, -h / 2 + 4, 11, 2); // Cap brim
+    // Overalls
+    ctx.fillStyle = '#0020a0';
+    ctx.fillRect(sx + 2, sy + 6, this.width - 4, this.height - 6);
 
-    ctx.fillStyle = '#fce4a6'; // Face peach
-    ctx.fillRect(-w / 2 + 2, -h / 2 + 4, 8, 4);
-    ctx.fillStyle = '#5c4800'; // Hair & mustache
-    ctx.fillRect(-w / 2 + 1, -h / 2 + 4, 3, 2);
-    ctx.fillRect(-w / 2 + 5, -h / 2 + 6, 4, 2);
-
-    // Overalls (Blue)
-    ctx.fillStyle = '#0020d0';
-    ctx.fillRect(-w / 2 + 2, -h / 2 + 8, 10, 5);
-
-    // Red Sleeves
-    ctx.fillStyle = '#b81c00';
-    ctx.fillRect(-w / 2 + (this.walkFrame === 1 ? 0 : 1), -h / 2 + 8, 2, 4);
-    ctx.fillRect(-w / 2 + 11, -h / 2 + 8, 2, 4);
-
-    // Shoes (Brown)
-    ctx.fillStyle = '#5c4800';
-    if (!this.isGrounded) {
-      // Jumping pose
-      ctx.fillRect(-w / 2 - 1, -h / 2 + 13, 6, 3);
-      ctx.fillRect(-w / 2 + 8, -h / 2 + 11, 6, 3);
+    // Hat visor indication
+    ctx.fillStyle = '#b81800';
+    if (this.facing === 1) {
+      ctx.fillRect(sx + 8, sy + 2, 4, 3);
     } else {
-      ctx.fillRect(-w / 2 + (this.walkFrame * 2), -h / 2 + 13, 5, 3);
-      ctx.fillRect(-w / 2 + 7 - (this.walkFrame * 1.5), -h / 2 + 13, 5, 3);
+      ctx.fillRect(sx + 2, sy + 2, 4, 3);
     }
-
     ctx.restore();
   }
 }

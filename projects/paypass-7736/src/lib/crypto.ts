@@ -1,82 +1,44 @@
-/**
- * ماژول فوق‌امن رمزنگاری متقارن پی‌پاس (PayPass) - B2.st Studio
- * مبتنی بر الگوریتم استاندارد صنعتی AES-256-GCM
- */
+import crypto from "crypto";
 
-import crypto from 'crypto';
+const ALGORITHM = "aes-256-gcm";
+// Fallback key provided for zero-config test environments; MUST be replaced in production
+const SECRET_KEY = Buffer.from(
+  (process.env.PAYPASS_SECRET_KEY || "e8a0f95b583f71c4c9528f8f0412803b9b46e3dca18b6ecba59218d6e3c847a1").padEnd(64, "0").slice(0, 64),
+  "hex"
+);
 
-const ALGORITHM = 'aes-256-gcm';
-const IV_LENGTH = 16; // 128 bits
-const DEFAULT_KEY_HEX = process.env.PAYPASS_ENCRYPTION_KEY || '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
-
-/**
- * دریافت و اعتبارسنجی کلید رمزنگاری ۲۵۶ بیتی
- */
-function getCipherKey(keyHex?: string): Buffer {
-  const hex = keyHex || DEFAULT_KEY_HEX;
-  if (!hex || hex.length !== 64) {
-    throw new Error('کلید رمزنگاری نامعتبر است: کلید باید دقیقا ۶۴ کاراکتر هگزادسیمال (۲۵۶ بیت) باشد.');
-  }
-  return Buffer.from(hex, 'hex');
+export interface EncryptedPayload {
+  ciphertext: string;
+  iv: string;
+  authTag: string;
 }
 
 /**
- * رمزنگاری متقارن متن حساس قبل از ذخیره‌سازی در پایگاه‌داده
- * خروجی: فرمت ساختاریافته "ivHex:authTagHex:cipherHex"
+ * Encrypts plain text using AES-256-GCM.
  */
-export function encryptSecret(plainText: string, keyHex?: string): string {
-  if (plainText === undefined || plainText === null) {
-    throw new Error('ورودی متن جهت رمزنگاری نمی‌تواند تهی باشد.');
-  }
+export function encryptContent(plainText: string): EncryptedPayload {
+  const iv = crypto.randomBytes(12); // Standard 96-bit nonce for GCM
+  const cipher = crypto.createCipheriv(ALGORITHM, SECRET_KEY, iv);
 
-  const key = getCipherKey(keyHex);
-  const iv = crypto.randomBytes(IV_LENGTH);
-  const cipher = crypto.createCipheriv(ALGORITHM, key, iv);
+  let encrypted = cipher.update(plainText, "utf8", "hex");
+  encrypted += cipher.final("hex");
+  const authTag = cipher.getAuthTag().toString("hex");
 
-  let encrypted = cipher.update(plainText, 'utf8', 'hex');
-  encrypted += cipher.final('hex');
-
-  const authTag = cipher.getAuthTag().toString('hex');
-
-  return `${iv.toString('hex')}:${authTag}:${encrypted}`;
+  return {
+    ciphertext: encrypted,
+    iv: iv.toString("hex"),
+    authTag: authTag,
+  };
 }
 
 /**
- * رمزگشایی متن پس از تایید موفقیت تراکنش بانکی
- * بررسی صحت تگ احراز اصالت (Authentication Tag) برای جلوگیری از تامپرینگ
+ * Decrypts AES-256-GCM ciphertext using the IV and authentication tag.
  */
-export function decryptSecret(payload: string, keyHex?: string): string {
-  if (!payload || typeof payload !== 'string') {
-    throw new Error('پی‌لود رمزنگاری نامعتبر است.');
-  }
+export function decryptContent(ciphertext: string, iv: string, authTag: string): string {
+  const decipher = crypto.createDecipheriv(ALGORITHM, SECRET_KEY, Buffer.from(iv, "hex"));
+  decipher.setAuthTag(Buffer.from(authTag, "hex"));
 
-  const parts = payload.split(':');
-  if (parts.length !== 3) {
-    throw new Error('فرمت پی‌لود رمزنگاری استاندارد نیست (انتظار iv:tag:data).');
-  }
-
-  const [ivHex, authTagHex, cipherHex] = parts;
-
-  if (!ivHex || !authTagHex || !cipherHex) {
-    throw new Error('بخش‌های پی‌لود رمزنگاری ناقص است.');
-  }
-
-  const key = getCipherKey(keyHex);
-  const iv = Buffer.from(ivHex, 'hex');
-  const authTag = Buffer.from(authTagHex, 'hex');
-
-  if (iv.length !== IV_LENGTH) {
-    throw new Error('طول بردار مقداردهی اولیه (IV) نامعتبر است.');
-  }
-
-  const decipher = crypto.createDecipheriv(ALGORITHM, key, iv);
-  decipher.setAuthTag(authTag);
-
-  try {
-    let decrypted = decipher.update(cipherHex, 'hex', 'utf8');
-    decrypted += decipher.final('utf8');
-    return decrypted;
-  } catch (err) {
-    throw new Error('خطای احراز اصالت: داده رمز شده دستکاری شده یا کلید نامعتبر است.');
-  }
+  let decrypted = decipher.update(ciphertext, "hex", "utf8");
+  decrypted += decipher.final("utf8");
+  return decrypted;
 }

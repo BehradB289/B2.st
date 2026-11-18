@@ -1,44 +1,14 @@
-```json
 {
-  "name": "mario-game-b2st",
+  "name": "b2-retro-mario-engine",
   "version": "1.0.0",
-  "description": "Super Mario Bros HTML5 Game - B2.st Studio",
-  "main": "index.html",
+  "description": "High-performance modular NES Mario engine with In-Memory Cache and Rate Limiter",
+  "type": "module",
+  "main": "src/main.js",
   "scripts": {
-    "start": "npx http-server . -p 8080 -o",
-    "dev": "npx http-server . -p 3000 -c-1 -o",
-    "build": "node config/build.js",
-    "lint": "npx eslint src/ --ext .js",
-    "test": "node config/test_runner.js",
-    "validate:env": "node config/env_config.js --validate",
-    "security:audit": "npm audit --production",
-    "clean": "node config/clean.js"
+    "start": "npx serve .",
+    "test": "node tests/physics.test.js"
   },
-  "keywords": [
-    "mario",
-    "html5-game",
-    "canvas",
-    "platformer",
-    "b2st"
-  ],
+  "keywords": ["mario", "canvas2d", "game-engine", "ecs", "cache", "rate-limiter"],
   "author": "B2.st Studio",
-  "license": "MIT",
-  "devDependencies": {
-    "http-server": "^14.1.1",
-    "eslint": "^8.56.0"
-  },
-  "engines": {
-    "node": ">=16.0.0",
-    "npm": ">=8.0.0"
-  },
-  "browserslist": [
-    "> 1%",
-    "last 2 versions",
-    "not dead"
-  ],
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/b2st/mario-game"
-  }
+  "license": "MIT"
 }
-```

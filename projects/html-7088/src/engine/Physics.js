@@ -1,110 +1,83 @@
 /**
- * موتور فیزیک AABB با تفکیک محورها و مدیریت برخورد ماریو با نقشه و بلوک‌ها
+ * موتور فیزیک AABB و آشکارساز برخورد با سطوح تایل‌مپ
  */
 export class Physics {
-  constructor(gravity = 1100) {
-    this.gravity = gravity;
-  }
-
-  /**
-   * اعمال گرانش به کاراکتر
-   */
-  applyGravity(entity, dt) {
-    if (!entity.isGrounded) {
-      entity.vel.y += this.gravity * dt;
-      // سقف سرعت سقوط
-      if (entity.vel.y > 550) {
-        entity.vel.y = 550;
-      }
-    }
-  }
-
-  /**
-   * حل برخورد موجودیت با بلوک‌های نقشه تایل با تفکیک X و Y
-   */
-  resolveEntityTileMap(entity, tileMap, camera, dt) {
-    // ۱. حرکت در راستای افقی
-    entity.pos.x += entity.vel.x * dt;
-
-    // مهار با دیواره سمت چپ کادر دوربین
-    if (camera && entity.pos.x < camera.x) {
-      entity.pos.x = camera.x;
-      if (entity.vel.x < 0) entity.vel.x = 0;
+    /**
+     * بررسی تداخل دو جعبه محاطی (Axis-Aligned Bounding Box)
+     * @param {Object} a {x, y, width, height}
+     * @param {Object} b {x, y, width, height}
+     * @returns {boolean}
+     */
+    static checkAABB(a, b) {
+        return (
+            a.x < b.x + b.width &&
+            a.x + a.width > b.x &&
+            a.y < b.y + b.height &&
+            a.y + a.height > b.y
+        );
     }
 
-    this.checkHorizontalCollisions(entity, tileMap);
+    /**
+     * حل و فصل برخوردهای موجود بین موجودیت و تایل‌های جامد نقشه
+     * @param {import('../entities/Entity.js').Entity} entity 
+     * @param {import('../levels/TileMap.js').TileMap} tileMap 
+     * @param {number} dt 
+     */
+    static resolveTileCollisions(entity, tileMap, dt) {
+        const tileSize = tileMap.tileSize;
 
-    // ۲. حرکت در راستای عمودی
-    entity.pos.y += entity.vel.y * dt;
-    entity.isGrounded = false;
+        // --- مرحله اول: شبیه‌سازی و تصحیح محور افقی (X) ---
+        entity.position.x += entity.velocity.x * dt;
 
-    this.checkVerticalCollisions(entity, tileMap);
-  }
+        let startCol = Math.floor(entity.position.x / tileSize);
+        let endCol = Math.floor((entity.position.x + entity.size.x - 0.01) / tileSize);
+        let startRow = Math.floor(entity.position.y / tileSize);
+        let endRow = Math.floor((entity.position.y + entity.size.y - 0.01) / tileSize);
 
-  checkHorizontalCollisions(entity, tileMap) {
-    const hitbox = entity.getHitbox();
-    const startCol = Math.floor(hitbox.x / tileMap.tileSize);
-    const endCol = Math.floor((hitbox.x + hitbox.width) / tileMap.tileSize);
-    const startRow = Math.floor(hitbox.y / tileMap.tileSize);
-    const endRow = Math.floor((hitbox.y + hitbox.height - 0.1) / tileMap.tileSize);
-
-    for (let r = startRow; r <= endRow; r++) {
-      for (let c = startCol; c <= endCol; c++) {
-        if (tileMap.isSolid(c, r)) {
-          if (entity.vel.x > 0) {
-            // برخورد به مانع از سمت چپ
-            entity.pos.x = c * tileMap.tileSize - hitbox.width - entity.hitboxOffset.x;
-            entity.vel.x = 0;
-          } else if (entity.vel.x < 0) {
-            // برخورد به مانع از سمت راست
-            entity.pos.x = (c + 1) * tileMap.tileSize - entity.hitboxOffset.x;
-            entity.vel.x = 0;
-          }
-          return;
+        for (let r = startRow; r <= endRow; r++) {
+            for (let c = startCol; c <= endCol; c++) {
+                const tile = tileMap.getTile(c, r);
+                if (tile && tile.solid) {
+                    if (entity.velocity.x > 0) {
+                        entity.position.x = c * tileSize - entity.size.x;
+                        entity.velocity.x = 0;
+                        entity.onCollideHorizontal(1, c, r);
+                    } else if (entity.velocity.x < 0) {
+                        entity.position.x = (c + 1) * tileSize;
+                        entity.velocity.x = 0;
+                        entity.onCollideHorizontal(-1, c, r);
+                    }
+                }
+            }
         }
-      }
-    }
-  }
 
-  checkVerticalCollisions(entity, tileMap) {
-    const hitbox = entity.getHitbox();
-    const startCol = Math.floor((hitbox.x + 1) / tileMap.tileSize);
-    const endCol = Math.floor((hitbox.x + hitbox.width - 1) / tileMap.tileSize);
-    const startRow = Math.floor(hitbox.y / tileMap.tileSize);
-    const endRow = Math.floor((hitbox.y + hitbox.height) / tileMap.tileSize);
+        // --- مرحله دوم: شبیه‌سازی و تصحیح محور عمودی (Y) ---
+        entity.position.y += entity.velocity.y * dt;
+        entity.isGrounded = false;
 
-    for (let c = startCol; c <= endCol; c++) {
-      for (let r = startRow; r <= endRow; r++) {
-        if (tileMap.isSolid(c, r)) {
-          if (entity.vel.y > 0) {
-            // فرود روی زمین یا سقف بلوک
-            entity.pos.y = r * tileMap.tileSize - hitbox.height - entity.hitboxOffset.y;
-            entity.vel.y = 0;
-            entity.isGrounded = true;
-            return;
-          } else if (entity.vel.y < 0) {
-            // برخورد سر به کف بلوک (Head-bump)
-            entity.pos.y = (r + 1) * tileMap.tileSize - entity.hitboxOffset.y;
-            entity.vel.y = 0;
+        startCol = Math.floor(entity.position.x / tileSize);
+        endCol = Math.floor((entity.position.x + entity.size.x - 0.01) / tileSize);
+        startRow = Math.floor(entity.position.y / tileSize);
+        endRow = Math.floor((entity.position.y + entity.size.y - 0.01) / tileSize);
 
-            // ضربه زدن به بلوک تعاملی
-            tileMap.bumpTile(c, r, entity);
-            return;
-          }
+        for (let r = startRow; r <= endRow; r++) {
+            for (let c = startCol; c <= endCol; c++) {
+                const tile = tileMap.getTile(c, r);
+                if (tile && tile.solid) {
+                    if (entity.velocity.y > 0) {
+                        // سقوط بر روی زمین
+                        entity.position.y = r * tileSize - entity.size.y;
+                        entity.velocity.y = 0;
+                        entity.isGrounded = true;
+                        entity.onCollideVertical(1, c, r);
+                    } else if (entity.velocity.y < 0) {
+                        // برخورد سر ماریو با بلوک‌های بالاسر
+                        entity.position.y = (r + 1) * tileSize;
+                        entity.velocity.y = 0;
+                        entity.onCollideVertical(-1, c, r);
+                    }
+                }
+            }
         }
-      }
     }
-  }
-
-  /**
-   * تست برخورد همپوشانی دو مستطیل AABB
-   */
-  static testAABB(rectA, rectB) {
-    return (
-      rectA.x < rectB.x + rectB.width &&
-      rectA.x + rectA.width > rectB.x &&
-      rectA.y < rectB.y + rectB.height &&
-      rectA.y + rectA.height > rectB.y
-    );
-  }
 }

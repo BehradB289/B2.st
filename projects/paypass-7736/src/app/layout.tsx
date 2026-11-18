@@ -1,11 +1,10 @@
 import type { Metadata } from "next";
+import { AmbientGlow } from "@/components/ui/AmbientGlow";
 import "./globals.css";
-import { AmbientBackground } from "@/components/ui/AmbientBackground";
-import { Navbar } from "@/components/ui/Navbar";
 
 export const metadata: Metadata = {
-  title: "PayPass • پی‌پاس - میکرومانتایز آنی و فروش تک‌محتوایی",
-  description: "پلتفرم فروش فوری پرامپت، لینک و کدهای اختصاصی با معماری AES-256 و کارت‌های شیشه‌ای لوکس استودیو B2.st",
+  title: "پی‌پاس | پلتفرم میکرومانتایز لوکس استودیو B2.st",
+  description: "فروش تک‌محتوایی فوری و فوق‌سریع با رمزنگاری سرور‌ساید AES-256 و کسر خودکار ۵٪ کارمزد پلتفرم.",
 };
 
 export default function RootLayout({
@@ -15,33 +14,40 @@ export default function RootLayout({
 }) {
   return (
     <html lang="fa" dir="rtl">
-      <body className="relative min-h-screen bg-[#090D16] text-zinc-100 antialiased selection:bg-brand-cyan/20 selection:text-brand-cyan">
-        {/* Dynamic Studio Luxury Ambient Lighting */}
-        <AmbientBackground />
-
-        {/* Global Floating Glass Navbar */}
-        <Navbar />
-
-        {/* Page Main Content Area */}
-        <div className="relative z-10 flex flex-col justify-between min-h-[calc(100vh-80px)]">
-          <main className="flex-1">{children}</main>
-
-          {/* Minimalist Studio Footer */}
-          <footer className="w-full py-6 text-center text-xs text-zinc-500 border-t border-white/[0.04]">
-            <div className="flex items-center justify-center gap-2">
-              <span>طراحی و معماری شده در</span>
-              <a 
-                href="https://b2.st" 
-                target="_blank" 
-                rel="noreferrer"
-                className="font-semibold text-zinc-300 hover:text-brand-cyan transition-colors"
-              >
-                B2.st Studio
-              </a>
-              <span>• پی‌پاس (PayPass) ۲۰۲۵</span>
+      <head>
+        <link
+          rel="stylesheet"
+          href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/Vazirmatn-font-face.css"
+        />
+      </head>
+      <body className="min-h-screen bg-paypass-bg text-white relative selection:bg-paypass-cyan selection:text-black">
+        <AmbientGlow />
+        <header className="border-b border-white/[0.06] backdrop-blur-md sticky top-0 z-50">
+          <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <span className="w-8 h-8 rounded-lg bg-gradient-to-tr from-paypass-cyan to-paypass-violet flex items-center justify-center font-black text-black text-sm">
+                P
+              </span>
+              <span className="font-bold text-lg tracking-wider text-white">
+                Pay<span className="text-paypass-cyan">Pass</span>
+              </span>
             </div>
-          </footer>
-        </div>
+            <div className="flex items-center gap-3 text-xs text-white/60">
+              <span className="px-2.5 py-1 rounded-full bg-white/5 border border-white/10 font-mono">
+                B2.st Studio
+              </span>
+              <span className="hidden sm:inline-block text-emerald-400">● زیرساخت فعال</span>
+            </div>
+          </div>
+        </header>
+
+        <main className="max-w-6xl mx-auto px-6 py-12">
+          {children}
+        </main>
+
+        <footer className="border-t border-white/[0.06] py-8 text-center text-xs text-white/40">
+          <p>© {new Date().getFullYear()} پی‌پاس (PayPass) - توسعه‌یافته در استودیو لوکس B2.st</p>
+        </footer>
       </body>
     </html>
   );

@@ -1,41 +1,44 @@
 /**
- * 2D Horizontal Scrolling Viewport Camera
- * Enforces classic NES Mario rule: Viewport never scrolls backwards
+ * 2D Scrolling Camera with forward-only tracking lock (Classic NES Mario style)
+ * Studio: B2.st
  */
+
 export class Camera {
-  constructor(width, height) {
+  constructor(viewportWidth = 256, viewportHeight = 240) {
+    this.viewportWidth = viewportWidth;
+    this.viewportHeight = viewportHeight;
     this.x = 0;
     this.y = 0;
-    this.width = width;
-    this.height = height;
-    this.lookAhead = 0.45;
+    this.deadZoneLeadX = viewportWidth * 0.45;
   }
 
-  update(target, maxLevelWidth) {
-    const targetCenterX = target.position.x + target.size.x * 0.5;
-    const desiredX = targetCenterX - this.width * this.lookAhead;
-
-    // Keep advancing rightwards, prevent scroll backwards
+  update(targetX) {
+    const desiredX = targetX - this.deadZoneLeadX;
+    // In classic Mario 1-1, camera never scrolls backward
     if (desiredX > this.x) {
       this.x = desiredX;
     }
-
-    // Clamp right level boundary
-    const maxX = Math.max(0, maxLevelWidth - this.width);
-    if (this.x > maxX) {
-      this.x = maxX;
-    }
-  }
-
-  worldToScreen(x, y) {
-    return {
-      x: Math.round(x - this.x),
-      y: Math.round(y - this.y)
-    };
   }
 
   reset() {
     this.x = 0;
     this.y = 0;
+  }
+
+  isVisible(box) {
+    return (
+      box.right >= this.x &&
+      box.left <= this.x + this.viewportWidth &&
+      box.bottom >= this.y &&
+      box.top <= this.y + this.viewportHeight
+    );
+  }
+
+  worldToScreenX(worldX) {
+    return Math.floor(worldX - this.x);
+  }
+
+  worldToScreenY(worldY) {
+    return Math.floor(worldY - this.y);
   }
 }

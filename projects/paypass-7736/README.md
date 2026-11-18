@@ -13,6 +13,7 @@ projects/paypass-7736/
 ├── config/supabase.sql
 ├── docs/ARCHITECTURE_CRYPTO.md
 ├── docs/PAYMENT_FLOW.md
+├── public/index.html
 ├── src/app/actions/payment.ts
 ├── src/app/checkout/verify/page.tsx
 ├── src/lib/crypto.ts

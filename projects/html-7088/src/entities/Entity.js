@@ -1,27 +1,37 @@
-import { Vector2D } from '../engine/Vector2D.js';
-
 /**
- * کلاس پایه هویت‌ها در معماری سبک شی‌گرا/ECS
+ * Base Game Entity Class
  */
+
 export class Entity {
-    constructor(x = 0, y = 0, width = 16, height = 16) {
-        this.position = new Vector2D(x, y);
-        this.velocity = new Vector2D(0, 0);
-        this.size = new Vector2D(width, height);
-        
-        this.isGrounded = false;
-        this.isDead = false;
-        this.tag = 'entity';
-    }
+  constructor(x, y, width, height) {
+    this.x = x;
+    this.y = y;
+    this.width = width;
+    this.height = height;
 
-    update(dt) {
-        // پیاده‌سازی در کلاس‌های فرزند
-    }
+    this.vx = 0;
+    this.vy = 0;
+    this.onGround = false;
+    this.isDead = false;
+    this.facing = 1; // 1: Right, -1: Left
+    this.animTimer = 0;
+    this.animFrame = 0;
+  }
 
-    render(ctx, camera) {
-        // پیاده‌سازی در کلاس‌های فرزند
+  update(dt, level) {
+    this.animTimer += dt;
+    if (this.animTimer > 0.12) {
+      this.animTimer = 0;
+      this.animFrame = (this.animFrame + 1) % 4;
     }
+  }
 
-    onCollideHorizontal(direction, tileCol, tileRow) {}
-    onCollideVertical(direction, tileCol, tileRow) {}
+  get bounds() {
+    return {
+      x: this.x,
+      y: this.y,
+      width: this.width,
+      height: this.height
+    };
+  }
 }

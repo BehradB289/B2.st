@@ -1,12 +1,40 @@
 ```
+# Dependencies
 node_modules/
+package-lock.json
+
+# Environment
 .env
-.DS_Store
-Thumbs.db
-*.log
-npm-debug.log*
+.env.local
+.env.production
+
+# Build
+dist/
+build/
+*.min.js
+*.min.css
+
+# IDE
 .vscode/
 .idea/
-dist/
-coverage/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+*.log
+npm-debug.log*
+
+# Debug
+debug/
+*.debug.js
+
+# Cache
+.cache/
+.eslintcache
 ```

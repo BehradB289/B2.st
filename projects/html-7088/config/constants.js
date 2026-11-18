@@ -1,0 +1,56 @@
+/**
+ * Game Constants & Configurations
+ * Studio: B2.st
+ */
+
+export const CANVAS = {
+  INTERNAL_WIDTH: 256,
+  INTERNAL_HEIGHT: 240,
+  SCALE: 3,
+  FPS: 60,
+  FIXED_DELTA_TIME: 1 / 60
+};
+
+export const PHYSICS = {
+  GRAVITY: 980,
+  MAX_FALL_SPEED: 420,
+  FRICTION: 0.86
+};
+
+export const TILES = {
+  SIZE: 16,
+  EMPTY: 0,
+  GROUND: 1,
+  BRICK: 2,
+  QUESTION_BLOCK: 3,
+  QUESTION_BLOCK_EMPTY: 4,
+  PIPE_TOP_LEFT: 5,
+  PIPE_TOP_RIGHT: 6,
+  PIPE_BODY_LEFT: 7,
+  PIPE_BODY_RIGHT: 8,
+  HARD_BLOCK: 9
+};
+
+export const MARIO_CONFIG = {
+  WIDTH: 14,
+  HEIGHT: 16,
+  WALK_SPEED: 110,
+  RUN_SPEED: 165,
+  JUMP_FORCE: -340,
+  BOUNCE_FORCE: -220,
+  INITIAL_LIVES: 3,
+  INVULNERABILITY_TIME: 2.0
+};
+
+export const GOOMBA_CONFIG = {
+  WIDTH: 16,
+  HEIGHT: 16,
+  PATROL_SPEED: 35,
+  SQUASH_DURATION: 0.5
+};
+
+export const SCORES = {
+  COIN: 200,
+  GOOMBA_STOMP: 100,
+  BRICK_HIT: 50
+};

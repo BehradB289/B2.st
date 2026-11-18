@@ -1,36 +1,68 @@
-import { Vector2D } from '../engine/Vector2D.js';
-
 /**
- * Base Entity Component System Object
+ * Lightweight ECS Base Entity
+ * Studio: B2.st
  */
+
+import { Vector2D } from '../engine/Vector2D.js';
+import { AABB } from '../engine/AABB.js';
+
 export class Entity {
-  constructor(x = 0, y = 0, width = 16, height = 16, tag = 'entity') {
+  constructor(x = 0, y = 0, width = 16, height = 16, type = 'generic') {
     this.position = new Vector2D(x, y);
     this.velocity = new Vector2D(0, 0);
-    this.size = new Vector2D(width, height);
-    this.collisionOffset = new Vector2D(0, 0);
-    this.tag = tag;
+    this.width = width;
+    this.height = height;
+    this.type = type;
 
+    // ECS Flags and State Components
+    this.isAlive = true;
     this.isGrounded = false;
-    this.isDead = false;
+    this.isSolid = true;
+    this.facing = 1; // 1: Right, -1: Left
     this.markedForRemoval = false;
-    this.dt = 1 / 60;
+  }
+
+  get x() {
+    return this.position.x;
+  }
+
+  set x(val) {
+    this.position.x = val;
+  }
+
+  get y() {
+    return this.position.y;
+  }
+
+  set y(val) {
+    this.position.y = val;
+  }
+
+  get vx() {
+    return this.velocity.x;
+  }
+
+  set vx(val) {
+    this.velocity.x = val;
+  }
+
+  get vy() {
+    return this.velocity.y;
+  }
+
+  set vy(val) {
+    this.velocity.y = val;
   }
 
   getBounds() {
-    return {
-      x: this.position.x + this.collisionOffset.x,
-      y: this.position.y + this.collisionOffset.y,
-      width: this.size.x,
-      height: this.size.y
-    };
+    return new AABB(this.position.x, this.position.y, this.width, this.height);
   }
 
   update(dt) {
-    this.dt = dt;
+    // Overridden by specific entities
   }
 
   render(ctx, camera) {
-    // Base render placeholder overridden by subclasses
+    // Overridden by specific entities
   }
 }

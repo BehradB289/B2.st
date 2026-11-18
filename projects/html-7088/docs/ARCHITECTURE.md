@@ -1,67 +1,61 @@
-# Super Mario NES Engine & Automated Test Suite
-**Studio:** B2.st  
-**Architecture:** 4-Tier Modular Entity-Component-System (Canvas 2D)
+# Super Mario NES Engine & In-Memory Performance Architecture
+### Studio B2.st Full-Stack Technical Documentation
 
----
+## 1. Architectural Layers
 
-## 1. Directory Structure
+The architecture adheres to clean separation of concerns, divided into 4 decoupled subsystems:
 
-```text
-├── config/
-│   └── constants.js             # Physics rates, tile definitions, player speeds
-├── src/
-│   ├── engine/
-│   │   ├── Vector2D.js          # 2D Linear Algebra primitive
-│   │   ├── AABB.js              # Axis-Aligned Bounding Box collision geometry
-│   │   ├── Camera.js            # Forward-locked scrolling camera (NES Mario style)
-│   │   ├── InputHandler.js      # Decoupled keyboard state and mock controller
-│   │   ├── PhysicsEngine.js     # Swept collision detection & tile resolution
-│   │   ├── GameLoop.js          # Fixed-timestep physics update loop
-│   │   └── GameEngine.js        # Central game orchestrator
-│   ├── entities/
-│   │   ├── Entity.js            # Base ECS entity abstraction
-│   │   ├── Mario.js             # Player controller, states, animations
-│   │   └── Goomba.js            # Patrol AI, stomp vulnerability, squashing
-│   └── levels/
-│       ├── TileMap.js           # 2D Grid block indexing & tile interaction
-│       └── Level1.js            # World 1-1 layout generation
-├── tests/
-│   ├── testRunner.js            # Zero-dependency async test harness
-│   ├── unit.test.js             # Vector, AABB, and TileMap unit tests
-│   ├── integration.test.js      # Complete physics, jump, collision & stomp tests
-│   └── runAll.js                # Combined test runner script
-├── public/
-│   ├── index.html               # CRT NES cabinet shell and HUD integration
-│   └── styles.css               # Scanline filter and responsive layout
-└── docs/
-    └── ARCHITECTURE.md          # Architecture and technical documentation
+```
+[public/index.html] (NES Retro Shell & Dynamic Canvas)
+          │
+          ▼
+[src/engine/game.js] (Coordinator & State Machine)
+ ├── [src/engine/game_loop.js] (Fixed Timestep Physics + Raf Render)
+ ├── [src/engine/physics.js] (AABB Collision & Map Boundary Resolution)
+ ├── [src/engine/camera.js] (Deadzone & Smooth Progressive Scrolling)
+ ├── [src/engine/input.js] (Multi-Input & Key Mapping)
+ └── [src/engine/audio.js] (Zero-asset 8-Bit Web Audio Synthesizer)
+          │
+          ├───────────────────────────────────────────┐
+          ▼                                           ▼
+[src/entities/ & src/levels/]             [src/core/performance_cache.js]
+ ├── Mario, Goomba, Mushroom, Particle     ├── PerformanceCache (TTL + LRU)
+ ├── Procedural SpriteGenerator           └── RateLimiter (Token & Sliding Bucket)
+ └── TileMap & Scenery Rendering
 ```
 
 ---
 
-## 2. Physics & Collision Pipeline
+## 2. In-Memory Cache & Rate Limiting (`src/core/performance_cache.js`)
 
-Collision handling is executed using decoupled horizontal and vertical Swept AABB checks:
-1. **Horizontal Move (`vx * dt`):** Test left and right bounding edges against `TileMap.isSolid()`. If a solid tile (Pipe, Brick) is intercepted, the entity's position is clamped to the block edge and velocity is zeroed.
-2. **Vertical Move (`vy * dt`):** Apply gravity (`+980 px/s²`). If moving downwards and intersecting solid ground, `y` is clamped to the top surface, `vy = 0`, and `isGrounded = true`.
-3. **Ceiling Interaction:** If moving upwards and striking question/brick tiles, `vy = 0` and `TileMap.interactTile()` spawns coins and updates block states.
-4. **Entity-to-Entity:**
-   - **Stomp Detection:** If Mario's bounding box intersects Goomba and Mario's velocity is downward (`vy > 0`), the Goomba squashes, Mario rebounds upward (`MARIO_CONFIG.BOUNCE_FORCE`), and scores are awarded.
-   - **Damage:** If Mario collides horizontally or vertically while grounded, damage is sustained and invulnerability frames are activated.
+### PerformanceCache Features:
+1. **LRU Eviction**: Maintains an internal hash map with constant amortized `O(1)` reads, updates and evictions. When capacity is exceeded, Least Recently Used keys are removed.
+2. **TTL (Time-To-Live)**: Per-item or global expiry timestamps with auto-pruning.
+3. **Telemetry Tracking**: Records live `hits`, `misses`, `evictions`, and calculates dynamic `hitRate%` for display on the HUD.
+4. **Offscreen Canvas Texture Memoization**: Procedural NES pixel drawings are drawn once and cached, eliminating repetitive pixel drawing operations and sustaining 60 FPS on low-power devices.
+
+### RateLimiter Implementation:
+- **Token Bucket Algorithm**: Controls audio output frequency and prevent Web Audio distortion.
+- **Sliding Window Key Tracker**: Restricts rapid spamming of keyboard jump and movement inputs.
+- **Throttling Utility**: Smooths high-frequency window and resize recalculations.
 
 ---
 
-## 3. Running Automated Tests
+## 3. Physics & Collision Handling
 
-To execute the entire test suite via Node.js without any third-party dependencies:
+- **Fixed Timestep**: Delta time is clamped and processed with a fixed `1/60s` tick rate to prevent collision tunneling.
+- **Separation of Axes**:
+  - Horizontal movement is checked and resolved against tile solid boundaries.
+  - Vertical movement integrates gravitational acceleration and detects ceiling hits (triggering question blocks) and floor landings.
+- **Entity vs. Entity**: Bounding box overlap triggers state transitions (e.g., Mario landing on Goomba triggers squash rebound; lateral collision triggers shrink or death).
 
-```bash
-# Run all tests (Unit & Integration)
-npm test
+---
 
-# Run integration tests specifically
-npm run test:integration
+## 4. Execution & Testing
 
-# Run unit tests specifically
-npm run test:unit
-```
+- Run the standalone unit tests:
+  ```bash
+  node tests/physics_test.js
+  ```
+- Launch the game:
+  Open `public/index.html` in any modern web browser or serve via any static web server (e.g. `npx serve .`).

@@ -9,10 +9,12 @@
 ```text
 projects/html-7088/
 ├── docs/ARCHITECTURE.md
+├── docs/TEST_SPEC.md
 ├── docs/architecture.md
 ├── package.json
 ├── public/index.html
 ├── public/style.css
+├── src/engine/AABB.js
 ├── src/engine/Audio.js
 ├── src/engine/Camera.js
 ├── src/engine/EventEmitter.js
@@ -20,7 +22,9 @@ projects/html-7088/
 ├── src/engine/Input.js
 ├── src/engine/InputHandler.js
 ├── src/engine/Physics.js
+├── src/engine/PhysicsEngine.js
 ├── src/engine/Vector2D.js
+├── src/entities/Coin.js
 ├── src/entities/Entity.js
 ├── src/entities/Goomba.js
 ├── src/entities/Mario.js
@@ -30,5 +34,7 @@ projects/html-7088/
 ├── src/levels/TileMap.js
 ├── src/levels/World1_1.js
 ├── src/main.js
+├── src/vitest.config.js
+├── tests/collision.test.js
 ├── tests/physics.test.js
 ```

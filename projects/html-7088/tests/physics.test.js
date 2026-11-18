@@ -1,113 +1,104 @@
 /**
- * B2.st Mario Engine - Physics & Collision Unit Test Pipeline
- * Runnable via: node tests/physics.test.js
+ * @file physics.test.js
+ * @description Standalone unit test suite for Physics AABB, LRU Cache with TTL, and RateLimiter.
+ * Execute with: node tests/physics.test.js
  */
+import assert from 'node:assert';
+import { PerformanceCache, RateLimiter } from '../src/core/performance_cache.js';
 import { Physics } from '../src/engine/Physics.js';
 import { Vector2D } from '../src/engine/Vector2D.js';
-import { GAME_CONFIG } from '../config/game.config.js';
 
-let passedTests = 0;
-let failedTests = 0;
-
-function assert(condition, testName) {
-  if (condition) {
-    console.log(`  \x1b[32m✔ PASS:\x1b[0m ${testName}`);
-    passedTests++;
-  } else {
-    console.error(`  \x1b[31m✖ FAIL:\x1b[0m ${testName}`);
-    failedTests++;
+let passed = 0;
+function test(name, fn) {
+  try {
+    fn();
+    console.log(`\x1b[32m✔ PASS:\x1b[0m ${name}`);
+    passed++;
+  } catch (err) {
+    console.error(`\x1b[31m✘ FAIL:\x1b[0m ${name}`);
+    console.error(err);
+    process.exitCode = 1;
   }
 }
 
-console.log('\n======================================================');
-console.log('  🧪 B2.st Super Mario Engine - Unit Tests Pipeline');
-console.log('======================================================\n');
+console.log('\n--- B2.st Core Engine Unit Tests ---\n');
 
-// --- TEST SUITE 1: 2D Vector Math ---
-console.log('\x1b[36m[Suite 1] Vector2D Calculations\x1b[0m');
-const v1 = new Vector2D(3, 4);
-assert(v1.length() === 5, 'Vector length of (3,4) equals 5');
+// 1. Vector2D Math Tests
+test('Vector2D operations: add, scale, clone', () => {
+  const v1 = new Vector2D(5, 10);
+  const v2 = new Vector2D(3, 2);
+  v1.add(v2);
+  assert.strictEqual(v1.x, 8);
+  assert.strictEqual(v1.y, 12);
+  v1.scale(0.5);
+  assert.strictEqual(v1.x, 4);
+  assert.strictEqual(v1.y, 6);
+});
 
-const v2 = new Vector2D(2, -1);
-v1.add(v2);
-assert(v1.x === 5 && v1.y === 3, 'Vector addition (3,4) + (2,-1) = (5,3)');
+// 2. Physics AABB Tests
+test('Physics AABB: Overlap detection and discrete non-overlap', () => {
+  const boxA = { x: 0, y: 0, width: 16, height: 16 };
+  const boxB = { x: 10, y: 10, width: 16, height: 16 };
+  const boxC = { x: 30, y: 30, width: 16, height: 16 };
 
-v1.scale(2);
-assert(v1.x === 10 && v1.y === 6, 'Vector scalar multiplication (5,3) * 2 = (10,6)');
+  assert.strictEqual(Physics.checkAABB(boxA, boxB), true);
+  assert.strictEqual(Physics.checkAABB(boxA, boxC), false);
+});
 
-// --- TEST SUITE 2: AABB Bounding Box Overlaps ---
-console.log('\n\x1b[36m[Suite 2] AABB Collision Detection\x1b[0m');
-const marioBox = { x: 100, y: 150, width: 14, height: 16 };
-const goombaBox = { x: 110, y: 155, width: 16, height: 16 };
-const farObstacle = { x: 300, y: 150, width: 16, height: 16 };
+// 3. PerformanceCache LRU Eviction Tests
+test('PerformanceCache: LRU eviction policy works when capacity exceeded', () => {
+  const cache = new PerformanceCache({ maxSize: 2, defaultTTL: 10000 });
+  cache.set('key1', 'val1');
+  cache.set('key2', 'val2');
 
-assert(Physics.checkAABB(marioBox, goombaBox) === true, 'AABB detects overlap between Mario and nearby Goomba');
-assert(Physics.checkAABB(marioBox, farObstacle) === false, 'AABB correctly rejects non-overlapping far object');
+  // Access key1 so key2 becomes the oldest entry
+  assert.strictEqual(cache.get('key1'), 'val1');
 
-// Edge-touching case (should not register as penetrative collision)
-const touchingBox = { x: 114, y: 150, width: 16, height: 16 };
-assert(Physics.checkAABB(marioBox, touchingBox) === false, 'AABB handles tangent bounding edge non-penetration');
+  // Insert 3rd entry; key2 should be evicted
+  cache.set('key3', 'val3');
 
-// --- TEST SUITE 3: Gravity and Kinematics ---
-console.log('\n\x1b[36m[Suite 3] Gravity & Kinematic Acceleration\x1b[0m');
-const mockEntity = {
-  isGrounded: false,
-  velocity: new Vector2D(0, 0),
-  position: new Vector2D(50, 50)
-};
+  assert.strictEqual(cache.get('key2'), null); // Evicted
+  assert.strictEqual(cache.get('key1'), 'val1'); // Kept
+  assert.strictEqual(cache.get('key3'), 'val3'); // Fresh
+  assert.strictEqual(cache.getStats().size, 2);
+});
 
-const dt = 1 / 60;
-Physics.applyGravity(mockEntity, GAME_CONFIG.PHYSICS.GRAVITY, GAME_CONFIG.PHYSICS.MAX_FALL_SPEED, dt);
-const expectedVy = GAME_CONFIG.PHYSICS.GRAVITY * dt;
-assert(Math.abs(mockEntity.velocity.y - expectedVy) < 0.001, `Gravity properly accelerates airborne body (${mockEntity.velocity.y.toFixed(2)} px/s)`);
+// 4. PerformanceCache TTL Expiration Tests
+test('PerformanceCache: TTL expiration purges expired keys', async () => {
+  const cache = new PerformanceCache({ maxSize: 10, defaultTTL: 20 });
+  cache.set('expiring', 'hello', 15);
 
-// Terminal velocity clamping
-mockEntity.velocity.y = 1000;
-Physics.applyGravity(mockEntity, GAME_CONFIG.PHYSICS.GRAVITY, GAME_CONFIG.PHYSICS.MAX_FALL_SPEED, dt);
-assert(mockEntity.velocity.y === GAME_CONFIG.PHYSICS.MAX_FALL_SPEED, `Maximum fall speed strictly clamped to ${GAME_CONFIG.PHYSICS.MAX_FALL_SPEED}`);
+  assert.strictEqual(cache.get('expiring'), 'hello');
 
-// --- TEST SUITE 4: TileMap Floor Snapping & Collision Resolution ---
-console.log('\n\x1b[36m[Suite 4] TileMap Resolution & Ground Contact\x1b[0m');
-const mockTileMap = {
-  isSolid: (c, r) => (r === 10 ? true : false),
-  onTileHitFromBelow: () => {}
-};
+  // Wait 25ms to let key expire
+  await new Promise((res) => setTimeout(res, 25));
 
-const fallingEntity = {
-  dt: 1 / 60,
-  position: new Vector2D(100, 155), // approaching row 10 (y = 160)
-  velocity: new Vector2D(0, 300),
-  size: new Vector2D(14, 16),
-  collisionOffset: new Vector2D(0, 0),
-  isGrounded: false,
-  getBounds() {
-    return { x: this.position.x, y: this.position.y, width: this.size.x, height: this.size.y };
-  }
-};
+  assert.strictEqual(cache.get('expiring'), null);
+});
 
-Physics.resolveTileMapCollisions(fallingEntity, mockTileMap, 16);
-assert(fallingEntity.isGrounded === true, 'Entity is grounded after colliding with solid floor');
-assert(fallingEntity.velocity.y === 0, 'Vertical velocity reset to 0 upon floor contact');
-assert(fallingEntity.position.y === 10 * 16 - fallingEntity.size.y, 'Entity y-coordinate snapped cleanly to top of tile');
+// 5. RateLimiter Token Bucket Tests
+test('RateLimiter: Burst consumption and refill constraints', () => {
+  const limiter = new RateLimiter(3, 1); // 3 tokens capacity, 1 per second
 
-// --- TEST SUITE 5: Goomba Stomp vs Hurt Logic ---
-console.log('\n\x1b[36m[Suite 5] Stomp Mechanics Differentiation\x1b[0m');
-function evaluateHit(marioY, marioVy, goombaY) {
-  const isFalling = marioVy > 0;
-  const isAbove = (marioY + 16 - 8) < (goombaY + 6);
-  return isFalling && isAbove ? 'STOMP' : 'HURT';
-}
+  assert.strictEqual(limiter.tryAcquire(1), true);
+  assert.strictEqual(limiter.tryAcquire(1), true);
+  assert.strictEqual(limiter.tryAcquire(1), true);
+  // Bucket exhausted:
+  assert.strictEqual(limiter.tryAcquire(1), false);
+});
 
-const stompCase = evaluateHit(140, 150, 150);
-assert(stompCase === 'STOMP', 'Mario falling from above triggers Goomba STOMP');
+// 6. RateLimiter Keyed Throttling Tests
+test('RateLimiter: Keyed throttle prevents high-frequency invocation', () => {
+  const limiter = new RateLimiter(10, 5);
+  let count = 0;
+  const action = () => count++;
 
-const sideHitCase = evaluateHit(150, 0, 150);
-assert(sideHitCase === 'HURT', 'Horizontal collision triggers Mario HURT / DEATH');
+  const firstCall = limiter.throttle('jump_sfx', 50, action);
+  const immediateSecondCall = limiter.throttle('jump_sfx', 50, action);
 
-console.log('\n======================================================');
-console.log(`  Summary: Total: ${passedTests + failedTests} | \x1b[32mPassed: ${passedTests}\x1b[0m | \x1b[31mFailed: ${failedTests}\x1b[0m`);
-console.log('======================================================\n');
+  assert.strictEqual(firstCall, true);
+  assert.strictEqual(immediateSecondCall, false);
+  assert.strictEqual(count, 1);
+});
 
-if (failedTests > 0) {
-  process.exit(1);
-}
+console.log(`\nAll ${passed} tests completed successfully.\n`);

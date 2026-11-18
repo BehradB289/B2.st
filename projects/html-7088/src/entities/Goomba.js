@@ -1,71 +1,84 @@
 import { Entity } from './Entity.js';
-import { GameConfig } from '../../config/game_config.js';
 
 /**
- * موجودیت دشمن پایه گومبا (قارچ قهوه‌ای رنگ متخاصم)
+ * Classic Goomba Enemy Entity with Patrol & Stomp mechanics
  */
 export class Goomba extends Entity {
-    /**
-     * @param {number} x 
-     * @param {number} y 
-     * @param {import('../levels/SpriteSheet.js').SpriteSheet} spriteSheet 
-     */
-    constructor(x, y, spriteSheet) {
-        super(x, y, 16, 16);
-        this.spriteSheet = spriteSheet;
-        this.tag = 'enemy';
-        this.velocity.x = -GameConfig.GOOMBA.SPEED;
+  constructor(x, y) {
+    super(x, y, 16, 16, 'enemy');
+    this.velocity.x = -35;
+    this.isSquashed = false;
+    this.squashTimer = 0.4;
+    this.animTimer = 0;
+    this.animFrame = 0;
+  }
 
-        this.animTimer = 0;
-        this.animFrame = 0;
-        this.isSquished = false;
-        this.squishTimer = 0;
+  update(dt, soundEngine) {
+    super.update(dt);
+
+    if (this.isSquashed) {
+      this.squashTimer -= dt;
+      if (this.squashTimer <= 0) {
+        this.markedForRemoval = true;
+      }
+      return;
     }
 
-    update(dt) {
-        if (this.isSquished) {
-            this.squishTimer += dt;
-            if (this.squishTimer > GameConfig.GOOMBA.SQUISH_TIME) {
-                this.isDead = true;
-            }
-            return;
-        }
+    this.animTimer += dt * 6;
+    this.animFrame = Math.floor(this.animTimer) % 2;
+  }
 
-        this.velocity.y += GameConfig.WORLD.GRAVITY * dt;
-        if (this.velocity.y > GameConfig.WORLD.MAX_FALL_SPEED) {
-            this.velocity.y = GameConfig.WORLD.MAX_FALL_SPEED;
-        }
+  onWallCollision(dir) {
+    this.velocity.x = -dir * 35;
+  }
 
-        // به‌روزرسانی فریم انیمیشن راه رفتن
-        this.animTimer += dt;
-        if (this.animTimer > 0.18) {
-            this.animFrame = (this.animFrame + 1) % 2;
-            this.animTimer = 0;
-        }
+  stomp(soundEngine) {
+    this.isSquashed = true;
+    this.velocity.set(0, 0);
+    this.size.y = 8;
+    this.position.y += 8;
+    soundEngine?.playStomp();
+  }
+
+  render(ctx, camera) {
+    const s = camera.worldToScreen(this.position.x, this.position.y);
+    if (s.x < -20 || s.x > camera.width + 20) return;
+
+    if (this.isSquashed) {
+      // Flattened Goomba
+      ctx.fillStyle = '#a84400';
+      ctx.fillRect(s.x, s.y + 4, 16, 4);
+      ctx.fillStyle = '#000000';
+      ctx.fillRect(s.x + 2, s.y + 5, 4, 1);
+      ctx.fillRect(s.x + 10, s.y + 5, 4, 1);
+      return;
     }
 
-    onCollideHorizontal(direction) {
-        // تغییر جهت حرکت پس از برخورد با موانع
-        this.velocity.x = -this.velocity.x;
+    // Goomba Body (Brown Mushroom dome)
+    ctx.fillStyle = '#a84400';
+    ctx.fillRect(s.x + 2, s.y, 12, 10);
+    ctx.fillRect(s.x + 4, s.y - 2, 8, 2);
+
+    // Stem / Face
+    ctx.fillStyle = '#fce4a6';
+    ctx.fillRect(s.x + 4, s.y + 10, 8, 3);
+
+    // Eyes
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(s.x + 3, s.y + 4, 3, 5);
+    ctx.fillRect(s.x + 10, s.y + 4, 3, 5);
+    ctx.fillStyle = '#000000';
+    ctx.fillRect(s.x + 4, s.y + 5, 2, 3);
+    ctx.fillRect(s.x + 10, s.y + 5, 2, 3);
+
+    // Feet
+    ctx.fillStyle = '#000000';
+    if (this.animFrame === 0) {
+      ctx.fillRect(s.x, s.y + 13, 6, 3);
+      ctx.fillRect(s.x + 9, s.y + 14, 6, 2);
+    } else {
+      ctx.fillRect(s.x + 1, s.y + 14, 6, 2);
+      ctx.fillRect(s.x + 10, s.y + 13, 6, 3);
     }
-
-    squish() {
-        this.isSquished = true;
-        this.velocity.x = 0;
-        this.velocity.y = 0;
-    }
-
-    render(ctx, camera) {
-        const renderX = Math.floor(this.position.x - camera.x);
-        const renderY = Math.floor(this.position.y - camera.y);
-
-        let sprite;
-        if (this.isSquished) {
-            sprite = this.spriteSheet.getGoombaSquished();
-        } else {
-            sprite = this.spriteSheet.getGoomba(this.animFrame);
-        }
-
-        ctx.drawImage(sprite, renderX, renderY);
-    }
+  }
 }

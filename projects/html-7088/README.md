@@ -8,7 +8,7 @@
 ## 🗂️ Folder Structure
 ```text
 projects/html-7088/
-├── config/game_config.js
+├── config/game.config.js
 ├── docs/ARCHITECTURE.md
 ├── docs/DEBUG_SYNTAX.md
 ├── docs/TEST_SPEC.md
@@ -18,10 +18,8 @@ projects/html-7088/
 ├── public/index.html
 ├── public/style.css
 ├── src/core/error_shield.js
-├── src/core/performance_cache.js
 ├── src/engine/AABB.js
 ├── src/engine/Audio.js
-├── src/engine/AudioEngine.js
 ├── src/engine/AudioSystem.js
 ├── src/engine/Camera.js
 ├── src/engine/EventEmitter.js
@@ -29,17 +27,22 @@ projects/html-7088/
 ├── src/engine/GameLoop.js
 ├── src/engine/Input.js
 ├── src/engine/InputHandler.js
+├── src/engine/Particles.js
 ├── src/engine/Physics.js
 ├── src/engine/PhysicsEngine.js
+├── src/engine/SceneManager.js
 ├── src/engine/Vector2D.js
 ├── src/entities/Coin.js
+├── src/entities/Enemy.js
 ├── src/entities/Entity.js
 ├── src/entities/Goomba.js
 ├── src/entities/Mario.js
 ├── src/entities/Particle.js
+├── src/entities/Player.js
+├── src/entities/SpriteSheet.js
 ├── src/game.js
 ├── src/levels/Level1.js
-├── src/levels/SpriteSheet.js
+├── src/levels/LevelData.js
 ├── src/levels/TileMap.js
 ├── src/levels/World1_1.js
 ├── src/main.js
@@ -47,5 +50,4 @@ projects/html-7088/
 ├── src/world/Level.js
 ├── tests/collision.test.js
 ├── tests/physics.test.js
-├── tests/physics_cache.test.js
 ```

@@ -1,48 +1,33 @@
-/**
- * استودیو B2.st - کلاس پایه هویت‌ها (Entity Base Class)
- * ستون فقرات معماری ماژولار انتیتی‌ها
- */
 import { Vector2D } from '../engine/Vector2D.js';
-import { Physics } from '../engine/Physics.js';
 
+/**
+ * کلاس پایه برای تمام اشیا، کاراکترها و ذرات بازی
+ */
 export class Entity {
-    constructor(x = 0, y = 0, width = 16, height = 16) {
-        this.pos = new Vector2D(x, y);
-        this.vel = new Vector2D(0, 0);
-        this.size = new Vector2D(width, height);
-        this.facing = 1; // 1 برای راست، -1 برای چپ
-        this.isGrounded = false;
-        this.hasGravity = true;
-        this.collidesWithWorld = true;
-        this.isDead = false;
-        this.isRemoved = false;
-        this.state = 'IDLE';
-        this.animTimer = 0;
-        this.animFrame = 0;
-    }
+  constructor(x = 0, y = 0, width = 16, height = 16) {
+    this.pos = new Vector2D(x, y);
+    this.vel = new Vector2D(0, 0);
+    this.width = width;
+    this.height = height;
+    this.hitboxOffset = { x: 0, y: 0 };
+    this.hitboxSize = { width, height };
+    this.isDead = false;
+  }
 
-    getBounds() {
-        return {
-            pos: this.pos,
-            size: this.size
-        };
-    }
+  getHitbox() {
+    return {
+      x: this.pos.x + this.hitboxOffset.x,
+      y: this.pos.y + this.hitboxOffset.y,
+      width: this.hitboxSize.width,
+      height: this.hitboxSize.height
+    };
+  }
 
-    update(dt, level) {
-        this.animTimer += dt;
-        Physics.applyGravity(this, dt);
-        Physics.resolveTileMapCollisions(this, level.tileMap, dt);
-    }
+  update(dt) {
+    this.pos.add(this.vel.clone().scale(dt));
+  }
 
-    onCollideHorizontal(direction) {
-        // قابل بازنویسی توسط فرزندان
-    }
-
-    onCollideVertical(direction, tile) {
-        // قابل بازنویسی توسط فرزندان
-    }
-
-    render(ctx) {
-        // انتزاعی - باید توسط هر انتیتی رندر شود
-    }
+  render(ctx) {
+    // کلاس‌های فرزند رندر اختصاصی خود را پیاده‌سازی می‌کنند
+  }
 }

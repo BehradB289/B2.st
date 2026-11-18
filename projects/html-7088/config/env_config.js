@@ -2,422 +2,938 @@
 /**
  * ============================================
  * B2.st Studio - Environment Configuration
- * Mario Game - 10-Layer Debug Agent
+ * Mario Game - Centralized Config Manager
  * ============================================
  * 
- * این ماژول مسئول:
- * 1. بارگذاری و اعتبارسنجی متغیرهای محیطی
- * 2. تنظیم مقادیر پیش‌فرض امن
- * 3. جلوگیری از نشت اطلاعات حساس
- * 4. ارائه config یکپارچه به کل پروژه
+ * ماژول مرکزی مدیریت متغیرهای محیطی
+ * شامل: اعتبارسنجی، مقادیر پیش‌فرض، تبدیل نوع، حفاظت امنیتی
  */
 
-(function () {
-  'use strict';
-
-  // ---- Layer 1: Detection - تشخیص محیط اجرا ----
-  const isBrowser = typeof window !== 'undefined' && typeof document !== 'undefined';
-  const isNode = typeof process !== 'undefined' && process.versions && process.versions.node;
-
-  // ---- Layer 2: Node.js dotenv loader ----
-  if (isNode) {
-    try {
-      require('dotenv').config();
-    } catch (e) {
-      // dotenv نصب نیست - از مقادیر پیش‌فرض استفاده می‌شود
-      if (process.argv.includes('--validate')) {
-        console.warn('[ENV_CONFIG] Warning: dotenv not installed. Using defaults.');
-      }
+(function (root, factory) {
+    // سازگاری با CommonJS / AMD / Browser Global
+    if (typeof module !== 'undefined' && module.exports) {
+        module.exports = factory();
+    } else if (typeof define === 'function' && define.amd) {
+        define(factory);
+    } else {
+        root.EnvConfig = factory();
     }
-  }
+})(typeof globalThis !== 'undefined' ? globalThis : this, function () {
 
-  // ---- Layer 3: Schema Definition - تعریف اسکیمای متغیرها ----
-  const ENV_SCHEMA = {
-    PORT: {
-      type: 'number',
-      default: 3000,
-      min: 1024,
-      max: 65535,
-      required: false,
-      sensitive: false,
-      description: 'Server port number'
-    },
-    HOST: {
-      type: 'string',
-      default: 'localhost',
-      required: false,
-      sensitive: false,
-      description: 'Server host'
-    },
-    NODE_ENV: {
-      type: 'enum',
-      values: ['development', 'production', 'test', 'staging'],
-      default: 'production',
-      required: true,
-      sensitive: false,
-      description: 'Runtime environment'
-    },
-    GAME_TITLE: {
-      type: 'string',
-      default: 'Super Mario Bros',
-      required: false,
-      sensitive: false,
-      description: 'Game window title'
-    },
-    GAME_VERSION: {
-      type: 'semver',
-      default: '1.0.0',
-      required: false,
-      sensitive: false,
-      description: 'Game version'
-    },
-    GAME_DEBUG_MODE: {
-      type: 'boolean',
-      default: false,
-      required: false,
-      sensitive: false,
-      description: 'Enable debug overlays and logging'
-    },
-    GAME_FPS: {
-      type: 'number',
-      default: 60,
-      min: 15,
-      max: 144,
-      required: false,
-      sensitive: false,
-      description: 'Target frames per second'
-    },
-    GAME_CANVAS_WIDTH: {
-      type: 'number',
-      default: 800,
-      min: 320,
-      max: 3840,
-      required: false,
-      sensitive: false,
-      description: 'Canvas width in pixels'
-    },
-    GAME_CANVAS_HEIGHT: {
-      type: 'number',
-      default: 600,
-      min: 240,
-      max: 2160,
-      required: false,
-      sensitive: false,
-      description: 'Canvas height in pixels'
-    },
-    AUDIO_ENABLED: {
-      type: 'boolean',
-      default: true,
-      required: false,
-      sensitive: false,
-      description: 'Enable game audio'
-    },
-    AUDIO_VOLUME: {
-      type: 'number',
-      default: 0.7,
-      min: 0.0,
-      max: 1.0,
-      required: false,
-      sensitive: false,
-      description: 'Master audio volume (0.0 - 1.0)'
-    },
-    ALLOWED_ORIGINS: {
-      type: 'csv',
-      default: 'http://localhost:3000',
-      required: false,
-      sensitive: false,
-      description: 'Comma-separated allowed CORS origins'
-    },
-    CSP_ENABLED: {
-      type: 'boolean',
-      default: true,
-      required: false,
-      sensitive: false,
-      description: 'Enable Content Security Policy headers'
-    },
-    RATE_LIMIT_MAX: {
-      type: 'number',
-      default: 100,
-      min: 10,
-      max: 10000,
-      required: false,
-      sensitive: false,
-      description: 'Max requests per window'
-    },
-    RATE_LIMIT_WINDOW_MS: {
-      type: 'number',
-      default: 900000,
-      min: 60000,
-      max: 86400000,
-      required: false,
-      sensitive: false,
-      description: 'Rate limit window in milliseconds'
-    },
-    ANALYTICS_ENABLED: {
-      type: 'boolean',
-      default: false,
-      required: false,
-      sensitive: false,
-      description: 'Enable analytics tracking'
-    },
-    ANALYTICS_ENDPOINT: {
-      type: 'url',
-      default: '',
-      required: false,
-      sensitive: true,
-      description: 'Analytics API endpoint'
-    },
-    HIGHSCORE_API_URL: {
-      type: 'url',
-      default: '',
-      required: false,
-      sensitive: true,
-      description: 'High score API URL'
-    },
-    HIGHSCORE_API_KEY: {
-      type: 'string',
-      default: '',
-      required: false,
-      sensitive: true,
-      description: 'High score API authentication key'
-    }
-  };
+    'use strict';
 
-  // ---- Layer 4: Raw Value Retrieval ----
-  function getRawValue(key) {
-    if (isNode && process.env[key] !== undefined) {
-      return process.env[key];
-    }
-    if (isBrowser && window.__ENV__ && window.__ENV__[key] !== undefined) {
-      return window.__ENV__[key];
-    }
-    return undefined;
-  }
+    // ──────────────────────────────────────────
+    // Layer 1: Raw Environment Parser
+    // ──────────────────────────────────────────
+    const RawParser = {
+        _cache: null,
 
-  // ---- Layer 5: Type Casting & Parsing ----
-  function castValue(rawValue, schema) {
-    if (rawValue === undefined || rawValue === null || rawValue === '') {
-      return schema.default;
-    }
+        /**
+         * پارس فایل .env از متن خام
+         */
+        parseEnvString(envContent) {
+            const result = {};
+            if (!envContent || typeof envContent !== 'string') return result;
 
-    const raw = String(rawValue).trim();
+            const lines = envContent.split('\n');
+            for (let i = 0; i < lines.length; i++) {
+                const line = lines[i].trim();
 
-    switch (schema.type) {
-      case 'number': {
-        const num = Number(raw);
-        if (isNaN(num)) {
-          console.error(`[ENV_CONFIG] Invalid number: "${raw}", using default: ${schema.default}`);
-          return schema.default;
+                // رد کردن خطوط خالی و کامنت‌ها
+                if (!line || line.startsWith('#') || line.startsWith('//')) continue;
+
+                const eqIndex = line.indexOf('=');
+                if (eqIndex === -1) continue;
+
+                const key = line.substring(0, eqIndex).trim();
+                let value = line.substring(eqIndex + 1).trim();
+
+                // حذف کوتیشن‌ها
+                if ((value.startsWith('"') && value.endsWith('"')) ||
+                    (value.startsWith("'") && value.endsWith("'"))) {
+                    value = value.slice(1, -1);
+                }
+
+                // حذف کامنت‌های inline
+                const commentIndex = value.indexOf(' #');
+                if (commentIndex > -1) {
+                    value = value.substring(0, commentIndex).trim();
+                }
+
+                if (key && /^[A-Z_][A-Z0-9_]*$/i.test(key)) {
+                    result[key] = value;
+                }
+            }
+            return result;
+        },
+
+        /**
+         * بارگذاری async فایل .env (برای محیط مرورگر)
+         */
+        async loadFromFile(path) {
+            if (this._cache) return this._cache;
+            try {
+                const response = await fetch(path);
+                if (!response.ok) {
+                    console.warn(`[EnvConfig] فایل ${path} یافت نشد. از مقادیر پیش‌فرض استفاده می‌شود.`);
+                    return {};
+                }
+                const text = await response.text();
+                this._cache = this.parseEnvString(text);
+                return this._cache;
+            } catch (e) {
+                console.warn('[EnvConfig] خطا در بارگذاری .env:', e.message);
+                return {};
+            }
+        },
+
+        clearCache() {
+            this._cache = null;
         }
-        if (schema.min !== undefined && num < schema.min) {
-          console.warn(`[ENV_CONFIG] Value ${num} below min ${schema.min}, clamping.`);
-          return schema.min;
+    };
+
+    // ──────────────────────────────────────────
+    // Layer 2: Type Converter & Validator
+    // ──────────────────────────────────────────
+    const TypeConverter = {
+        toNumber(value, fallback) {
+            if (value === undefined || value === null || value === '') return fallback;
+            const num = Number(value);
+            return isNaN(num) ? fallback : num;
+        },
+
+        toBoolean(value, fallback) {
+            if (value === undefined || value === null || value === '') return fallback;
+            if (typeof value === 'boolean') return value;
+            const str = String(value).toLowerCase().trim();
+            if (['true', '1', 'yes', 'on'].includes(str)) return true;
+            if (['false', '0', 'no', 'off'].includes(str)) return false;
+            return fallback;
+        },
+
+        toString(value, fallback) {
+            if (value === undefined || value === null) return fallback;
+            return String(value);
+        },
+
+        toArray(value, fallback, separator) {
+            if (value === undefined || value === null || value === '') return fallback;
+            return String(value).split(separator || ',').map(s => s.trim()).filter(Boolean);
+        },
+
+        clamp(value, min, max) {
+            return Math.max(min, Math.min(max, value));
         }
-        if (schema.max !== undefined && num > schema.max) {
-          console.warn(`[ENV_CONFIG] Value ${num} above max ${schema.max}, clamping.`);
-          return schema.max;
+    };
+
+    // ──────────────────────────────────────────
+    // Layer 3: Security Sanitizer
+    // ──────────────────────────────────────────
+    const SecuritySanitizer = {
+        /**
+         * پاکسازی رشته از کاراکترهای خطرناک
+         */
+        sanitizeString(value) {
+            if (typeof value !== 'string') return value;
+            return value
+                .replace(/[<>]/g, '')           // XSS basic
+                .replace(/javascript:/gi, '')    // Protocol injection
+                .replace(/on\w+\s*=/gi, '')     // Event handler injection
+                .replace(/\x00/g, '')           // Null byte
+                .trim();
+        },
+
+        /**
+         * اعتبارسنجی مسیر فایل (جلوگیری از Path Traversal)
+         */
+        sanitizePath(value) {
+            if (typeof value !== 'string') return value;
+            return value
+                .replace(/\.\.\//g, '')         // Directory traversal
+                .replace(/\.\.\\/g, '')
+                .replace(/[;|&$`]/g, '')        // Command injection chars
+                .replace(/\x00/g, '')
+                .trim();
+        },
+
+        /**
+         * اعتبارسنجی URL
+         */
+        isValidOrigin(value) {
+            if (value === '*') return true;
+            try {
+                new URL(value);
+                return true;
+            } catch {
+                return /^https?:\/\/[\w.-]+(:\d+)?$/.test(value);
+            }
+        },
+
+        /**
+         * فریز عمیق آبجکت برای جلوگیری از تغییر در runtime
+         */
+        deepFreeze(obj) {
+            if (obj === null || typeof obj !== 'object') return obj;
+            Object.freeze(obj);
+            Object.getOwnPropertyNames(obj).forEach(prop => {
+                const val = obj[prop];
+                if (val !== null && typeof val === 'object' && !Object.isFrozen(val)) {
+                    this.deepFreeze(val);
+                }
+            });
+            return obj;
         }
-        return num;
-      }
+    };
 
-      case 'boolean': {
-        const lower = raw.toLowerCase();
-        if (['true', '1', 'yes', 'on'].includes(lower)) return true;
-        if (['false', '0', 'no', 'off'].includes(lower)) return false;
-        console.error(`[ENV_CONFIG] Invalid boolean: "${raw}", using default: ${schema.default}`);
-        return schema.default;
-      }
+    // ──────────────────────────────────────────
+    // Layer 4: Schema Definition
+    // ──────────────────────────────────────────
+    const CONFIG_SCHEMA = {
+        // ── General ──
+        NODE_ENV: {
+            type: 'string',
+            default: 'development',
+            allowed: ['development', 'production', 'test', 'staging'],
+            description: 'محیط اجرا'
+        },
+        APP_NAME: {
+            type: 'string',
+            default: 'mario-game-b2st',
+            description: 'نام اپلیکیشن'
+        },
+        APP_VERSION: {
+            type: 'string',
+            default: '1.0.0',
+            pattern: /^\d+\.\d+\.\d+$/,
+            description: 'نسخه اپلیکیشن'
+        },
+        APP_PORT: {
+            type: 'number',
+            default: 8080,
+            min: 1024,
+            max: 65535,
+            description: 'پورت سرور'
+        },
+        APP_HOST: {
+            type: 'string',
+            default: 'localhost',
+            description: 'هاست سرور'
+        },
 
-      case 'enum': {
-        if (schema.values.includes(raw)) return raw;
-        console.error(`[ENV_CONFIG] Invalid enum value: "${raw}", allowed: [${schema.values.join(', ')}], using default: ${schema.default}`);
-        return schema.default;
-      }
+        // ── Game Settings ──
+        GAME_CANVAS_WIDTH: {
+            type: 'number',
+            default: 768,
+            min: 320,
+            max: 3840,
+            description: 'عرض کنواس بازی'
+        },
+        GAME_CANVAS_HEIGHT: {
+            type: 'number',
+            default: 720,
+            min: 240,
+            max: 2160,
+            description: 'ارتفاع کنواس بازی'
+        },
+        GAME_FPS: {
+            type: 'number',
+            default: 60,
+            min: 24,
+            max: 144,
+            description: 'فریم بر ثانیه'
+        },
+        GAME_GRAVITY: {
+            type: 'number',
+            default: 0.7,
+            min: 0.1,
+            max: 5.0,
+            description: 'شتاب گرانش'
+        },
+        GAME_FRICTION: {
+            type: 'number',
+            default: 0.8,
+            min: 0.0,
+            max: 1.0,
+            description: 'ضریب اصطکاک'
+        },
+        GAME_DEBUG_MODE: {
+            type: 'boolean',
+            default: false,
+            description: 'حالت دیباگ'
+        },
+        GAME_SHOW_FPS: {
+            type: 'boolean',
+            default: false,
+            description: 'نمایش FPS'
+        },
+        GAME_SHOW_HITBOX: {
+            type: 'boolean',
+            default: false,
+            description: 'نمایش Hitbox'
+        },
+        GAME_MUTE_AUDIO: {
+            type: 'boolean',
+            default: false,
+            description: 'بی‌صدا کردن'
+        },
+        GAME_MASTER_VOLUME: {
+            type: 'number',
+            default: 0.7,
+            min: 0.0,
+            max: 1.0,
+            description: 'حجم صدای اصلی'
+        },
+        GAME_INITIAL_LIVES: {
+            type: 'number',
+            default: 3,
+            min: 1,
+            max: 99,
+            description: 'جان‌های اولیه'
+        },
+        GAME_MAX_LEVEL: {
+            type: 'number',
+            default: 8,
+            min: 1,
+            max: 100,
+            description: 'حداکثر مراحل'
+        },
+        GAME_TILE_SIZE: {
+            type: 'number',
+            default: 16,
+            min: 8,
+            max: 128,
+            description: 'اندازه تایل'
+        },
+        GAME_SCALE_FACTOR: {
+            type: 'number',
+            default: 2,
+            min: 1,
+            max: 8,
+            description: 'ضریب بزرگنمایی'
+        },
 
-      case 'csv': {
-        return raw.split(',').map(s => s.trim()).filter(s => s.length > 0);
-      }
+        // ── Player Physics ──
+        PLAYER_SPEED: {
+            type: 'number',
+            default: 3.5,
+            min: 0.5,
+            max: 20.0,
+            description: 'سرعت بازیکن'
+        },
+        PLAYER_JUMP_FORCE: {
+            type: 'number',
+            default: -12,
+            min: -30,
+            max: -1,
+            description: 'نیروی پرش'
+        },
+        PLAYER_MAX_FALL_SPEED: {
+            type: 'number',
+            default: 8,
+            min: 1,
+            max: 30,
+            description: 'حداکثر سرعت سقوط'
+        },
+        PLAYER_ACCELERATION: {
+            type: 'number',
+            default: 0.5,
+            min: 0.05,
+            max: 5.0,
+            description: 'شتاب بازیکن'
+        },
+        PLAYER_DECELERATION: {
+            type: 'number',
+            default: 0.3,
+            min: 0.05,
+            max: 5.0,
+            description: 'کاهش شتاب بازیکن'
+        },
+        PLAYER_INVINCIBILITY_DURATION: {
+            type: 'number',
+            default: 2000,
+            min: 500,
+            max: 10000,
+            description: 'مدت شکست‌ناپذیری (ms)'
+        },
 
-      case 'url': {
-        if (raw === '') return '';
-        try {
-          new URL(raw);
-          return raw;
-        } catch (e) {
-          console.error(`[ENV_CONFIG] Invalid URL: "${raw}", using default.`);
-          return schema.default;
+        // ── Asset Paths ──
+        ASSETS_BASE_PATH: {
+            type: 'path',
+            default: './assets',
+            description: 'مسیر پایه دارایی‌ها'
+        },
+        ASSETS_SPRITES_PATH: {
+            type: 'path',
+            default: './assets/sprites',
+            description: 'مسیر اسپرایت‌ها'
+        },
+        ASSETS_AUDIO_PATH: {
+            type: 'path',
+            default: './assets/audio',
+            description: 'مسیر فایل‌های صوتی'
+        },
+        ASSETS_LEVELS_PATH: {
+            type: 'path',
+            default: './assets/levels',
+            description: 'مسیر فایل‌های مراحل'
+        },
+        ASSETS_FONTS_PATH: {
+            type: 'path',
+            default: './assets/fonts',
+            description: 'مسیر فونت‌ها'
+        },
+
+        // ── Security ──
+        SECURITY_CSP_ENABLED: {
+            type: 'boolean',
+            default: true,
+            description: 'فعال‌سازی CSP'
+        },
+        SECURITY_CORS_ORIGIN: {
+            type: 'string',
+            default: '*',
+            description: 'مبدأ CORS'
+        },
+        SECURITY_RATE_LIMIT: {
+            type: 'number',
+            default: 100,
+            min: 10,
+            max: 10000,
+            description: 'محدودیت نرخ درخواست'
+        },
+        SECURITY_XSS_PROTECTION: {
+            type: 'boolean',
+            default: true,
+            description: 'محافظت XSS'
+        },
+
+        // ── Analytics ──
+        ANALYTICS_ENABLED: {
+            type: 'boolean',
+            default: false,
+            description: 'فعال‌سازی آنالیتیکس'
+        },
+        ANALYTICS_TRACKING_ID: {
+            type: 'string',
+            default: '',
+            description: 'شناسه ردیابی'
+        },
+        ANALYTICS_ENDPOINT: {
+            type: 'string',
+            default: '',
+            description: 'آدرس سرور آنالیتیکس'
+        },
+
+        // ── Build ──
+        BUILD_MINIFY: {
+            type: 'boolean',
+            default: true,
+            description: 'فشرده‌سازی خروجی'
+        },
+        BUILD_SOURCEMAP: {
+            type: 'boolean',
+            default: false,
+            description: 'تولید sourcemap'
+        },
+        BUILD_OUTPUT_DIR: {
+            type: 'path',
+            default: './dist',
+            description: 'مسیر خروجی بیلد'
+        },
+        BUILD_CACHE_BUST: {
+            type: 'boolean',
+            default: true,
+            description: 'شکستن کش مرورگر'
         }
-      }
+    };
 
-      case 'semver': {
-        if (/^\d+\.\d+\.\d+(-[\w.]+)?(\+[\w.]+)?$/.test(raw)) return raw;
-        console.error(`[ENV_CONFIG] Invalid semver: "${raw}", using default: ${schema.default}`);
-        return schema.default;
-      }
+    // ──────────────────────────────────────────
+    // Layer 5: Config Builder & Validator
+    // ──────────────────────────────────────────
+    class ConfigBuilder {
+        constructor() {
+            this._raw = {};
+            this._errors = [];
+            this._warnings = [];
+        }
 
-      case 'string':
-      default:
-        return raw;
+        /**
+         * ساخت کانفیگ از منابع مختلف
+         */
+        build(rawEnv) {
+            this._raw = rawEnv || {};
+            this._errors = [];
+            this._warnings = [];
+
+            const config = {};
+
+            for (const [key, schema] of Object.entries(CONFIG_SCHEMA)) {
+                const rawValue = this._raw[key];
+                const resolved = this._resolveValue(key, rawValue, schema);
+                this._setNestedKey(config, key, resolved);
+            }
+
+            return {
+                config,
+                errors: [...this._errors],
+                warnings: [...this._warnings],
+                isValid: this._errors.length === 0
+            };
+        }
+
+        _resolveValue(key, rawValue, schema) {
+            let value;
+
+            switch (schema.type) {
+                case 'number':
+                    value = TypeConverter.toNumber(rawValue, schema.default);
+                    if (schema.min !== undefined && schema.max !== undefined) {
+                        const clamped = TypeConverter.clamp(value, schema.min, schema.max);
+                        if (clamped !== value) {
+                            this._warnings.push(
+                                `[${key}] مقدار ${value} خارج از محدوده [${schema.min}, ${schema.max}] بود. تصحیح به ${clamped}`
+                            );
+                            value = clamped;
+                        }
+                    }
+                    break;
+
+                case 'boolean':
+                    value = TypeConverter.toBoolean(rawValue, schema.default);
+                    break;
+
+                case 'path':
+                    value = TypeConverter.toString(rawValue, schema.default);
+                    value = SecuritySanitizer.sanitizePath(value);
+                    break;
+
+                case 'string':
+                default:
+                    value = TypeConverter.toString(rawValue, schema.default);
+                    value = SecuritySanitizer.sanitizeString(value);
+
+                    if (schema.allowed && !schema.allowed.includes(value)) {
+                        this._errors.push(
+                            `[${key}] مقدار "${value}" مجاز نیست. مقادیر مجاز: ${schema.allowed.join(', ')}`
+                        );
+                        value = schema.default;
+                    }
+
+                    if (schema.pattern && !schema.pattern.test(value)) {
+                        this._warnings.push(
+                            `[${key}] مقدار "${value}" با الگوی مورد انتظار مطابقت ندارد. از پیش‌فرض استفاده شد.`
+                        );
+                        value = schema.default;
+                    }
+                    break;
+            }
+
+            return value;
+        }
+
+        /**
+         * تبدیل GAME_CANVAS_WIDTH به config.game.canvasWidth
+         */
+        _setNestedKey(obj, envKey, value) {
+            const parts = envKey.toLowerCase().split('_');
+            const category = parts[0];
+
+            if (!obj[category]) obj[category] = {};
+
+            const propName = parts.slice(1).map((p, i) =>
+                i === 0 ? p : p.charAt(0).toUpperCase() + p.slice(1)
+            ).join('');
+
+            obj[category][propName] = value;
+        }
     }
-  }
 
-  // ---- Layer 6: Validation Engine ----
-  function validateAll() {
-    const errors = [];
-    const warnings = [];
-    const config = {};
+    // ──────────────────────────────────────────
+    // Layer 6: Runtime Config Manager (Singleton)
+    // ──────────────────────────────────────────
+    class EnvConfig {
+        constructor() {
+            if (EnvConfig._instance) {
+                return EnvConfig._instance;
+            }
 
-    for (const [key, schema] of Object.entries(ENV_SCHEMA)) {
-      const raw = getRawValue(key);
-      const value = castValue(raw, schema);
+            this._config = null;
+            this._initialized = false;
+            this._builder = new ConfigBuilder();
+            this._listeners = new Map();
+            this._initTimestamp = Date.now();
 
-      if (schema.required && (value === undefined || value === null || value === '')) {
-        errors.push(`Missing required env variable: ${key} - ${schema.description}`);
-      }
+            EnvConfig._instance = this;
+        }
 
-      config[key] = value;
+        /**
+         * مقداردهی اولیه - sync با مقادیر پیش‌فرض
+         */
+        initSync(overrides) {
+            const rawEnv = Object.assign({}, overrides || {});
+            const result = this._builder.build(rawEnv);
+
+            this._handleBuildResult(result);
+            this._config = SecuritySanitizer.deepFreeze(result.config);
+            this._initialized = true;
+
+            console.log('[EnvConfig] ✅ مقداردهی اولیه sync انجام شد');
+            return this;
+        }
+
+        /**
+         * مقداردهی اولیه - async با بارگذاری فایل .env
+         */
+        async init(envFilePath, overrides) {
+            const fileEnv = await RawParser.loadFromFile(envFilePath || './.env');
+            const rawEnv = Object.assign({}, fileEnv, overrides || {});
+            const result = this._builder.build(rawEnv);
+
+            this._handleBuildResult(result);
+            this._config = SecuritySanitizer.deepFreeze(result.config);
+            this._initialized = true;
+
+            console.log('[EnvConfig] ✅ مقداردهی اولیه async انجام شد');
+            return this;
+        }
+
+        /**
+         * دریافت مقدار کانفیگ با dot notation
+         * مثال: get('game.canvasWidth')
+         */
+        get(path, fallback) {
+            this._ensureInitialized();
+
+            if (!path) return this._config;
+
+            const parts = path.split('.');
+            let current = this._config;
+
+            for (const part of parts) {
+                if (current === null || current === undefined || typeof current !== 'object') {
+                    return fallback;
+                }
+                current = current[part];
+            }
+
+            return current !== undefined ? current : fallback;
+        }
+
+        /**
+         * دریافت کل کانفیگ
+         */
+        getAll() {
+            this._ensureInitialized();
+            return this._config;
+        }
+
+        /**
+         * دریافت کانفیگ یک دسته
+         */
+        getCategory(category) {
+            this._ensureInitialized();
+            return this._config[category] || {};
+        }
+
+        /**
+         * بررسی محیط
+         */
+        isDev() {
+            return this.get('node.env') === 'development';
+        }
+
+        isProd() {
+            return this.get('node.env') === 'production';
+        }
+
+        isDebug() {
+            return this.get('game.debugMode', false);
+        }
+
+        /**
+         * اعتبارسنجی مستقل (برای CLI)
+         */
+        validate(rawEnv) {
+            const result = this._builder.build(rawEnv || {});
+            return {
+                isValid: result.isValid,
+                errors: result.errors,
+                warnings: result.warnings
+            };
+        }
+
+        /**
+         * تولید گزارش وضعیت
+         */
+        getReport() {
+            this._ensureInitialized();
+            return {
+                initialized: this._initialized,
+                timestamp: this._initTimestamp,
+                environment: this.get('node.env'),
+                version: this.get('app.version'),
+                debug: this.isDebug(),
+                configKeys: this._countKeys(this._config),
+                memoryUsage: this._estimateMemory()
+            };
+        }
+
+        /**
+         * خروجی مناسب برای game engine
+         */
+        toGameConfig() {
+            this._ensureInitialized();
+            return {
+                canvas: {
+                    width: this.get('game.canvasWidth'),
+                    height: this.get('game.canvasHeight'),
+                    scale: this.get('game.scaleFactor')
+                },
+                physics: {
+                    gravity: this.get('game.gravity'),
+                    friction: this.get('game.friction'),
+                    tileSize: this.get('game.tileSize')
+                },
+                player: {
+                    speed: this.get('player.speed'),
+                    jumpForce: this.get('player.jumpForce'),
+                    maxFallSpeed: this.get('player.maxFallSpeed'),
+                    acceleration: this.get('player.acceleration'),
+                    deceleration: this.get('player.deceleration'),
+                    invincibilityDuration: this.get('player.invincibilityDuration')
+                },
+                display: {
+                    fps: this.get('game.fps'),
+                    showFps: this.get('game.showFps'),
+                    showHitbox: this.get('game.showHitbox')
+                },
+                audio: {
+                    muted: this.get('game.muteAudio'),
+                    masterVolume: this.get('game.masterVolume')
+                },
+                gameplay: {
+                    initialLives: this.get('game.initialLives'),
+                    maxLevel: this.get('game.maxLevel')
+                },
+                assets: {
+                    base: this.get('assets.basePath'),
+                    sprites: this.get('assets.spritesPath'),
+                    audio: this.get('assets.audioPath'),
+                    levels: this.get('assets.levelsPath'),
+                    fonts: this.get('assets.fontsPath')
+                },
+                debug: this.isDebug()
+            };
+        }
+
+        // ── Private Methods ──
+
+        _ensureInitialized() {
+            if (!this._initialized) {
+                console.warn('[EnvConfig] ⚠️ هنوز مقداردهی نشده. initSync فراخوانی می‌شود...');
+                this.initSync();
+            }
+        }
+
+        _handleBuildResult(result) {
+            if (result.warnings.length > 0) {
+                console.warn('[EnvConfig] ⚠️ هشدارها:');
+                result.warnings.forEach(w => console.warn('  →', w));
+            }
+            if (result.errors.length > 0) {
+                console.error('[EnvConfig] ❌ خطاها:');
+                result.errors.forEach(e => console.error('  →', e));
+            }
+        }
+
+        _countKeys(obj, count) {
+            count = count || 0;
+            for (const key in obj) {
+                if (Object.prototype.hasOwnProperty.call(obj, key)) {
+                    count++;
+                    if (typeof obj[key] === 'object' && obj[key] !== null) {
+                        count = this._countKeys(obj[key], count);
+                    }
+                }
+            }
+            return count;
+        }
+
+        _estimateMemory() {
+            try {
+                return new Blob([JSON.stringify(this._config)]).size + ' bytes';
+            } catch {
+                return 'N/A';
+            }
+        }
+
+        /**
+         * ریست Singleton (فقط برای تست)
+         */
+        static _reset() {
+            EnvConfig._instance = null;
+        }
     }
 
-    // Cross-field validations
-    if (config.GAME_DEBUG_MODE && config.NODE_ENV === 'production') {
-      warnings.push('GAME_DEBUG_MODE is enabled in production! This may expose sensitive data.');
+    EnvConfig._instance = null;
+
+    // ──────────────────────────────────────────
+    // Layer 7: CSP Header Generator
+    // ──────────────────────────────────────────
+    const CSPGenerator = {
+        generate(config) {
+            if (!config || !config.get('security.cspEnabled')) return '';
+
+            const directives = [
+                "default-src 'self'",
+                "script-src 'self' 'unsafe-inline'",
+                "style-src 'self' 'unsafe-inline'",
+                "img-src 'self' data: blob:",
+                "media-src 'self' blob:",
+                "font-src 'self'",
+                "connect-src 'self'",
+                "frame-src 'none'",
+                "object-src 'none'",
+                "base-uri 'self'"
+            ];
+
+            return directives.join('; ');
+        },
+
+        applyToDocument(config) {
+            if (typeof document === 'undefined') return;
+
+            const csp = this.generate(config);
+            if (!csp) return;
+
+            let meta = document.querySelector('meta[http-equiv="Content-Security-Policy"]');
+            if (!meta) {
+                meta = document.createElement('meta');
+                meta.setAttribute('http-equiv', 'Content-Security-Policy');
+                document.head.appendChild(meta);
+            }
+            meta.setAttribute('content', csp);
+        }
+    };
+
+    // ──────────────────────────────────────────
+    // Layer 8: CLI Validator (Node.js only)
+    // ──────────────────────────────────────────
+    if (typeof process !== 'undefined' && process.argv && process.argv.includes('--validate')) {
+        (function runCLIValidation() {
+            const fs = require('fs');
+            const path = require('path');
+
+            console.log('╔══════════════════════════════════════════╗');
+            console.log('║  B2.st Studio - Env Config Validator     ║');
+            console.log('╚══════════════════════════════════════════╝');
+            console.log('');
+
+            const envPath = path.resolve(process.cwd(), '.env');
+            const examplePath = path.resolve(process.cwd(), '.env.example');
+
+            // بررسی وجود .env
+            if (!fs.existsSync(envPath)) {
+                console.error('❌ فایل .env یافت نشد!');
+                if (fs.existsSync(examplePath)) {
+                    console.log('💡 از دستور زیر استفاده کنید:');
+                    console.log('   cp .env.example .env');
+                }
+                process.exit(1);
+            }
+
+            const envContent = fs.readFileSync(envPath, 'utf-8');
+            const rawEnv = RawParser.parseEnvString(envContent);
+
+            const instance = new EnvConfig();
+            EnvConfig._reset();
+            const newInstance = new EnvConfig();
+            const result = newInstance.validate(rawEnv);
+
+            console.log(`📋 کلیدهای یافت‌شده: ${Object.keys(rawEnv).length}`);
+            console.log(`📋 کلیدهای اسکیما: ${Object.keys(CONFIG_SCHEMA).length}`);
+            console.log('');
+
+            // بررسی کلیدهای گمشده
+            const missingKeys = Object.keys(CONFIG_SCHEMA).filter(k => !(k in rawEnv));
+            if (missingKeys.length > 0) {
+                console.warn(`⚠️  کلیدهای گمشده (از پیش‌فرض استفاده می‌شود):`);
+                missingKeys.forEach(k => {
+                    console.warn(`   → ${k} = ${CONFIG_SCHEMA[k].default}`);
+                });
+                console.log('');
+            }
+
+            // بررسی کلیدهای اضافی
+            const extraKeys = Object.keys(rawEnv).filter(k => !(k in CONFIG_SCHEMA));
+            if (extraKeys.length > 0) {
+                console.warn(`⚠️  کلیدهای ناشناخته (نادیده گرفته می‌شوند):`);
+                extraKeys.forEach(k => console.warn(`   → ${k}`));
+                console.log('');
+            }
+
+            if (result.warnings.length > 0) {
+                console.warn('⚠️  هشدارها:');
+                result.warnings.forEach(w => console.warn(`   → ${w}`));
+                console.log('');
+            }
+
+            if (result.errors.length > 0) {
+                console.error('❌ خطاها:');
+                result.errors.forEach(e => console.error(`   → ${e}`));
+                console.log('');
+                process.exit(1);
+            }
+
+            console.log('✅ اعتبارسنجی با موفقیت انجام شد!');
+            process.exit(0);
+        })();
     }
 
-    if (config.ANALYTICS_ENABLED && !config.ANALYTICS_ENDPOINT) {
-      warnings.push('ANALYTICS_ENABLED is true but ANALYTICS_ENDPOINT is empty.');
+    // ──────────────────────────────────────────
+    // Layer 9: Auto-Init for Browser
+    // ──────────────────────────────────────────
+    if (typeof window !== 'undefined') {
+        window.addEventListener('DOMContentLoaded', function () {
+            const config = new EnvConfig();
+            if (!config._initialized) {
+                config.initSync();
+                CSPGenerator.applyToDocument(config);
+            }
+            window.GameConfig = config;
+            window.GAME = config.toGameConfig();
+
+            if (config.isDebug()) {
+                console.log('[EnvConfig] 🎮 Game Config:', window.GAME);
+                console.log('[EnvConfig] 📊 Report:', config.getReport());
+            }
+        });
     }
 
-    if (config.HIGHSCORE_API_URL && !config.HIGHSCORE_API_KEY) {
-      warnings.push('HIGHSCORE_API_URL is set but HIGHSCORE_API_KEY is missing.');
-    }
+    // ──────────────────────────────────────────
+    // Layer 10: Public API Export
+    // ──────────────────────────────────────────
+    return {
+        EnvConfig,
+        ConfigBuilder,
+        RawParser,
+        TypeConverter,
+        SecuritySanitizer,
+        CSPGenerator,
+        CONFIG_SCHEMA,
 
-    return { config, errors, warnings };
-  }
+        // Shortcut factory
+        create(overrides) {
+            const instance = new EnvConfig();
+            instance.initSync(overrides);
+            return instance;
+        },
 
-  // ---- Layer 7: Security Sanitization ----
-  function sanitizeForClient(config) {
-    const safe = {};
-    for (const [key, schema] of Object.entries(ENV_SCHEMA)) {
-      if (!schema.sensitive) {
-        safe[key] = config[key];
-      }
-    }
-    return Object.freeze(safe);
-  }
-
-  // ---- Layer 8: Build Configuration Object ----
-  const { config: rawConfig, errors, warnings } = validateAll();
-
-  // Log validation results
-  if (errors.length > 0) {
-    console.error('╔══════════════════════════════════════════╗');
-    console.error('║  [ENV_CONFIG] CRITICAL VALIDATION ERRORS ║');
-    console.error('╚══════════════════════════════════════════╝');
-    errors.forEach(e => console.error(`  ✖ ${e}`));
-  }
-
-  if (warnings.length > 0) {
-    console.warn('╔══════════════════════════════════════════╗');
-    console.warn('║  [ENV_CONFIG] VALIDATION WARNINGS        ║');
-    console.warn('╚══════════════════════════════════════════╝');
-    warnings.forEach(w => console.warn(`  ⚠ ${w}`));
-  }
-
-  // Structured config object
-  const ENV_CONFIG = Object.freeze({
-    server: {
-      port: rawConfig.PORT,
-      host: rawConfig.HOST,
-      nodeEnv: rawConfig.NODE_ENV,
-      isProduction: rawConfig.NODE_ENV === 'production',
-      isDevelopment: rawConfig.NODE_ENV === 'development',
-      isTest: rawConfig.NODE_ENV === 'test'
-    },
-    game: {
-      title: rawConfig.GAME_TITLE,
-      version: rawConfig.GAME_VERSION,
-      debugMode: rawConfig.GAME_DEBUG_MODE,
-      fps: rawConfig.GAME_FPS,
-      canvas: {
-        width: rawConfig.GAME_CANVAS_WIDTH,
-        height: rawConfig.GAME_CANVAS_HEIGHT
-      }
-    },
-    audio: {
-      enabled: rawConfig.AUDIO_ENABLED,
-      volume: rawConfig.AUDIO_VOLUME
-    },
-    security: {
-      allowedOrigins: rawConfig.ALLOWED_ORIGINS,
-      cspEnabled: rawConfig.CSP_ENABLED,
-      rateLimit: {
-        max: rawConfig.RATE_LIMIT_MAX,
-        windowMs: rawConfig.RATE_LIMIT_WINDOW_MS
-      }
-    },
-    analytics: {
-      enabled: rawConfig.ANALYTICS_ENABLED,
-      endpoint: rawConfig.ANALYTICS_ENDPOINT
-    },
-    highscore: {
-      apiUrl: rawConfig.HIGHSCORE_API_URL,
-      apiKey: rawConfig.HIGHSCORE_API_KEY
-    },
-    _meta: {
-      loadedAt: new Date().toISOString(),
-      validationErrors: errors.length,
-      validationWarnings: warnings.length
-    }
-  });
-
-  // ---- Layer 9: Export Strategy ----
-  if (isNode) {
-    module.exports = ENV_CONFIG;
-    module.exports.schema = ENV_SCHEMA;
-    module.exports.sanitizeForClient = () => sanitizeForClient(rawConfig);
-
-    // CLI validation mode
-    if (process.argv.includes('--validate')) {
-      console.log('\n╔══════════════════════════════════════════╗');
-      console.log('║  B2.st Studio - ENV Validation Report    ║');
-      console.log('╚══════════════════════════════════════════╝');
-      console.log(`  Environment : ${ENV_CONFIG.server.nodeEnv}`);
-      console.log(`  Game Title  : ${ENV_CONFIG.game.title}`);
-      console.log(`  Version     : ${ENV_CONFIG.game.version}`);
-      console.log(`  Debug Mode  : ${ENV_CONFIG.game.debugMode}`);
-      console.log(`  FPS Target  : ${ENV_CONFIG.game.fps}`);
-      console.log(`  Canvas      : ${ENV_CONFIG.game.canvas.width}x${ENV_CONFIG.game.canvas.height}`);
-      console.log(`  Audio       : ${ENV_CONFIG.audio.enabled ? 'ON' : 'OFF'} (vol: ${ENV_CONFIG.audio.volume})`);
-      console.log(`  CSP         : ${ENV_CONFIG.security.cspEnabled ? 'Enabled' : 'Disabled'}`);
-      console.log(`  Errors      : ${errors.length}`);
-      console.log(`  Warnings    : ${warnings.length}`);
-      console.log(`  Status      : ${errors.length === 0 ? '✅ PASS' : '❌ FAIL'}`);
-      console.log('');
-      process.exit(errors.length > 0 ? 1 : 0);
-    }
-  }
-
-  if (isBrowser) {
-    // فقط مقادیر غیرحساس در مرورگر قابل دسترسی هستند
-    window.ENV_CONFIG = sanitizeForClient(rawConfig);
-    window.GAME_CONFIG = Object.freeze({
-      title: rawConfig.GAME_TITLE,
-      version: rawConfig.GAME_VERSION,
-      debugMode: rawConfig.GAME_DEBUG_MODE,
-      fps: rawConfig.GAME_FPS,
-      canvasWidth: rawConfig.GAME_CANVAS_WIDTH,
-      canvasHeight: rawConfig.GAME_CANVAS_HEIGHT,
-      audioEnabled: rawConfig.AUDIO_ENABLED,
-      audioVolume: rawConfig.AUDIO_VOLUME
-    });
-  }
-
-  // ---- Layer 10: Integrity Seal ----
-  if (rawConfig.GAME_DEBUG_MODE) {
-    console.log('[ENV_CONFIG] ✅ Configuration loaded successfully');
-    console.log(`[ENV_CONFIG] Game: ${rawConfig.GAME_TITLE} v${rawConfig.GAME_VERSION}`);
-    console.log(`[ENV_CONFIG] Canvas: ${rawConfig.GAME_CANVAS_WIDTH}x${rawConfig.GAME_CANVAS_HEIGHT} @ ${rawConfig.GAME_FPS}fps`);
-  }
-
-})();
+        async createAsync(envPath, overrides) {
+            const instance = new EnvConfig();
+            await instance.init(envPath, overrides);
+            return instance;
+        }
+    };
+});
 ```

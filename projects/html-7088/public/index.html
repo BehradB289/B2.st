@@ -1,201 +1,873 @@
 <!DOCTYPE html>
-<html lang="fa" dir="rtl">
+<html lang="fa" dir="ltr" class="h-full bg-neutral-950 text-white select-none overflow-hidden">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>B2.st Super Mario Bros - NES Engine</title>
+  <title>Super Mario Bros - Retro NES UI/UX | Studio B2.st</title>
+  <!-- TailwindCSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Google Pixel Font: Press Start 2P -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            pixel: ['"Press Start 2P"', 'monospace'],
+            sans: ['"Space Grotesk"', 'sans-serif'],
+          },
+          colors: {
+            nes: {
+              sky: '#5c94fc',
+              ground: '#d88b28',
+              brick: '#c84408',
+              bush: '#00a800',
+              coin: '#fcd828',
+              text: '#ffffff',
+              red: '#e52521',
+              dark: '#0f0f1b'
+            }
+          },
+          boxShadow: {
+            'crt': 'inset 0 0 60px rgba(0, 0, 0, 0.7), 0 0 35px rgba(92, 148, 252, 0.35)',
+            'nes-btn': '0 4px 0 #8b0000, 0 6px 12px rgba(0,0,0,0.5)',
+            'nes-btn-active': '0 1px 0 #8b0000, 0 2px 4px rgba(0,0,0,0.5)',
+          }
+        }
+      }
+    }
+  </script>
+
   <style>
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-      user-select: none;
-      -webkit-user-select: none;
+    /* CRT Scanline & Phosphor Effect */
+    .crt-overlay {
+      background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.38) 50%),
+                  linear-gradient(90deg, rgba(255, 0, 0, 0.03), rgba(0, 255, 0, 0.01), rgba(0, 0, 255, 0.03));
+      background-size: 100% 4px, 6px 100%;
+      pointer-events: none;
     }
 
-    body {
-      background-color: #0b0c10;
-      color: #ffffff;
-      font-family: 'Press Start 2P', monospace;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      min-height: 100vh;
-      overflow: hidden;
+    .crt-vignette {
+      background: radial-gradient(circle at center, transparent 65%, rgba(4, 5, 12, 0.85) 100%);
+      pointer-events: none;
     }
 
-    .nes-cabinet {
-      background: #1f2833;
-      padding: 16px;
-      border-radius: 12px;
-      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.8), 0 0 20px rgba(92, 148, 252, 0.2);
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      border: 4px solid #45a29e;
-      max-width: 95vw;
-    }
-
-    /* NES HUD Header */
-    .hud {
-      width: 100%;
-      max-width: 768px;
-      display: flex;
-      justify-content: space-between;
-      padding: 8px 12px;
-      font-size: 11px;
-      letter-spacing: 1px;
-      line-height: 1.5;
-      color: #ffffff;
-      background: #000000;
-      border: 2px solid #333333;
-      margin-bottom: 8px;
-    }
-
-    .hud-col {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-    }
-
-    .hud-title {
-      color: #fc9838;
-      margin-bottom: 2px;
-    }
-
-    /* Canvas کانتینر با نسبت ابعاد دقیق 4:3 و مقیاس پیکسلی تمیز */
-    .viewport-container {
-      position: relative;
-      background-color: #000000;
-      border: 3px solid #111111;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-    }
-
-    canvas#gameCanvas {
-      width: 768px;
-      height: 720px;
-      max-width: 90vw;
-      max-height: 70vh;
-      aspect-ratio: 256 / 240;
+    /* Pixelated rendering for canvas & pixel assets */
+    canvas {
       image-rendering: -moz-crisp-edges;
       image-rendering: -webkit-crisp-edges;
       image-rendering: pixelated;
       image-rendering: crisp-edges;
-      display: block;
-      background-color: #5c94fc;
     }
 
-    /* کنترل‌های لمسی موبایل */
-    .touch-controls {
-      display: none;
-      width: 100%;
-      max-width: 768px;
-      margin-top: 14px;
-      justify-content: space-between;
-      align-items: center;
-      padding: 0 10px;
+    /* Subtle CRT Flicker */
+    @keyframes screenFlicker {
+      0% { opacity: 0.992; }
+      50% { opacity: 1; }
+      100% { opacity: 0.988; }
+    }
+    .crt-screen {
+      animation: screenFlicker 0.15s infinite;
     }
 
-    @media (max-width: 820px) {
-      .touch-controls {
-        display: flex;
-      }
-      .hud {
-        font-size: 9px;
-      }
+    /* Coin Pulse in HUD */
+    @keyframes coinSpin {
+      0%, 100% { transform: scaleX(1); }
+      50% { transform: scaleX(0.18); }
+    }
+    .coin-anim {
+      display: inline-block;
+      animation: coinSpin 0.75s steps(4) infinite;
     }
 
-    .dpad, .action-buttons {
-      display: flex;
-      gap: 10px;
-    }
-
-    .touch-btn {
-      width: 54px;
-      height: 54px;
-      background: #2b3a4a;
-      border: 3px solid #66fcf1;
-      border-radius: 8px;
-      color: #ffffff;
-      font-size: 14px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      touch-action: none;
-      cursor: pointer;
-      font-family: inherit;
-    }
-
+    /* Glassmorphic Touch D-Pad Active States */
     .touch-btn:active {
-      background: #66fcf1;
-      color: #0b0c10;
-      transform: scale(0.95);
-    }
-
-    .instructions {
-      margin-top: 10px;
-      font-size: 8px;
-      color: #888888;
-      text-align: center;
-      line-height: 1.6;
-    }
-
-    .instructions span {
-      color: #66fcf1;
+      transform: scale(0.92);
+      background-color: rgba(255, 255, 255, 0.25);
     }
   </style>
 </head>
-<body>
+<body class="h-screen w-screen flex flex-col items-center justify-between p-2 sm:p-4 bg-gradient-to-b from-neutral-950 via-[#0a0c16] to-[#04050a] font-pixel text-white overflow-hidden">
 
-  <div class="nes-cabinet">
-    <!-- Retro NES HUD Display -->
-    <div class="hud">
-      <div class="hud-col">
-        <span class="hud-title">MARIO</span>
-        <span id="hud-score">000000</span>
-      </div>
-      <div class="hud-col">
-        <span class="hud-title">COINS</span>
-        <span id="hud-coins">🪙x00</span>
-      </div>
-      <div class="hud-col">
-        <span class="hud-title">WORLD</span>
-        <span>1-1</span>
-      </div>
-      <div class="hud-col">
-        <span class="hud-title">TIME</span>
-        <span id="hud-time">400</span>
+  <!-- TOP HEADER / STUDIO B2.st BRAND BAR -->
+  <header class="w-full max-w-4xl flex items-center justify-between px-3 py-1.5 z-30 text-[10px] sm:text-xs tracking-wider border-b border-white/10 bg-white/5 backdrop-blur-md rounded-xl">
+    <div class="flex items-center gap-2">
+      <span class="inline-block w-2.5 h-2.5 rounded-full bg-nes-red animate-pulse"></span>
+      <span class="text-white/80 font-sans tracking-widest font-bold">STUDIO B2.st</span>
+      <span class="text-white/30 hidden sm:inline">|</span>
+      <span class="text-nes-coin hidden sm:inline">NES ARCHIVE 1985</span>
+    </div>
+    
+    <div class="flex items-center gap-3">
+      <button id="crt-toggle" class="flex items-center gap-1.5 px-2 py-1 bg-white/10 hover:bg-white/20 rounded border border-white/10 transition text-[9px]">
+        <span>CRT:</span>
+        <span id="crt-status" class="text-green-400">ON</span>
+      </button>
+      <button id="audio-toggle" class="flex items-center gap-1.5 px-2 py-1 bg-white/10 hover:bg-white/20 rounded border border-white/10 transition text-[9px]">
+        <svg id="audio-icon" class="w-3 h-3 fill-current" viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>
+        <span id="audio-status">FX</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- ARCADE CABINET & SCREEN WRAPPER -->
+  <main class="relative w-full max-w-4xl flex-1 flex flex-col items-center justify-center my-1 sm:my-2">
+    <!-- Retro Monitor Bezel -->
+    <div class="relative w-full max-w-[800px] aspect-[4/3] max-h-[64vh] sm:max-h-[68vh] rounded-2xl p-2 sm:p-3 bg-gradient-to-b from-[#2a2c3a] via-[#1a1b24] to-[#0d0e14] border-2 border-white/15 shadow-2xl flex flex-col">
+      
+      <!-- Screen Inner Inset -->
+      <div id="screen-container" class="relative w-full h-full rounded-lg overflow-hidden bg-black flex flex-col shadow-crt crt-screen">
+        
+        <!-- ================= CLASSIC NES MARIO HUD ================= -->
+        <nav aria-label="Mario HUD" class="absolute top-0 left-0 right-0 z-20 px-3 sm:px-6 pt-2 pb-1.5 flex justify-between items-start text-[9px] sm:text-xs md:text-sm tracking-widest text-nes-text drop-shadow-[0_2px_0_rgba(0,0,0,1)] pointer-events-none">
+          <!-- MARIO & SCORE -->
+          <div class="flex flex-col gap-0.5 sm:gap-1">
+            <span class="text-nes-text">MARIO</span>
+            <span id="hud-score" class="tabular-nums">000000</span>
+          </div>
+
+          <!-- COINS -->
+          <div class="flex flex-col items-center gap-0.5 sm:gap-1">
+            <span class="opacity-0">COIN</span>
+            <div class="flex items-center gap-1">
+              <span class="coin-anim text-nes-coin text-xs sm:text-sm font-bold">●</span>
+              <span class="text-nes-text">×</span>
+              <span id="hud-coins" class="text-nes-coin tabular-nums">00</span>
+            </div>
+          </div>
+
+          <!-- WORLD -->
+          <div class="flex flex-col items-center gap-0.5 sm:gap-1">
+            <span>WORLD</span>
+            <span id="hud-world" class="tracking-widest">1-1</span>
+          </div>
+
+          <!-- TIME -->
+          <div class="flex flex-col items-end gap-0.5 sm:gap-1">
+            <span>TIME</span>
+            <span id="hud-time" class="tabular-nums text-white">372</span>
+          </div>
+        </nav>
+
+        <!-- CRT Scanline & Curvature Overlays -->
+        <div id="crt-scanlines" class="absolute inset-0 crt-overlay z-10"></div>
+        <div class="absolute inset-0 crt-vignette z-10"></div>
+
+        <!-- 2D Canvas Gameport -->
+        <canvas id="gameCanvas" width="512" height="400" class="w-full h-full block bg-nes-sky"></canvas>
+
+        <!-- Pause / Game Over Glass Notification Modal -->
+        <div id="hud-banner" class="absolute inset-0 z-30 flex flex-col items-center justify-center bg-black/60 backdrop-blur-sm opacity-0 pointer-events-none transition-all duration-200">
+          <p id="banner-title" class="text-sm sm:text-xl text-nes-red tracking-wider drop-shadow-[0_4px_0_#000]">PAUSED</p>
+          <p class="text-[8px] sm:text-xs text-white/70 mt-2 font-sans tracking-wide">PRESS START OR TOUCH TO RESUME</p>
+        </div>
       </div>
     </div>
+  </main>
 
-    <!-- Active Canvas -->
-    <div class="viewport-container">
-      <canvas id="gameCanvas" width="256" height="240"></canvas>
-    </div>
-
-    <!-- Touch Controls for Mobile/Tablets -->
-    <div class="touch-controls">
-      <div class="dpad">
-        <button class="touch-btn" id="btn-left">◀</button>
-        <button class="touch-btn" id="btn-right">▶</button>
+  <!-- ================= GLASSMORPHISM TOUCH CONTROLS (MOBILE & TABLET) ================= -->
+  <section class="w-full max-w-4xl z-30 px-2 sm:px-6 pb-2">
+    <div class="w-full bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-2 sm:p-3 flex items-center justify-between shadow-2xl">
+      
+      <!-- DIRECTIONAL PAD (CROSS) -->
+      <div class="relative w-28 h-28 sm:w-32 sm:h-32 flex items-center justify-center">
+        <!-- Up -->
+        <button id="btn-up" class="touch-btn absolute top-0 w-9 h-9 sm:w-10 sm:h-10 rounded-lg bg-white/10 active:bg-white/30 border border-white/20 flex items-center justify-center text-white/90 shadow-lg" aria-label="Up">
+          <svg class="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M12 4l-8 8h6v8h4v-8h6z"/></svg>
+        </button>
+        <!-- Left -->
+        <button id="btn-left" class="touch-btn absolute left-0 w-9 h-9 sm:w-10 sm:h-10 rounded-lg bg-white/10 active:bg-white/30 border border-white/20 flex items-center justify-center text-white/90 shadow-lg" aria-label="Left">
+          <svg class="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M4 12l8-8v6h8v4h-8v6z"/></svg>
+        </button>
+        <!-- Center Pivot (Style only) -->
+        <div class="w-7 h-7 sm:w-8 sm:h-8 rounded-md bg-white/5 border border-white/10 pointer-events-none flex items-center justify-center">
+          <div class="w-2.5 h-2.5 rounded-full bg-white/20"></div>
+        </div>
+        <!-- Right -->
+        <button id="btn-right" class="touch-btn absolute right-0 w-9 h-9 sm:w-10 sm:h-10 rounded-lg bg-white/10 active:bg-white/30 border border-white/20 flex items-center justify-center text-white/90 shadow-lg" aria-label="Right">
+          <svg class="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M20 12l-8-8v6h-8v4h8v6z"/></svg>
+        </button>
+        <!-- Down -->
+        <button id="btn-down" class="touch-btn absolute bottom-0 w-9 h-9 sm:w-10 sm:h-10 rounded-lg bg-white/10 active:bg-white/30 border border-white/20 flex items-center justify-center text-white/90 shadow-lg" aria-label="Down">
+          <svg class="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M12 20l8-8h-6v-8h-4v8h-6z"/></svg>
+        </button>
       </div>
-      <div class="action-buttons">
-        <button class="touch-btn" id="btn-run" style="border-color: #fc9838;">B</button>
-        <button class="touch-btn" id="btn-jump" style="border-color: #e63946;">A</button>
+
+      <!-- SYSTEM BUTTONS (SELECT & START) -->
+      <div class="flex items-center gap-3 sm:gap-6 pt-6">
+        <div class="flex flex-col items-center">
+          <button id="btn-select" class="touch-btn w-12 sm:w-14 h-4 sm:h-5 rounded-full bg-neutral-700/60 active:bg-neutral-600 border border-white/20 transform -rotate-12 shadow-md"></button>
+          <span class="text-[7px] sm:text-[8px] text-white/60 tracking-wider mt-1.5 font-sans uppercase">SELECT</span>
+        </div>
+        <div class="flex flex-col items-center">
+          <button id="btn-start" class="touch-btn w-12 sm:w-14 h-4 sm:h-5 rounded-full bg-neutral-700/60 active:bg-neutral-600 border border-white/20 transform -rotate-12 shadow-md"></button>
+          <span class="text-[7px] sm:text-[8px] text-white/60 tracking-wider mt-1.5 font-sans uppercase">START</span>
+        </div>
       </div>
+
+      <!-- ACTION BUTTONS (B & A - NES STYLE) -->
+      <div class="flex items-center gap-3 sm:gap-4 transform -rotate-12 pr-1">
+        <!-- Button B (Dash/Sprint) -->
+        <div class="flex flex-col items-center">
+          <button id="btn-action-b" class="touch-btn w-11 h-11 sm:w-13 sm:h-13 rounded-full bg-red-600/80 active:bg-red-500 border-2 border-red-400/40 shadow-nes-btn active:shadow-nes-btn-active active:translate-y-1 flex items-center justify-center text-xs font-bold text-white transition-transform" aria-label="Run">
+            B
+          </button>
+          <span class="text-[7px] sm:text-[8px] text-white/70 tracking-wider mt-1">RUN</span>
+        </div>
+        
+        <!-- Button A (Jump) -->
+        <div class="flex flex-col items-center -mt-4">
+          <button id="btn-action-a" class="touch-btn w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-red-600/90 active:bg-red-500 border-2 border-red-300/50 shadow-nes-btn active:shadow-nes-btn-active active:translate-y-1 flex items-center justify-center text-sm font-bold text-white transition-transform" aria-label="Jump">
+            A
+          </button>
+          <span class="text-[7px] sm:text-[8px] text-white/70 tracking-wider mt-1">JUMP</span>
+        </div>
+      </div>
+
     </div>
 
-    <div class="instructions">
-      حرکت: <span>← / →</span> یا <span>A / D</span> | پرش: <span>Z / Space</span> | دویدن سریع: <span>X / Shift</span>
+    <!-- Instructions bar for Desktop & Accessibility -->
+    <div class="w-full flex justify-between items-center text-[8px] sm:text-[9px] text-white/40 pt-1.5 px-2 font-sans">
+      <span class="hidden sm:inline">KEYBOARD: [←/→] MOVE • [Z/SPACE] JUMP • [X] RUN • [ENTER] PAUSE</span>
+      <span class="sm:hidden">TOUCH ENABLED • HUD RESPONSIVE</span>
+      <span>DESIGNED FOR STUDIO B2.st</span>
     </div>
-  </div>
+  </section>
 
-  <script type="module" src="../src/main.js"></script>
+  <!-- ================= MICRO 8-BIT NES INTERACTION ENGINE ================= -->
+  <script>
+    /* -------------------------------------------------------------
+     * 1. 8-BIT SYNTHESIZER (WEB AUDIO API)
+     * Pure procedural sound synthesis. No external assets needed.
+     * ------------------------------------------------------------- */
+    class RetroAudio {
+      constructor() {
+        this.ctx = null;
+        this.muted = false;
+      }
+      init() {
+        if (!this.ctx) {
+          const AudioContext = window.AudioContext || window.webkitAudioContext;
+          this.ctx = new AudioContext();
+        }
+        if (this.ctx.state === 'suspended') {
+          this.ctx.resume();
+        }
+      }
+      playJump() {
+        if (this.muted || !this.ctx) return;
+        const now = this.ctx.currentTime;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'square';
+        osc.frequency.setValueAtTime(140, now);
+        osc.frequency.exponentialRampToValueAtTime(540, now + 0.12);
+        gain.gain.setValueAtTime(0.15, now);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.12);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.13);
+      }
+      playCoin() {
+        if (this.muted || !this.ctx) return;
+        const now = this.ctx.currentTime;
+        const osc1 = this.ctx.createOscillator();
+        const osc2 = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc1.type = 'sine';
+        osc2.type = 'sine';
+        osc1.frequency.setValueAtTime(987.77, now); // B5
+        osc1.frequency.setValueAtTime(1318.51, now + 0.08); // E6
+        gain.gain.setValueAtTime(0.2, now);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.35);
+        osc1.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc1.start(now);
+        osc1.stop(now + 0.36);
+      }
+      playBump() {
+        if (this.muted || !this.ctx) return;
+        const now = this.ctx.currentTime;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(120, now);
+        osc.frequency.exponentialRampToValueAtTime(40, now + 0.08);
+        gain.gain.setValueAtTime(0.2, now);
+        gain.gain.linearRampToValueAtTime(0.01, now + 0.08);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.09);
+      }
+      playPause() {
+        if (this.muted || !this.ctx) return;
+        const now = this.ctx.currentTime;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'square';
+        osc.frequency.setValueAtTime(400, now);
+        osc.frequency.setValueAtTime(600, now + 0.05);
+        gain.gain.setValueAtTime(0.15, now);
+        gain.gain.linearRampToValueAtTime(0.01, now + 0.15);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.16);
+      }
+    }
+
+    const sound = new RetroAudio();
+
+    /* -------------------------------------------------------------
+     * 2. STATE & GAME ENGINE
+     * ------------------------------------------------------------- */
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+
+    const hudScore = document.getElementById('hud-score');
+    const hudCoins = document.getElementById('hud-coins');
+    const hudTime = document.getElementById('hud-time');
+    const hudBanner = document.getElementById('hud-banner');
+
+    let isPaused = false;
+    let score = 0;
+    let coins = 0;
+    let time = 372;
+
+    // Time ticker
+    setInterval(() => {
+      if (!isPaused && time > 0) {
+        time--;
+        hudTime.textContent = String(time).padStart(3, '0');
+      }
+    }, 1000);
+
+    function addScore(amount) {
+      score += amount;
+      hudScore.textContent = String(score).padStart(6, '0');
+    }
+
+    function addCoin() {
+      coins++;
+      if (coins > 99) coins = 0;
+      hudCoins.textContent = String(coins).padStart(2, '0');
+      addScore(200);
+      sound.playCoin();
+    }
+
+    // Input Controller State
+    const keys = {
+      left: false,
+      right: false,
+      up: false,
+      down: false,
+      jump: false,
+      run: false
+    };
+
+    // Mario Actor
+    const mario = {
+      x: 60,
+      y: 280,
+      w: 22,
+      h: 30,
+      vx: 0,
+      vy: 0,
+      speed: 3.2,
+      runSpeed: 4.8,
+      jumpForce: -9.5,
+      grounded: true,
+      facing: 'right',
+      stepAnim: 0
+    };
+
+    // World Elements (Pipes, Ground, Question Blocks, Clouds)
+    const blocks = [
+      { x: 140, y: 240, w: 24, h: 24, type: 'q', hit: false, bounce: 0 },
+      { x: 164, y: 240, w: 24, h: 24, type: 'brick', hit: false, bounce: 0 },
+      { x: 188, y: 240, w: 24, h: 24, type: 'q', hit: false, bounce: 0 },
+      { x: 212, y: 240, w: 24, h: 24, type: 'brick', hit: false, bounce: 0 },
+      { x: 236, y: 240, w: 24, h: 24, type: 'q', hit: false, bounce: 0 },
+      { x: 188, y: 170, w: 24, h: 24, type: 'q', hit: false, bounce: 0 },
+      // Classic green pipe
+      { x: 340, y: 272, w: 44, h: 68, type: 'pipe' },
+    ];
+
+    // Floating Coin Animation Particle
+    const particles = [];
+
+    function triggerBlock(b) {
+      if (b.type === 'q' && !b.hit) {
+        b.hit = true;
+        b.bounce = 8;
+        addCoin();
+        particles.push({
+          x: b.x + 4,
+          y: b.y - 12,
+          vy: -6,
+          life: 25
+        });
+      } else {
+        b.bounce = 5;
+        sound.playBump();
+      }
+    }
+
+    /* -------------------------------------------------------------
+     * 3. GRAPHICS PROCEDURAL PIXEL RENDERING
+     * ------------------------------------------------------------- */
+    function drawMario(x, y, facing, isMoving, grounded) {
+      ctx.save();
+      ctx.translate(x + 11, y + 15);
+      if (facing === 'left') ctx.scale(-1, 1);
+
+      // Mario Palette
+      const cCap = '#e52521';
+      const cSkin = '#fed8a6';
+      const cSuit = '#0026a8';
+      const cHair = '#6a3400';
+
+      // Hat & Head
+      ctx.fillStyle = cCap;
+      ctx.fillRect(-7, -15, 14, 5);
+      ctx.fillRect(-4, -17, 13, 3);
+
+      // Face & Eyes
+      ctx.fillStyle = cSkin;
+      ctx.fillRect(-5, -10, 12, 6);
+      ctx.fillStyle = cHair;
+      ctx.fillRect(-7, -10, 3, 5); // Hair
+      ctx.fillRect(-1, -11, 2, 4); // Eye
+      ctx.fillRect(1, -7, 7, 3);   // Mustache
+
+      // Torso & Overalls
+      ctx.fillStyle = cCap;
+      ctx.fillRect(-6, -4, 12, 8);
+      ctx.fillStyle = cSuit;
+      ctx.fillRect(-6, 0, 12, 6);
+      ctx.fillRect(-4, -2, 3, 4);
+      ctx.fillRect(1, -2, 3, 4);
+
+      // Legs / Running Pose
+      if (!grounded) {
+        // Jumping pose
+        ctx.fillStyle = cSuit;
+        ctx.fillRect(-8, 5, 6, 5);
+        ctx.fillRect(2, 4, 7, 4);
+        ctx.fillStyle = cHair;
+        ctx.fillRect(-9, 9, 6, 4);
+        ctx.fillRect(3, 7, 7, 4);
+      } else if (isMoving) {
+        const frame = Math.floor(mario.stepAnim / 6) % 2;
+        ctx.fillStyle = cSuit;
+        if (frame === 0) {
+          ctx.fillRect(-7, 6, 5, 5);
+          ctx.fillRect(2, 5, 5, 6);
+          ctx.fillStyle = cHair;
+          ctx.fillRect(-8, 10, 6, 4);
+          ctx.fillRect(2, 10, 6, 4);
+        } else {
+          ctx.fillRect(-5, 5, 5, 6);
+          ctx.fillRect(1, 6, 5, 5);
+          ctx.fillStyle = cHair;
+          ctx.fillRect(-6, 10, 6, 4);
+          ctx.fillRect(1, 10, 6, 4);
+        }
+      } else {
+        // Idle stance
+        ctx.fillStyle = cSuit;
+        ctx.fillRect(-6, 6, 12, 4);
+        ctx.fillStyle = cHair;
+        ctx.fillRect(-8, 9, 6, 5);
+        ctx.fillRect(2, 9, 6, 5);
+      }
+
+      ctx.restore();
+    }
+
+    function drawScenery() {
+      // Sky
+      ctx.fillStyle = '#5c94fc';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      // Pixel Clouds
+      ctx.fillStyle = 'rgba(255,255,255,0.85)';
+      // Cloud 1
+      drawCloud(60, 80);
+      drawCloud(280, 60);
+      drawCloud(440, 100);
+
+      // Distant Retro Bush / Hills
+      ctx.fillStyle = '#00a800';
+      ctx.beginPath();
+      ctx.arc(80, 340, 36, Math.PI, 0);
+      ctx.arc(110, 340, 48, Math.PI, 0);
+      ctx.arc(140, 340, 36, Math.PI, 0);
+      ctx.fill();
+
+      // Ground (Patterned classic tiles)
+      const groundY = 340;
+      ctx.fillStyle = '#d88b28';
+      ctx.fillRect(0, groundY, canvas.width, canvas.height - groundY);
+      
+      // Ground top edge border
+      ctx.fillStyle = '#00a800';
+      ctx.fillRect(0, groundY, canvas.width, 4);
+      
+      // Ground brick grid lines
+      ctx.strokeStyle = '#000000';
+      ctx.lineWidth = 1.5;
+      for (let x = 0; x < canvas.width; x += 24) {
+        ctx.strokeRect(x, groundY + 4, 24, 28);
+        ctx.strokeRect(x, groundY + 32, 24, 28);
+      }
+    }
+
+    function drawCloud(cx, cy) {
+      ctx.fillRect(cx + 8, cy, 32, 14);
+      ctx.fillRect(cx, cy + 4, 48, 10);
+      ctx.fillRect(cx + 4, cy - 4, 24, 8);
+    }
+
+    function drawBlocks() {
+      blocks.forEach(b => {
+        const drawY = b.y - (b.bounce || 0);
+
+        if (b.type === 'pipe') {
+          // Classic Green Pipe
+          ctx.fillStyle = '#00a800';
+          ctx.fillRect(b.x, b.y, b.w, b.h);
+          ctx.fillRect(b.x - 3, b.y, b.w + 6, 16);
+          // Highlight & shadow
+          ctx.fillStyle = '#80d010';
+          ctx.fillRect(b.x + 2, b.y, 5, b.h);
+          ctx.fillRect(b.x - 1, b.y, 6, 16);
+          ctx.strokeStyle = '#000';
+          ctx.lineWidth = 2;
+          ctx.strokeRect(b.x - 3, b.y, b.w + 6, 16);
+          ctx.strokeRect(b.x, b.y + 16, b.w, b.h - 16);
+          return;
+        }
+
+        if (b.type === 'q') {
+          if (!b.hit) {
+            // Unbroken Question Box
+            ctx.fillStyle = '#fc9838';
+            ctx.fillRect(b.x, drawY, b.w, b.h);
+            ctx.strokeStyle = '#000';
+            ctx.lineWidth = 1.5;
+            ctx.strokeRect(b.x, drawY, b.w, b.h);
+
+            // Inner screws
+            ctx.fillStyle = '#000';
+            ctx.fillRect(b.x + 2, drawY + 2, 2, 2);
+            ctx.fillRect(b.x + b.w - 4, drawY + 2, 2, 2);
+            ctx.fillRect(b.x + 2, drawY + b.h - 4, 2, 2);
+            ctx.fillRect(b.x + b.w - 4, drawY + b.h - 4, 2, 2);
+
+            // Question Mark "?"
+            ctx.fillStyle = '#ffffff';
+            ctx.font = '12px "Press Start 2P"';
+            ctx.fillText('?', b.x + 6, drawY + 17);
+          } else {
+            // Emptied Box (Brown/Metal)
+            ctx.fillStyle = '#8b5a2b';
+            ctx.fillRect(b.x, drawY, b.w, b.h);
+            ctx.strokeStyle = '#000';
+            ctx.lineWidth = 1.5;
+            ctx.strokeRect(b.x, drawY, b.w, b.h);
+          }
+        } else if (b.type === 'brick') {
+          // Classic Brick
+          ctx.fillStyle = '#c84408';
+          ctx.fillRect(b.x, drawY, b.w, b.h);
+          ctx.strokeStyle = '#000';
+          ctx.lineWidth = 1.5;
+          ctx.strokeRect(b.x, drawY, b.w, b.h);
+          // Brick grooves
+          ctx.strokeRect(b.x, drawY + 6, b.w, 1);
+          ctx.strokeRect(b.x, drawY + 14, b.w, 1);
+          ctx.strokeRect(b.x + 12, drawY, 1, 6);
+          ctx.strokeRect(b.x + 6, drawY + 6, 1, 8);
+          ctx.strokeRect(b.x + 18, drawY + 6, 1, 8);
+        }
+
+        // Return bounce to zero smoothly
+        if (b.bounce > 0) {
+          b.bounce -= 1;
+        }
+      });
+    }
+
+    function drawParticles() {
+      for (let i = particles.length - 1; i >= 0; i--) {
+        const p = particles[i];
+        p.y += p.vy;
+        p.vy += 0.4; // gravity on coin
+        p.life--;
+
+        // Draw spinning gold coin
+        ctx.fillStyle = '#fcd828';
+        ctx.fillRect(p.x + 4, p.y, 8, 14);
+        ctx.strokeStyle = '#000';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(p.x + 4, p.y, 8, 14);
+
+        if (p.life <= 0) {
+          particles.splice(i, 1);
+        }
+      }
+    }
+
+    /* -------------------------------------------------------------
+     * 4. MAIN GAME LOOP & PHYSICS
+     * ------------------------------------------------------------- */
+    function update() {
+      if (isPaused) return;
+
+      const currentSpeed = keys.run ? mario.runSpeed : mario.speed;
+
+      // Horizontal Motion
+      if (keys.left) {
+        mario.vx = -currentSpeed;
+        mario.facing = 'left';
+        mario.stepAnim++;
+      } else if (keys.right) {
+        mario.vx = currentSpeed;
+        mario.facing = 'right';
+        mario.stepAnim++;
+      } else {
+        mario.vx = 0;
+        mario.stepAnim = 0;
+      }
+
+      // Jump Impulse
+      if (keys.jump && mario.grounded) {
+        mario.vy = mario.jumpForce;
+        mario.grounded = false;
+        sound.playJump();
+      }
+
+      // Gravity
+      mario.vy += 0.45;
+      if (mario.vy > 9) mario.vy = 9;
+
+      // Apply Horizontal
+      mario.x += mario.vx;
+
+      // Horizontal Collision with Canvas Bounds
+      if (mario.x < 0) mario.x = 0;
+      if (mario.x + mario.w > canvas.width) mario.x = canvas.width - mario.w;
+
+      // Pipe / Block Horizontal Collision
+      blocks.forEach(b => {
+        if (b.type === 'pipe') {
+          if (mario.x + mario.w > b.x && mario.x < b.x + b.w &&
+              mario.y + mario.h > b.y && mario.y < b.y + b.h) {
+            if (mario.vx > 0) mario.x = b.x - mario.w;
+            if (mario.vx < 0) mario.x = b.x + b.w;
+          }
+        }
+      });
+
+      // Apply Vertical
+      mario.y += mario.vy;
+
+      // Ground Collision (y = 340)
+      const groundFloor = 340 - mario.h;
+      if (mario.y >= groundFloor) {
+        mario.y = groundFloor;
+        mario.vy = 0;
+        mario.grounded = true;
+      } else {
+        mario.grounded = false;
+      }
+
+      // Block Head Bump & Stand Collision
+      blocks.forEach(b => {
+        const bx = b.x, by = b.y, bw = b.w, bh = b.h;
+
+        // Bumping from below
+        if (mario.x + mario.w - 4 > bx && mario.x + 4 < bx + bw) {
+          if (mario.y <= by + bh && mario.y >= by + bh - 10 && mario.vy < 0) {
+            mario.y = by + bh;
+            mario.vy = 1;
+            triggerBlock(b);
+          }
+          // Standing on top
+          else if (mario.y + mario.h >= by && mario.y + mario.h <= by + 12 && mario.vy >= 0) {
+            mario.y = by - mario.h;
+            mario.vy = 0;
+            mario.grounded = true;
+          }
+        }
+      });
+    }
+
+    function render() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      drawScenery();
+      drawBlocks();
+      drawParticles();
+      drawMario(mario.x, mario.y, mario.facing, mario.vx !== 0, mario.grounded);
+
+      update();
+      requestAnimationFrame(render);
+    }
+
+    // Launch loop
+    requestAnimationFrame(render);
+
+    /* -------------------------------------------------------------
+     * 5. KEYBOARD & TOUCH CONTROLLER BINDINGS
+     * ------------------------------------------------------------- */
+    function togglePause() {
+      sound.init();
+      isPaused = !isPaused;
+      sound.playPause();
+      if (isPaused) {
+        hudBanner.classList.remove('opacity-0', 'pointer-events-none');
+      } else {
+        hudBanner.classList.add('opacity-0', 'pointer-events-none');
+      }
+    }
+
+    // Keyboard handlers
+    window.addEventListener('keydown', (e) => {
+      sound.init();
+      switch (e.code) {
+        case 'ArrowLeft':
+        case 'KeyA':
+          keys.left = true;
+          break;
+        case 'ArrowRight':
+        case 'KeyD':
+          keys.right = true;
+          break;
+        case 'ArrowUp':
+        case 'KeyW':
+          keys.up = true;
+          break;
+        case 'ArrowDown':
+        case 'KeyS':
+          keys.down = true;
+          break;
+        case 'Space':
+        case 'KeyZ':
+          keys.jump = true;
+          e.preventDefault();
+          break;
+        case 'KeyX':
+        case 'ShiftLeft':
+          keys.run = true;
+          break;
+        case 'Enter':
+          togglePause();
+          break;
+      }
+    });
+
+    window.addEventListener('keyup', (e) => {
+      switch (e.code) {
+        case 'ArrowLeft':
+        case 'KeyA':
+          keys.left = false;
+          break;
+        case 'ArrowRight':
+        case 'KeyD':
+          keys.right = false;
+          break;
+        case 'ArrowUp':
+        case 'KeyW':
+          keys.up = false;
+          break;
+        case 'ArrowDown':
+        case 'KeyS':
+          keys.down = false;
+          break;
+        case 'Space':
+        case 'KeyZ':
+          keys.jump = false;
+          break;
+        case 'KeyX':
+        case 'ShiftLeft':
+          keys.run = false;
+          break;
+      }
+    });
+
+    // Touch Button Attachments with Multi-Touch Support
+    function bindTouch(elementId, onPress, onRelease) {
+      const el = document.getElementById(elementId);
+      if (!el) return;
+
+      const start = (ev) => {
+        ev.preventDefault();
+        sound.init();
+        onPress();
+      };
+
+      const end = (ev) => {
+        ev.preventDefault();
+        onRelease();
+      };
+
+      el.addEventListener('touchstart', start, { passive: false });
+      el.addEventListener('touchend', end, { passive: false });
+      el.addEventListener('mousedown', start);
+      el.addEventListener('mouseup', end);
+      el.addEventListener('mouseleave', end);
+    }
+
+    bindTouch('btn-left', () => keys.left = true, () => keys.left = false);
+    bindTouch('btn-right', () => keys.right = true, () => keys.right = false);
+    bindTouch('btn-up', () => keys.up = true, () => keys.up = false);
+    bindTouch('btn-down', () => keys.down = true, () => keys.down = false);
+    bindTouch('btn-action-a', () => keys.jump = true, () => keys.jump = false);
+    bindTouch('btn-action-b', () => keys.run = true, () => keys.run = false);
+
+    document.getElementById('btn-start').addEventListener('click', () => togglePause());
+    document.getElementById('hud-banner').addEventListener('click', () => togglePause());
+
+    /* -------------------------------------------------------------
+     * 6. UI UTILITIES (CRT TOGGLE & AUDIO MUTING)
+     * ------------------------------------------------------------- */
+    const crtOverlay = document.getElementById('crt-scanlines');
+    const crtBtn = document.getElementById('crt-toggle');
+    const crtStatus = document.getElementById('crt-status');
+
+    let crtEnabled = true;
+    crtBtn.addEventListener('click', () => {
+      crtEnabled = !crtEnabled;
+      if (crtEnabled) {
+        crtOverlay.classList.remove('hidden');
+        crtStatus.textContent = 'ON';
+        crtStatus.className = 'text-green-400';
+      } else {
+        crtOverlay.classList.add('hidden');
+        crtStatus.textContent = 'OFF';
+        crtStatus.className = 'text-red-400';
+      }
+    });
+
+    const audioBtn = document.getElementById('audio-toggle');
+    const audioStatus = document.getElementById('audio-status');
+    audioBtn.addEventListener('click', () => {
+      sound.init();
+      sound.muted = !sound.muted;
+      if (sound.muted) {
+        audioStatus.textContent = 'MUTED';
+        audioBtn.classList.add('opacity-50');
+      } else {
+        audioStatus.textContent = 'FX';
+        audioBtn.classList.remove('opacity-50');
+      }
+    });
+  </script>
 </body>
 </html>

@@ -1,74 +1,93 @@
 /**
- * استودیو B2.st - پایپ‌لاین تست‌های واحد سیستم فیزیک، اینرسی و برخورد
- * قابلیت اجرا مستقیم در Node.js: `node tests/physics.test.js`
+ * پایپ‌لاین تست‌های واحد موتور فیزیک AABB، دوربین و تعامل با تایل‌ها
+ * قابل اجرا مستقیم در محیط Node.js: `node tests/physics.test.js`
  */
-import { Vector2D } from '../src/engine/Vector2D.js';
+import { Camera } from '../src/engine/Camera.js';
 import { Physics } from '../src/engine/Physics.js';
-import { Mario, MARIO_FORMS, MARIO_STATES } from '../src/entities/Mario.js';
-import { Goomba, GOOMBA_STATES } from '../src/entities/Goomba.js';
+import { TileMap, TILE_TYPES } from '../src/levels/TileMap.js';
 
-let passedTests = 0;
-let failedTests = 0;
+let passed = 0;
+let failed = 0;
 
-function assert(condition, testName) {
-    if (condition) {
-        console.log(`\x1b[32m✔ [PASSED]\x1b[0m ${testName}`);
-        passedTests++;
-    } else {
-        console.error(`\x1b[31m✖ [FAILED]\x1b[0m ${testName}`);
-        failedTests++;
-    }
+function assert(condition, message) {
+  if (condition) {
+    console.log(`[\x1b[32mPASS\x1b[0m] ${message}`);
+    passed++;
+  } else {
+    console.error(`[\x1b[31mFAIL\x1b[0m] ${message}`);
+    failed++;
+  }
 }
 
-console.log('\n=========================================');
-console.log('   B2.st ENGINE - PHYSICS UNIT TESTS     ');
-console.log('=========================================\n');
+console.log('--- شروع اجرای تست‌های واحد موتور B2.st ---\n');
 
-// تست ۱: عملیات ریاضی بردارها
-const v1 = new Vector2D(10, 20);
-const v2 = new Vector2D(5, 5);
-v1.add(v2);
-assert(v1.x === 15 && v1.y === 25, 'Vector2D addition calculates correctly');
+// ۱. تست تشخیص همپوشانی AABB
+{
+  const boxA = { x: 10, y: 10, width: 20, height: 20 };
+  const boxB = { x: 25, y: 25, width: 20, height: 20 };
+  const boxC = { x: 40, y: 40, width: 10, height: 10 };
 
-// تست ۲: سیستم AABB Collision
-const boxA = { pos: new Vector2D(0, 0), size: new Vector2D(16, 16) };
-const boxB = { pos: new Vector2D(10, 10), size: new Vector2D(16, 16) };
-const boxC = { pos: new Vector2D(100, 100), size: new Vector2D(16, 16) };
-
-assert(Physics.checkAABB(boxA, boxB) === true, 'AABB detects overlap correctly');
-assert(Physics.checkAABB(boxA, boxC) === false, 'AABB correctly ignores distant boxes');
-
-// تست ۳: تغییر فرم ماریو به Super Mario و مقیاس انتیتی
-const mario = new Mario(50, 100, null);
-assert(mario.form === MARIO_FORMS.SMALL && mario.size.y === 16, 'Mario starts as Small Mario (16x16)');
-mario.upgradeToSuper();
-assert(mario.form === MARIO_FORMS.SUPER && mario.size.y === 32, 'Mario upgrades to Super Mario (16x32)');
-
-// تست ۴: برخورد تهاجمی (Stomp Attack) به گومبا
-const testMario = new Mario(100, 90, null);
-testMario.vel.y = 150; // سقوط رو به پایین
-const goomba = new Goomba(100, 100);
-
-testMario.checkEnemyCollisions([goomba]);
-
-assert(goomba.state === GOOMBA_STATES.SQUISHED, 'Mario stomp squishes Goomba correctly');
-assert(testMario.vel.y < 0, 'Mario bounces upward after stomping an enemy');
-assert(testMario.score === 100, 'Mario gains 100 points on successful stomp');
-
-// تست ۵: اینرسی و ترمز معکوس ماریو (Skidding FSM)
-const runMario = new Mario(0, 0, null);
-runMario.isGrounded = true;
-runMario.vel.x = 80; // در حال حرکت به راست
-runMario.handleInput({
-    keys: { left: true, right: false, run: false, jump: false, down: false },
-    isPressed: () => false
-}, 0.016);
-
-assert(runMario.state === MARIO_STATES.SKIDDING, 'Mario enters SKIDDING state when pressing opposite direction');
-
-console.log(`\nResults: ${passedTests} Passed, ${failedTests} Failed.`);
-if (failedTests > 0) {
-    process.exit(1);
-} else {
-    console.log('\x1b[32mAll physics and state engine tests passed successfully!\x1b[0m\n');
+  assert(Physics.testAABB(boxA, boxB) === true, 'AABB باید برخورد دو مستطیل متداخل را شناسایی کند');
+  assert(Physics.testAABB(boxA, boxC) === false, 'AABB نباید برای مستطیل‌های جدا برخورد شناسایی کند');
 }
+
+// ۲. تست دوربین و اسکرول یک‌طرفه (Forward-Only)
+{
+  const camera = new Camera(256, 240);
+  camera.setBounds(0, 1000);
+
+  // حرکت ماریو به جلو
+  camera.follow({ pos: { x: 200 } });
+  const initialCamX = camera.x;
+  assert(initialCamX > 0, 'دوربین باید همراه با حرکت ماریو به جلو اسکرول کند');
+
+  // تلاش برای برگشتن به عقب
+  camera.follow({ pos: { x: 50 } });
+  assert(camera.x === initialCamX, 'دوربین استاندارد NES نباید اجازه اسکرول به عقب را بدهد');
+}
+
+// ۳. تست Viewport Culling دوربین
+{
+  const camera = new Camera(256, 240);
+  camera.x = 100;
+  camera.y = 0;
+
+  assert(camera.isVisible(120, 50, 16, 16) === true, 'آبجکت داخل دید دوربین باید Visible باشد');
+  assert(camera.isVisible(10, 50, 16, 16) === false, 'آبجکت سمت چپ دوربین باید Culling شود');
+  assert(camera.isVisible(400, 50, 16, 16) === false, 'آبجکت سمت راست دوربین باید Culling شود');
+}
+
+// ۴. تست تعامل سر کاراکتر با بلوک علامت سوال (Question Block)
+{
+  const tileMap = new TileMap(20, 15, 16);
+  tileMap.setTile(5, 5, TILE_TYPES.QUESTION_COIN);
+
+  let scoreAdded = 0;
+  let coinsAdded = 0;
+  const mockContext = {
+    addScore: (s) => { scoreAdded += s; },
+    addCoin: () => { coinsAdded += 1; }
+  };
+
+  const dummyPlayer = { pos: { x: 5 * 16, y: 6 * 16 } };
+  tileMap.bumpTile(5, 5, dummyPlayer, mockContext);
+
+  assert(tileMap.getTile(5, 5) === TILE_TYPES.QUESTION_EMPTY, 'تایل علامت سوال باید به بلوک خالی تبدیل شود');
+  assert(coinsAdded === 1, 'ضربه به بلوک علامت سوال باید ۱ سکه اضافه کند');
+  assert(scoreAdded === 200, 'ضربه به بلوک علامت سوال باید ۲۰۰ امتیاز اهدا کند');
+  assert(tileMap.particles.length > 0, 'باید سکه جهنده در سیستم ذرات ایجاد شده باشد');
+}
+
+// ۵. تست خرد شدن بلوک آجری (Brick Block)
+{
+  const tileMap = new TileMap(20, 15, 16);
+  tileMap.setTile(7, 5, TILE_TYPES.BRICK);
+
+  tileMap.bumpTile(7, 5, {}, null);
+  assert(tileMap.getTile(7, 5) === TILE_TYPES.EMPTY, 'آجر پس از متلاشی شدن باید به فضای خالی تبدیل شود');
+  // ۴ قطعه خرده سنگ آجر + ۱ متن امتیاز شناور = ۵ موجودیت ذره
+  assert(tileMap.particles.length === 5, 'تخریب آجر باید ۴ تکه خرده آجر و ۱ نمایشگر امتیاز ایجاد کند');
+}
+
+console.log(`\nنتایج تست: ${passed} موفق | ${failed} ناموفق`);
+if (failed > 0) process.exit(1);

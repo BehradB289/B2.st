@@ -1,198 +1,138 @@
-/**
- * Master Mario Entity - Complete State Machine, Morphing, Invincibility & Actions
- */
-
 import { Entity } from './Entity.js';
-import { CONFIG } from '../../config/game.config.js';
-import { Physics } from '../engine/Physics.js';
-import { Fireball } from './PowerUps.js';
-import { sound } from '../engine/Audio.js';
+import { GAME_CONFIG } from '../../config/game.config.js';
 
+/**
+ * Super Mario Character Entity
+ */
 export class Mario extends Entity {
   constructor(x, y) {
-    super(x, y, 16, 16);
-
-    this.powerState = 'SMALL'; // 'SMALL', 'SUPER', 'FIRE'
-    this.isCrouching = false;
-    this.isInvulnerable = false;
+    super(x, y, 14, 16, 'mario');
+    this.facing = 1; // 1: Right, -1: Left
+    this.state = 'SMALL'; // SMALL | SUPER | DEAD
     this.invulnerableTimer = 0;
-
-    this.isStarPowered = false;
-    this.starTimer = 0;
-
-    this.jumpHoldTimer = 0;
+    this.jumpTimer = 0;
     this.isJumping = false;
-
-    this.fireCooldown = 0;
-    this.comboCounter = 0;
-
-    this.wonGame = false;
-    this.slidingFlag = false;
+    this.walkAnimTimer = 0;
+    this.walkFrame = 0;
   }
 
-  growToSuper() {
-    if (this.powerState === 'SMALL') {
-      this.powerState = 'SUPER';
-      this.height = 32;
-      this.y -= 16;
-      sound.playPowerUp();
-    }
-  }
+  update(dt, input, soundEngine) {
+    super.update(dt);
 
-  growToFire() {
-    this.growToSuper();
-    this.powerState = 'FIRE';
-    sound.playPowerUp();
-  }
-
-  activateStar() {
-    this.isStarPowered = true;
-    this.starTimer = CONFIG.MARIO.STAR_POWER_TIME;
-    sound.playPowerUp();
-  }
-
-  takeDamage() {
-    if (this.isInvulnerable || this.isStarPowered) return;
-
-    if (this.powerState === 'FIRE') {
-      this.powerState = 'SUPER';
-      this._makeInvulnerable();
-      sound.playPowerDown();
-    } else if (this.powerState === 'SUPER') {
-      this.powerState = 'SMALL';
-      this.height = 16;
-      this.y += 16;
-      this._makeInvulnerable();
-      sound.playPowerDown();
-    } else {
-      this.die();
-    }
-  }
-
-  _makeInvulnerable() {
-    this.isInvulnerable = true;
-    this.invulnerableTimer = CONFIG.MARIO.INVULNERABLE_TIME;
-  }
-
-  die() {
-    if (this.isDead) return;
-    this.isDead = true;
-    this.vx = 0;
-    this.vy = -340;
-    this.customGravity = 700;
-    sound.playDie();
-  }
-
-  update(dt, input, level, particleSystem, onSpawnFireball) {
-    if (this.isDead) {
-      this.vy += (this.customGravity || 700) * dt;
-      this.y += this.vy * dt;
+    if (this.state === 'DEAD') {
+      this.position.y += this.velocity.y * dt;
+      this.velocity.y += 600 * dt;
       return;
     }
 
-    if (this.slidingFlag) {
-      this.y += 100 * dt;
-      if (this.y >= 13 * CONFIG.TILES.SIZE - this.height) {
-        this.y = 13 * CONFIG.TILES.SIZE - this.height;
-        this.slidingFlag = false;
-        this.wonGame = true;
-      }
-      return;
-    }
-
-    // Timers
-    if (this.isInvulnerable) {
+    if (this.invulnerableTimer > 0) {
       this.invulnerableTimer -= dt;
-      if (this.invulnerableTimer <= 0) this.isInvulnerable = false;
     }
 
-    if (this.isStarPowered) {
-      this.starTimer -= dt;
-      if (this.starTimer <= 0) this.isStarPowered = false;
-    }
+    const { WALK_SPEED, RUN_SPEED, ACCELERATION, FRICTION, JUMP_FORCE, JUMP_HOLD_GRAVITY_MOD } =
+      GAME_CONFIG.PHYSICS;
 
-    if (this.fireCooldown > 0) this.fireCooldown -= dt;
-
-    if (this.onGround) this.comboCounter = 0;
-
-    // Crouch handling
-    this.isCrouching = this.powerState !== 'SMALL' && input.isDownAction && this.onGround;
+    const maxSpeed = input.state.run ? RUN_SPEED : WALK_SPEED;
 
     // Horizontal Movement
-    const accel = input.isRunOrShoot ? CONFIG.MARIO.RUN_ACCEL : CONFIG.MARIO.WALK_ACCEL;
-    const maxSpeed = this.isStarPowered
-      ? CONFIG.MARIO.MAX_RUN_SPEED * 1.25
-      : input.isRunOrShoot
-      ? CONFIG.MARIO.MAX_RUN_SPEED
-      : CONFIG.MARIO.MAX_WALK_SPEED;
-
-    if (!this.isCrouching) {
-      if (input.isLeft) {
-        this.vx -= accel * dt;
-        this.facing = -1;
-      } else if (input.isRight) {
-        this.vx += accel * dt;
-        this.facing = 1;
+    if (input.state.left) {
+      this.facing = -1;
+      if (this.velocity.x > 0) {
+        this.velocity.x -= FRICTION * 1.5 * dt; // Turn-around skidding
       } else {
-        // Apply friction
-        this.vx *= this.onGround ? CONFIG.PHYSICS.FRICTION : CONFIG.PHYSICS.AIR_RESISTANCE;
-        if (Math.abs(this.vx) < 5) this.vx = 0;
+        this.velocity.x = Math.max(-maxSpeed, this.velocity.x - ACCELERATION * dt);
+      }
+    } else if (input.state.right) {
+      this.facing = 1;
+      if (this.velocity.x < 0) {
+        this.velocity.x += FRICTION * 1.5 * dt; // Turn-around skidding
+      } else {
+        this.velocity.x = Math.min(maxSpeed, this.velocity.x + ACCELERATION * dt);
       }
     } else {
-      this.vx *= 0.8;
+      // Natural Deceleration / Friction
+      if (this.velocity.x > 0) {
+        this.velocity.x = Math.max(0, this.velocity.x - FRICTION * dt);
+      } else if (this.velocity.x < 0) {
+        this.velocity.x = Math.min(0, this.velocity.x + FRICTION * dt);
+      }
     }
 
-    // Speed clamping
-    if (this.vx > maxSpeed) this.vx = maxSpeed;
-    if (this.vx < -maxSpeed) this.vx = -maxSpeed;
-
-    // Jump Physics
-    if (input.isJumpJustPressed && this.onGround && !this.isCrouching) {
-      this.vy = CONFIG.MARIO.JUMP_IMPULSE;
-      this.isJumping = true;
-      this.jumpHoldTimer = CONFIG.MARIO.HIGH_JUMP_HOLD_TIME;
-      sound.playJump(this.powerState !== 'SMALL');
-    }
-
-    if (input.isJump && this.isJumping && this.jumpHoldTimer > 0) {
-      this.vy -= 400 * dt; // Sustained jump boost
-      this.jumpHoldTimer -= dt;
+    // Animation cycle
+    if (this.isGrounded && Math.abs(this.velocity.x) > 10) {
+      this.walkAnimTimer += dt * (Math.abs(this.velocity.x) / 30);
+      this.walkFrame = Math.floor(this.walkAnimTimer) % 3;
     } else {
-      this.isJumping = false;
+      this.walkFrame = 0;
     }
 
-    // Fireball attack
-    if (
-      this.powerState === 'FIRE' &&
-      input.isShootJustPressed &&
-      this.fireCooldown <= 0 &&
-      !this.isCrouching
-    ) {
-      const fbX = this.facing === 1 ? this.x + this.width : this.x - 8;
-      const fb = new Fireball(fbX, this.y + 6, this.facing);
-      onSpawnFireball(fb);
-      this.fireCooldown = 0.22;
-      sound.playFireball();
+    // Jump Logic with Variable Height Impulse
+    if (input.justPressed.jump && this.isGrounded) {
+      this.velocity.y = JUMP_FORCE;
+      this.isGrounded = false;
+      this.isJumping = true;
+      soundEngine?.playJump();
     }
 
-    // Apply standard tilemap physics
-    Physics.resolveEntityVsTilemap(this, level, dt);
-
-    // Fall in pit death
-    if (this.y > CONFIG.CANVAS.INTERNAL_HEIGHT + 32) {
-      this.die();
+    // Variable Jump Cutoff
+    if (!input.state.jump && this.velocity.y < 0) {
+      this.velocity.y += GAME_CONFIG.PHYSICS.GRAVITY * JUMP_HOLD_GRAVITY_MOD * dt;
     }
-
-    // Animation frame progression
-    super.update(dt, level);
   }
 
-  bounceOnEnemy() {
-    this.vy = CONFIG.MARIO.BOUNCE_IMPULSE;
-    this.comboCounter++;
+  kill(soundEngine) {
+    if (this.state === 'DEAD') return;
+    this.state = 'DEAD';
+    this.velocity.set(0, -320);
+    soundEngine?.playDeath();
   }
 
-  onCollideCeiling(tx, ty, level) {
-    level.bumpBlock(tx, ty, this);
+  render(ctx, camera) {
+    if (this.invulnerableTimer > 0 && Math.floor(Date.now() / 80) % 2 === 0) {
+      return; // Flicker effect when invincible
+    }
+
+    const screenPos = camera.worldToScreen(this.position.x, this.position.y);
+    const w = this.size.x;
+    const h = this.size.y;
+
+    ctx.save();
+    ctx.translate(screenPos.x + w / 2, screenPos.y + h / 2);
+    if (this.facing === -1) {
+      ctx.scale(-1, 1);
+    }
+
+    // Pixel Art Procedural Canvas Drawing: Classic Red/Blue 8-bit Mario
+    ctx.fillStyle = '#b81c00'; // Mario Red cap and shirt
+    ctx.fillRect(-w / 2 + 3, -h / 2, 8, 4); // Cap
+    ctx.fillRect(-w / 2 + 1, -h / 2 + 4, 11, 2); // Cap brim
+
+    ctx.fillStyle = '#fce4a6'; // Face peach
+    ctx.fillRect(-w / 2 + 2, -h / 2 + 4, 8, 4);
+    ctx.fillStyle = '#5c4800'; // Hair & mustache
+    ctx.fillRect(-w / 2 + 1, -h / 2 + 4, 3, 2);
+    ctx.fillRect(-w / 2 + 5, -h / 2 + 6, 4, 2);
+
+    // Overalls (Blue)
+    ctx.fillStyle = '#0020d0';
+    ctx.fillRect(-w / 2 + 2, -h / 2 + 8, 10, 5);
+
+    // Red Sleeves
+    ctx.fillStyle = '#b81c00';
+    ctx.fillRect(-w / 2 + (this.walkFrame === 1 ? 0 : 1), -h / 2 + 8, 2, 4);
+    ctx.fillRect(-w / 2 + 11, -h / 2 + 8, 2, 4);
+
+    // Shoes (Brown)
+    ctx.fillStyle = '#5c4800';
+    if (!this.isGrounded) {
+      // Jumping pose
+      ctx.fillRect(-w / 2 - 1, -h / 2 + 13, 6, 3);
+      ctx.fillRect(-w / 2 + 8, -h / 2 + 11, 6, 3);
+    } else {
+      ctx.fillRect(-w / 2 + (this.walkFrame * 2), -h / 2 + 13, 5, 3);
+      ctx.fillRect(-w / 2 + 7 - (this.walkFrame * 1.5), -h / 2 + 13, 5, 3);
+    }
+
+    ctx.restore();
   }
 }

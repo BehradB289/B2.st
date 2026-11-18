@@ -1,184 +1,26 @@
 <!DOCTYPE html>
 <html lang="fa" dir="rtl">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Super Mario B2 Studio Edition</title>
-  <style>
-    @font-face {
-      font-family: 'RetroNES';
-      src: local('Courier New'), monospace;
-    }
-
-    * {
-      box-sizing: border-box;
-      user-select: none;
-      -webkit-user-select: none;
-      margin: 0;
-      padding: 0;
-    }
-
-    body {
-      background: #0a0a0f;
-      color: #fff;
-      font-family: 'RetroNES', 'Courier New', monospace;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      min-height: 100vh;
-      overflow: hidden;
-    }
-
-    #cabinet {
-      position: relative;
-      background: #181824;
-      border: 8px solid #2a2a3e;
-      border-radius: 12px;
-      box-shadow: 0 0 40px rgba(0, 0, 0, 0.9), 0 0 20px rgba(255, 60, 60, 0.2);
-      padding: 12px;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-    }
-
-    #screen-wrapper {
-      position: relative;
-      width: 768px;
-      height: 480px;
-      background: #000;
-      overflow: hidden;
-      border: 3px solid #111;
-      border-radius: 4px;
-    }
-
-    canvas#gameCanvas {
-      width: 100%;
-      height: 100%;
-      image-rendering: pixelated;
-      image-rendering: crisp-edges;
-      display: block;
-    }
-
-    /* افکت خطوط اسکن CRT کلاسیک */
-    .crt-overlay {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      pointer-events: none;
-      background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%),
-                  linear-gradient(90deg, rgba(255, 0, 0, 0.03), rgba(0, 255, 0, 0.01), rgba(0, 0, 255, 0.03));
-      background-size: 100% 3px, 6px 100%;
-      z-index: 10;
-    }
-
-    .crt-glow {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      pointer-events: none;
-      box-shadow: inset 0 0 60px rgba(0, 0, 0, 0.7);
-      border-radius: 4px;
-      z-index: 11;
-    }
-
-    #controls-bar {
-      margin-top: 10px;
-      display: flex;
-      gap: 20px;
-      font-size: 11px;
-      color: #8c8ca8;
-      text-transform: uppercase;
-      letter-spacing: 1px;
-      direction: ltr;
-    }
-
-    .key-badge {
-      background: #252538;
-      color: #ffcc00;
-      padding: 2px 6px;
-      border-radius: 3px;
-      border: 1px solid #3c3c58;
-    }
-
-    /* پنل کنترل لمسی موبایل (در صورت لزوم) */
-    #mobile-controls {
-      display: none;
-      margin-top: 12px;
-      width: 100%;
-      max-width: 768px;
-      justify-content: space-between;
-      touch-action: manipulation;
-    }
-
-    .dpad, .action-buttons {
-      display: flex;
-      gap: 8px;
-    }
-
-    .touch-btn {
-      width: 52px;
-      height: 52px;
-      background: #2a2a3e;
-      border: 2px solid #4a4a6e;
-      color: #fff;
-      font-size: 16px;
-      border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      active: #ff3333;
-    }
-
-    @media (max-width: 820px) {
-      #screen-wrapper {
-        width: 95vw;
-        height: calc(95vw * (480 / 768));
-      }
-      #cabinet {
-        padding: 4px;
-        border-width: 4px;
-      }
-      #mobile-controls {
-        display: flex;
-      }
-    }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Super Mario Bros - B2.st Studio Edition</title>
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
+    <div class="arcade-wrapper">
+        <div class="screen-container">
+            <canvas id="gameCanvas" width="256" height="240"></canvas>
+            <div class="scanlines"></div>
+        </div>
 
-  <div id="cabinet">
-    <div id="screen-wrapper">
-      <canvas id="gameCanvas" width="768" height="480"></canvas>
-      <div id="crtOverlay" class="crt-overlay"></div>
-      <div class="crt-glow"></div>
+        <div class="controls-hint">
+            <span>حرکت: <span class="key-badge">A / D</span> یا <span class="key-badge">← / →</span></span>
+            <span>پرش: <span class="key-badge">SPACE</span> یا <span class="key-badge">W</span></span>
+            <span>دویدن سریع: <span class="key-badge">SHIFT</span></span>
+        </div>
     </div>
 
-    <div id="controls-bar">
-      <span>حرکت: <span class="key-badge">←</span> <span class="key-badge">→</span> / <span class="key-badge">A</span> <span class="key-badge">D</span></span>
-      <span>پرش: <span class="key-badge">Z</span> / <span class="key-badge">W</span> / <span class="key-badge">Space</span></span>
-      <span>دویدن / شلیک: <span class="key-badge">X</span> / <span class="key-badge">Shift</span></span>
-      <span>منو: <span class="key-badge">Enter</span> / <span class="key-badge">Esc</span></span>
-      <span>CRT: <span class="key-badge">C</span></span>
-    </div>
-
-    <div id="mobile-controls">
-      <div class="dpad">
-        <button class="touch-btn" id="btn-left">◀</button>
-        <button class="touch-btn" id="btn-right">▶</button>
-        <button class="touch-btn" id="btn-down">▼</button>
-      </div>
-      <div class="action-buttons">
-        <button class="touch-btn" id="btn-run">X</button>
-        <button class="touch-btn" id="btn-jump">Z</button>
-      </div>
-    </div>
-  </div>
-
-  <script type="module" src="../src/main.js"></script>
+    <!-- بارگذاری ماژولار موتور ES6 بازی -->
+    <script type="module" src="../src/game.js"></script>
 </body>
 </html>

@@ -9,11 +9,13 @@
 ```text
 projects/voiceproposal-4362/
 ├── .env.example
+├── config/fonts.config.ts
 ├── config/supabase-schema.sql
 ├── docs/ARCHITECTURE.md
 ├── docs/PAY_PER_EXPORT_SPEC.md
 ├── docs/PROPOSAL_PDF_ENGINE.md
 ├── docs/architecture-pipeline.md
+├── docs/testing-ai-pdf-pipeline.md
 ├── package.json
 ├── public/index.html
 ├── src/app/actions/generate-proposal.ts
@@ -35,10 +37,13 @@ projects/voiceproposal-4362/
 ├── src/hooks/useAudioRecorder.ts
 ├── src/hooks/useExportManager.ts
 ├── src/lib/groq.ts
+├── src/lib/groq/client.ts
+├── src/lib/groq/pipeline.ts
 ├── src/lib/jwt.ts
 ├── src/lib/schemas/proposal.ts
 ├── src/lib/supabase.ts
 ├── src/lib/supabase/server.ts
+├── src/lib/validations/proposal.ts
 ├── src/next.config.mjs
 ├── src/postcss.config.mjs
 ├── src/tailwind.config.ts
@@ -47,9 +52,14 @@ projects/voiceproposal-4362/
 ├── src/types/database.ts
 ├── src/types/export.ts
 ├── src/types/proposal.ts
+├── src/vitest.config.ts
 ├── supabase/migrations/20250220_export_quotas.sql
 ├── tests/AudioRecorder.test.tsx
+├── tests/ai-pipeline.test.ts
 ├── tests/export-token.test.ts
+├── tests/fixtures/mock-proposal-data.ts
+├── tests/pdf-render.test.tsx
 ├── tests/proposal-pipeline.test.ts
 ├── tests/proposal-viewer.test.tsx
+├── tests/setup.ts
 ```

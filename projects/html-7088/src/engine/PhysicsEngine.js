@@ -1,132 +1,120 @@
-import { Vector2D } from './Vector2D.js';
-
-export const PHYSICS_CONSTANTS = {
-  GRAVITY: 980,             // px/s^2
-  TERMINAL_VELOCITY: 600,   // px/s max downward speed
-  FRICTION: 0.88,           // Horizontal ground damping factor
-  AIR_RESISTANCE: 0.98      // Horizontal air damping factor
-};
-
 /**
- * Core 2D AABB Physics Engine handling integration, tile map collision,
- * and entity-to-entity interactions.
+ * Core Physics and Collision Resolution Engine (Swept AABB)
+ * Studio: B2.st
  */
+
+import { PHYSICS } from '../../config/constants.js';
+
 export class PhysicsEngine {
-  constructor(options = {}) {
-    this.gravity = options.gravity ?? PHYSICS_CONSTANTS.GRAVITY;
-    this.terminalVelocity = options.terminalVelocity ?? PHYSICS_CONSTANTS.TERMINAL_VELOCITY;
-    this.friction = options.friction ?? PHYSICS_CONSTANTS.FRICTION;
-    this.airResistance = options.airResistance ?? PHYSICS_CONSTANTS.AIR_RESISTANCE;
+  constructor(tileMap, gravity = PHYSICS.GRAVITY) {
+    this.tileMap = tileMap;
+    this.gravity = gravity;
+    this.maxFallSpeed = PHYSICS.MAX_FALL_SPEED;
   }
 
-  /**
-   * Integrates an entity's velocity and position for one delta-time step.
-   * @param {import('../entities/Entity.js').Entity} entity
-   * @param {number} dt Delta time in seconds
-   */
-  integrate(entity, dt) {
-    if (!entity.isDynamic || !entity.isAlive) return;
+  updateEntity(entity, dt) {
+    if (!entity.isAlive && entity.type !== 'mario') return;
 
-    // Apply gravity to vertical velocity
-    entity.vel.y += this.gravity * dt;
-    if (entity.vel.y > this.terminalVelocity) {
-      entity.vel.y = this.terminalVelocity;
-    }
+    // Apply horizontal motion
+    entity.position.x += entity.velocity.x * dt;
+    this.resolveTileCollisionX(entity);
 
-    // Apply damping
-    const damping = entity.isGrounded ? this.friction : this.airResistance;
-    entity.vel.x *= Math.pow(damping, dt * 60);
-
-    // Apply linear motion
-    entity.pos.x += entity.vel.x * dt;
-    entity.pos.y += entity.vel.y * dt;
-  }
-
-  /**
-   * Resolves collision between an entity and solid tiles in the level.
-   * @param {import('../entities/Entity.js').Entity} entity
-   * @param {import('../levels/TileMap.js').TileMap} tileMap
-   */
-  resolveTileMapCollisions(entity, tileMap) {
-    if (!entity.isDynamic || !tileMap) return;
-
-    // Assume airborne until verified by ground collision
+    // Apply gravity and vertical motion
+    entity.velocity.y = Math.min(entity.velocity.y + this.gravity * dt, this.maxFallSpeed);
+    entity.position.y += entity.velocity.y * dt;
     entity.isGrounded = false;
+    this.resolveTileCollisionY(entity);
+  }
 
-    const nearbyTiles = tileMap.getSolidTilesInAABB(entity.getAABB());
+  resolveTileCollisionX(entity) {
+    if (!this.tileMap) return;
+    const ts = this.tileMap.tileSize;
+    const startRow = Math.floor(entity.position.y / ts);
+    const endRow = Math.floor((entity.position.y + entity.height - 0.05) / ts);
 
-    for (const tile of nearbyTiles) {
-      const entityBox = entity.getAABB();
-      const overlap = entityBox.getOverlap(tile.aabb);
-
-      if (!overlap) continue;
-
-      // Resolve along minimum penetration axis
-      if (overlap.ox < overlap.oy) {
-        // Horizontal resolution
-        if (overlap.dx > 0) {
-          // Entity is to the right of tile
-          entity.pos.x += overlap.ox;
-          entity.vel.x = Math.max(0, entity.vel.x);
-        } else {
-          // Entity is to the left of tile
-          entity.pos.x -= overlap.ox;
-          entity.vel.x = Math.min(0, entity.vel.x);
+    if (entity.velocity.x > 0) {
+      const col = Math.floor((entity.position.x + entity.width) / ts);
+      for (let r = startRow; r <= endRow; r++) {
+        if (this.tileMap.isSolid(col, r)) {
+          entity.position.x = col * ts - entity.width;
+          if (typeof entity.reverseDirection === 'function') {
+            entity.reverseDirection();
+          } else {
+            entity.velocity.x = 0;
+          }
+          break;
         }
-        entity.onWallCollision(tile);
-      } else {
-        // Vertical resolution
-        if (overlap.dy > 0) {
-          // Entity hit ceiling
-          entity.pos.y += overlap.oy;
-          entity.vel.y = Math.max(0, entity.vel.y);
-          entity.onCeilingCollision(tile);
-        } else {
-          // Entity landed on solid surface
-          entity.pos.y -= overlap.oy;
-          entity.vel.y = 0;
-          entity.isGrounded = true;
-          entity.onGroundCollision(tile);
+      }
+    } else if (entity.velocity.x < 0) {
+      const col = Math.floor(entity.position.x / ts);
+      for (let r = startRow; r <= endRow; r++) {
+        if (this.tileMap.isSolid(col, r)) {
+          entity.position.x = (col + 1) * ts;
+          if (typeof entity.reverseDirection === 'function') {
+            entity.reverseDirection();
+          } else {
+            entity.velocity.x = 0;
+          }
+          break;
         }
       }
     }
   }
 
-  /**
-   * Resolves interaction between Mario and another entity (Goomba, Coin, etc.).
-   * @param {import('../entities/Mario.js').Mario} mario
-   * @param {import('../entities/Entity.js').Entity} other
-   * @returns {string|null} Event name or null
-   */
-  resolveEntityInteraction(mario, other) {
-    if (!mario.isAlive || !other.isAlive) return null;
-    if (!mario.getAABB().intersects(other.getAABB())) return null;
+  resolveTileCollisionY(entity) {
+    if (!this.tileMap) return;
+    const ts = this.tileMap.tileSize;
+    const startCol = Math.floor(entity.position.x / ts);
+    const endCol = Math.floor((entity.position.x + entity.width - 0.05) / ts);
 
-    if (other.type === 'coin') {
-      other.collect();
-      mario.addCoins(1);
-      mario.addScore(200);
-      return 'coin_collected';
-    }
-
-    if (other.type === 'goomba') {
-      // Mario stomps Goomba if falling and his feet strike the upper torso of the Goomba
-      const isFalling = mario.vel.y > 0;
-      const marioBottom = mario.pos.y + mario.height;
-      const goombaTop = other.pos.y;
-      const stompThreshold = goombaTop + (other.height * 0.55);
-
-      if (isFalling && marioBottom <= stompThreshold) {
-        other.squash();
-        mario.bounce();
-        mario.addScore(100);
-        return 'goomba_stomped';
-      } else {
-        mario.takeDamage();
-        return 'mario_damaged';
+    if (entity.velocity.y >= 0) {
+      // Falling down: test ground collision
+      const row = Math.floor((entity.position.y + entity.height) / ts);
+      for (let c = startCol; c <= endCol; c++) {
+        if (this.tileMap.isSolid(c, row)) {
+          entity.position.y = row * ts - entity.height;
+          entity.velocity.y = 0;
+          entity.isGrounded = true;
+          break;
+        }
+      }
+    } else if (entity.velocity.y < 0) {
+      // Jumping up: test ceiling collision
+      const row = Math.floor(entity.position.y / ts);
+      for (let c = startCol; c <= endCol; c++) {
+        if (this.tileMap.isSolid(c, row)) {
+          entity.position.y = (row + 1) * ts;
+          entity.velocity.y = 0;
+          this.tileMap.interactTile(c, row, entity);
+          break;
+        }
       }
     }
+  }
 
-    return null;
+  resolveEntityToEntity(player, entities) {
+    if (!player.isAlive) return;
+    const playerBox = player.getBounds();
+
+    for (const entity of entities) {
+      if (entity === player || !entity.isAlive || entity.markedForRemoval) continue;
+
+      const entityBox = entity.getBounds();
+      if (!playerBox.intersects(entityBox)) continue;
+
+      if (entity.type === 'goomba') {
+        // Stomp condition: player is descending and player's bottom is near top of goomba
+        const isDescending = player.velocity.y > 0;
+        const playerBottom = player.position.y + player.height;
+        const goombaTop = entity.position.y;
+
+        if (isDescending && playerBottom - player.velocity.y * 0.05 <= goombaTop + 10) {
+          entity.squash();
+          player.stomp();
+        } else {
+          player.takeDamage();
+        }
+      }
+    }
   }
 }

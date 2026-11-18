@@ -1,388 +1,427 @@
 /**
- * لایه دسترسی امن به داده (Data Access Layer & Transaction Manager)
- * پیاده‌سازی کامل الگوهای مخزن، تراکنش امن و امضای ضد تقلب استودیو B2.st
- * @module src/db/database_layer
+ * لایه امنیتی و یکپارچه پایگاه داده (Enterprise Mario Data Access Layer)
+ * مدیریت ارتباط با IndexedDB با Fallback خودکار به حافظه در تست‌ها،
+ * اجرای مایگریشن‌های خودکار، امضای اعتبارسنجی ضد تقلب (Anti-Tamper) و سرویس‌های CRUD.
  */
+(function (global) {
+  'use strict';
 
-import { DATABASE_CONFIG } from '../../config/database_config.js';
-import { CryptoSecurity } from './crypto.js';
-import { Schemas } from './schema.js';
-import { MigrationEngine } from './migration_engine.js';
+  const Config = typeof DatabaseConfig !== 'undefined' 
+    ? DatabaseConfig 
+    : (typeof require !== 'undefined' ? require('../../config/database.config').DatabaseConfig : null);
 
-export class DatabaseLayer {
-  /**
-   * مقداردهی اولیه به صورت Singleton
-   */
-  constructor() {
-    if (DatabaseLayer._instance) {
-      return DatabaseLayer._instance;
+  const Vault = typeof CryptoVault !== 'undefined'
+    ? CryptoVault
+    : (typeof require !== 'undefined' ? require('./security/crypto_vault').CryptoVault : null);
+
+  const Runner = typeof MigrationRunner !== 'undefined'
+    ? MigrationRunner
+    : (typeof require !== 'undefined' ? require('./migrations/migration_runner').MigrationRunner : null);
+
+  const SaveModel = typeof SaveStateModel !== 'undefined'
+    ? SaveStateModel
+    : (typeof require !== 'undefined' ? require('./models/save_state_model').SaveStateModel : null);
+
+  const ScoreModel = typeof HighScoreModel !== 'undefined'
+    ? HighScoreModel
+    : (typeof require !== 'undefined' ? require('./models/high_score_model').HighScoreModel : null);
+
+  const SettingsModelClass = typeof SettingsModel !== 'undefined'
+    ? SettingsModel
+    : (typeof require !== 'undefined' ? require('./models/settings_model').SettingsModel : null);
+
+  // آداپتور ذخیره‌سازی در حافظه (Memory Storage Adapter) ویژه محیط بدون ایندکس‌دی‌بی نظیر تست‌های Node.js
+  class MemoryStorageDriver {
+    constructor() {
+      this.stores = new Map();
+      this.objectStoreNames = {
+        contains: (name) => this.stores.has(name)
+      };
     }
-    this.db = null;
-    this.migrationEngine = new MigrationEngine();
-    this.isOpen = false;
-    this.migrationEngine.validateSequence();
-    DatabaseLayer._instance = this;
+    createObjectStore(name) {
+      if (!this.stores.has(name)) {
+        this.stores.set(name, new Map());
+      }
+      return {
+        createIndex: () => {}
+      };
+    }
+    async get(storeName, key) {
+      const store = this.stores.get(storeName);
+      if (!store) return null;
+      const val = store.get(key);
+      return val ? JSON.parse(JSON.stringify(val)) : null;
+    }
+    async put(storeName, key, value) {
+      if (!this.stores.has(storeName)) {
+        this.stores.set(storeName, new Map());
+      }
+      const store = this.stores.get(storeName);
+      const clone = JSON.parse(JSON.stringify(value));
+      store.set(key, clone);
+      return key;
+    }
+    async getAll(storeName) {
+      const store = this.stores.get(storeName);
+      if (!store) return [];
+      return Array.from(store.values()).map(v => JSON.parse(JSON.stringify(v)));
+    }
+    async delete(storeName, key) {
+      const store = this.stores.get(storeName);
+      if (!store) return false;
+      return store.delete(key);
+    }
+    async clear(storeName) {
+      const store = this.stores.get(storeName);
+      if (store) store.clear();
+    }
   }
 
-  /**
-   * باز کردن اتصال به پایگاه‌داده و مدیریت خودکار Migrationها
-   * @returns {Promise<DatabaseLayer>}
-   */
-  async initialize() {
-    if (this.isOpen && this.db) {
+  class DatabaseLayer {
+    constructor(customOptions = {}) {
+      this.dbName = customOptions.dbName || Config.NAME;
+      this.version = customOptions.version || Config.VERSION;
+      this.secretSalt = customOptions.salt || Config.SECURITY.SECRET_SALT;
+      this.db = null;
+      this.isMemoryDriver = false;
+      this.memoryDriver = null;
+      this.migrationRunner = new Runner(this);
+
+      // اتصال ریپازیتوری‌ها
+      this.saveStates = new SaveStateRepository(this);
+      this.highScores = new HighScoreRepository(this);
+      this.settings = new SettingsRepository(this);
+    }
+
+    /**
+     * راه‌اندازی ارتباط و اعمال مایگریشن‌های خودکار در هنگام بوت
+     */
+    async initialize() {
+      if (typeof window !== 'undefined' && window.indexedDB) {
+        return this._initIndexedDB();
+      } else {
+        return this._initMemoryDB();
+      }
+    }
+
+    _initIndexedDB() {
+      return new Promise((resolve, reject) => {
+        const req = window.indexedDB.open(this.dbName, this.version);
+
+        req.onupgradeneeded = async (event) => {
+          const dbInstance = event.target.result;
+          const oldVer = event.oldVersion;
+          const transaction = event.target.transaction;
+          try {
+            await this.migrationRunner.runPendingMigrations(dbInstance, oldVer, transaction);
+          } catch (err) {
+            console.error('[DatabaseLayer] ارور هنگام ارتقای اسکیما:', err);
+          }
+        };
+
+        req.onsuccess = async (event) => {
+          this.db = event.target.result;
+          await this._seedInitialData();
+          resolve(this);
+        };
+
+        req.onerror = (event) => {
+          reject(new Error(`خطای باز کردن IndexedDB: ${event.target.error?.message}`));
+        };
+      });
+    }
+
+    async _initMemoryDB() {
+      this.isMemoryDriver = true;
+      this.memoryDriver = new MemoryStorageDriver();
+      await this.migrationRunner.runPendingMigrations(this.memoryDriver, 0);
+      await this._seedInitialData();
       return this;
     }
 
-    return new Promise((resolve, reject) => {
-      if (typeof indexedDB === 'undefined') {
-        return reject(new Error('IndexedDB is not supported in this runtime environment.'));
+    async _seedInitialData() {
+      // بررسی و ذخیره تنظیمات پیش‌فرض
+      const curSettings = await this.settings.get();
+      if (!curSettings) {
+        const defaultSettings = new SettingsModelClass();
+        defaultSettings.sign(this.secretSalt);
+        await this.settings.save(defaultSettings);
       }
 
-      const request = indexedDB.open(DATABASE_CONFIG.NAME, DATABASE_CONFIG.VERSION);
-
-      request.onupgradeneeded = (event) => {
-        const db = event.target.result;
-        const transaction = event.target.transaction;
-        const oldVersion = event.oldVersion;
-        const newVersion = event.newVersion || DATABASE_CONFIG.VERSION;
-
-        this.migrationEngine.runMigrations(db, transaction, oldVersion, newVersion)
-          .catch(err => {
-            console.error('[DatabaseLayer] Migration failed fatally:', err);
-            transaction.abort();
-          });
-      };
-
-      request.onsuccess = (event) => {
-        this.db = event.target.result;
-        this.isOpen = true;
-
-        this.db.onversionchange = () => {
-          this.close();
-          console.warn('[DatabaseLayer] Database connection closed due to concurrent version change.');
-        };
-
-        this.db.onerror = (errEvent) => {
-          console.error('[DatabaseLayer] Global DB Error:', errEvent.target.error);
-        };
-
-        // اعمال مقادیر اولیه در اولین بارگذاری
-        this._seedDefaults().then(() => resolve(this)).catch(reject);
-      };
-
-      request.onerror = (event) => {
-        reject(new Error(`Failed to open IndexedDB: ${event.target.error?.message || 'Unknown error'}`));
-      };
-
-      request.onblocked = () => {
-        console.warn('[DatabaseLayer] Database open blocked. Please close open tabs of this game.');
-      };
-    });
-  }
-
-  /**
-   * بستن ارتباط با پایگاه‌داده
-   */
-  close() {
-    if (this.db) {
-      this.db.close();
-      this.db = null;
-      this.isOpen = false;
-    }
-  }
-
-  /**
-   * اجرای یک تراکنش مدیریت‌شده و ایزوله
-   * @param {string|string[]} storeNames 
-   * @param {'readonly'|'readwrite'} mode 
-   * @param {Function} operation 
-   * @returns {Promise<any>}
-   */
-  async executeTransaction(storeNames, mode, operation) {
-    await this._ensureConnection();
-    const stores = Array.isArray(storeNames) ? storeNames : [storeNames];
-
-    return new Promise((resolve, reject) => {
-      let isCompleted = false;
-      const timeoutId = setTimeout(() => {
-        if (!isCompleted) {
-          tx.abort();
-          reject(new Error(`Transaction timed out after ${DATABASE_CONFIG.TRANSACTION_TIMEOUT_MS}ms`));
+      // تزریق رکوردهای کلاسیک تابلوی امتیازات در صورت خالی بودن
+      const topScores = await this.highScores.getTop(1);
+      if (topScores.length === 0) {
+        const seedScores = [
+          { playerName: 'B2ST', score: 15400, coins: 64, world: '1-4', timeRemaining: 182 },
+          { playerName: 'MARIO', score: 12800, coins: 48, world: '1-3', timeRemaining: 150 },
+          { playerName: 'LUIGI', score: 9200, coins: 33, world: '1-2', timeRemaining: 120 },
+          { playerName: 'PEACH', score: 6500, coins: 21, world: '1-1', timeRemaining: 95 }
+        ];
+        for (const s of seedScores) {
+          const record = new ScoreModel(s);
+          record.sign(this.secretSalt);
+          await this.highScores.record(record);
         }
-      }, DATABASE_CONFIG.TRANSACTION_TIMEOUT_MS);
+      }
+    }
 
-      const tx = this.db.transaction(stores, mode);
-
-      tx.oncomplete = () => {
-        isCompleted = true;
-        clearTimeout(timeoutId);
-      };
-
-      tx.onerror = (event) => {
-        isCompleted = true;
-        clearTimeout(timeoutId);
-        reject(new Error(`Transaction Error: ${event.target.error?.message}`));
-      };
-
-      tx.onabort = (event) => {
-        isCompleted = true;
-        clearTimeout(timeoutId);
-        reject(new Error(`Transaction Aborted: ${event.target.error?.message || 'Aborted'}`));
-      };
-
-      Promise.resolve()
-        .then(() => operation(tx))
-        .then(result => {
-          resolve(result);
-        })
-        .catch(err => {
-          try { tx.abort(); } catch (_) {}
-          reject(err);
-        });
-    });
-  }
-
-  /**
-   * خواندن یک رکورد بر اساس شناسه به همراه سنجش اصالت و امضا
-   * @param {string} storeName 
-   * @param {IDBValidKey} key 
-   * @param {boolean} [verifyIntegrity=true] 
-   * @returns {Promise<any|null>}
-   */
-  async get(storeName, key, verifyIntegrity = true) {
-    return this.executeTransaction(storeName, 'readonly', async (tx) => {
-      const store = tx.objectStore(storeName);
-      return new Promise((res, rej) => {
+    // متدهای عمومی سطح پایین خواندن و نوشتن تراکنش‌ها
+    async getRaw(storeName, key) {
+      if (this.isMemoryDriver) {
+        return this.memoryDriver.get(storeName, key);
+      }
+      return new Promise((resolve, reject) => {
+        const tx = this.db.transaction(storeName, 'readonly');
+        const store = tx.objectStore(storeName);
         const req = store.get(key);
-        req.onsuccess = async () => {
-          const record = req.result;
-          if (!record) return res(null);
-
-          if (verifyIntegrity && record.checksum) {
-            const isValid = await CryptoSecurity.verifyRecordIntegrity(record);
-            if (!isValid) {
-              await this._recordAudit('TAMPER_DETECTED', { store: storeName, key });
-              return rej(new Error(`SecurityViolation: Data tampering detected in store '${storeName}' for key '${key}'. Record rejected.`));
-            }
-          }
-          res(record);
-        };
-        req.onerror = () => rej(req.error);
+        req.onsuccess = () => resolve(req.result || null);
+        req.onerror = () => reject(req.error);
       });
-    });
-  }
-
-  /**
-   * درج یا به‌روزرسانی امن رکورد همراه با اعتبارسنجی اسک Schema و الصاق امضای دیجیتال
-   * @param {string} storeName 
-   * @param {Object} record 
-   * @param {boolean} [sign=true] 
-   * @returns {Promise<Object>}
-   */
-  async put(storeName, record, sign = true) {
-    const schema = this._getSchemaForStore(storeName);
-    if (schema) {
-      schema.validate(record);
     }
 
-    const payload = sign ? await CryptoSecurity.signRecord(record) : { ...record };
-
-    return this.executeTransaction(storeName, 'readwrite', (tx) => {
-      const store = tx.objectStore(storeName);
-      return new Promise((res, rej) => {
-        const req = store.put(payload);
-        req.onsuccess = () => res(payload);
-        req.onerror = () => rej(req.error);
+    async putRaw(storeName, value, optionalKey = null) {
+      if (this.isMemoryDriver) {
+        const key = optionalKey !== null ? optionalKey : (value.id || value.slotId || Date.now());
+        await this.memoryDriver.put(storeName, key, value);
+        return key;
+      }
+      return new Promise((resolve, reject) => {
+        const tx = this.db.transaction(storeName, 'readwrite');
+        const store = tx.objectStore(storeName);
+        const req = optionalKey !== null ? store.put(value, optionalKey) : store.put(value);
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
       });
-    });
-  }
+    }
 
-  /**
-   * حذف رکورد
-   * @param {string} storeName 
-   * @param {IDBValidKey} key 
-   * @returns {Promise<boolean>}
-   */
-  async delete(storeName, key) {
-    return this.executeTransaction(storeName, 'readwrite', (tx) => {
-      const store = tx.objectStore(storeName);
-      return new Promise((res, rej) => {
-        const req = store.delete(key);
-        req.onsuccess = () => res(true);
-        req.onerror = () => rej(req.error);
-      });
-    });
-  }
-
-  /**
-   * استخراج تمامی رکوردهای یک Store
-   * @param {string} storeName 
-   * @returns {Promise<Array>}
-   */
-  async getAll(storeName) {
-    return this.executeTransaction(storeName, 'readonly', (tx) => {
-      const store = tx.objectStore(storeName);
-      return new Promise((res, rej) => {
+    async getAllRaw(storeName) {
+      if (this.isMemoryDriver) {
+        return this.memoryDriver.getAll(storeName);
+      }
+      return new Promise((resolve, reject) => {
+        const tx = this.db.transaction(storeName, 'readonly');
+        const store = tx.objectStore(storeName);
         const req = store.getAll();
-        req.onsuccess = () => res(req.result || []);
-        req.onerror = () => rej(req.error);
+        req.onsuccess = () => resolve(req.result || []);
+        req.onerror = () => reject(req.error);
       });
-    });
-  }
+    }
 
-  /**
-   * جستجو در ایندکس با قابلیت صفحه‌بندی و جهت
-   * @param {string} storeName 
-   * @param {string} indexName 
-   * @param {IDBKeyRange} [range=null] 
-   * @param {'next'|'prev'} [direction='next'] 
-   * @param {number} [limit=100] 
-   * @returns {Promise<Array>}
-   */
-  async queryIndex(storeName, indexName, range = null, direction = 'next', limit = 100) {
-    return this.executeTransaction(storeName, 'readonly', (tx) => {
-      const store = tx.objectStore(storeName);
-      const index = store.index(indexName);
-      const results = [];
-
-      return new Promise((res, rej) => {
-        const req = index.openCursor(range, direction);
-        req.onsuccess = (e) => {
-          const cursor = e.target.result;
-          if (cursor && results.length < limit) {
-            results.push(cursor.value);
-            cursor.continue();
-          } else {
-            res(results);
-          }
-        };
-        req.onerror = () => rej(req.error);
+    async deleteRaw(storeName, key) {
+      if (this.isMemoryDriver) {
+        return this.memoryDriver.delete(storeName, key);
+      }
+      return new Promise((resolve, reject) => {
+        const tx = this.db.transaction(storeName, 'readwrite');
+        const store = tx.objectStore(storeName);
+        const req = store.delete(key);
+        req.onsuccess = () => resolve(true);
+        req.onerror = () => reject(req.error);
       });
-    });
-  }
+    }
 
-  /**
-   * تخلیه کامل یک جدول
-   * @param {string} storeName 
-   * @returns {Promise<boolean>}
-   */
-  async clearStore(storeName) {
-    return this.executeTransaction(storeName, 'readwrite', (tx) => {
-      const store = tx.objectStore(storeName);
-      return new Promise((res, rej) => {
+    async clearStore(storeName) {
+      if (this.isMemoryDriver) {
+        return this.memoryDriver.clear(storeName);
+      }
+      return new Promise((resolve, reject) => {
+        const tx = this.db.transaction(storeName, 'readwrite');
+        const store = tx.objectStore(storeName);
         const req = store.clear();
-        req.onsuccess = () => res(true);
-        req.onerror = () => rej(req.error);
+        req.onsuccess = () => resolve(true);
+        req.onerror = () => reject(req.error);
       });
-    });
+    }
+
+    /**
+     * خروجی کامل پشتیبان داده‌ها به همراه امضای اصالت کلی سیستم (Encrypted Export)
+     */
+    async exportBackup() {
+      const backupData = {
+        meta: {
+          app: 'B2st Mario Game',
+          version: this.version,
+          exportedAt: new Date().toISOString()
+        },
+        settings: await this.getAllRaw(Config.STORES.SETTINGS),
+        saveStates: await this.getAllRaw(Config.STORES.SAVE_STATES),
+        highScores: await this.getAllRaw(Config.STORES.HIGH_SCORES)
+      };
+      const signature = Vault.sign(backupData, this.secretSalt);
+      return JSON.stringify({ ...backupData, masterSignature: signature }, null, 2);
+    }
+
+    /**
+     * بازیابی فایل پشتیبان با تایید اعتبار و هش جامع ضد دستکاری
+     */
+    async importBackup(jsonString) {
+      let parsed;
+      try {
+        parsed = JSON.parse(jsonString);
+      } catch (e) {
+        throw new Error('قالب فایل پشتیبان نامعتبر است (JSON Parsing Error).');
+      }
+
+      const { masterSignature, ...payload } = parsed;
+      if (!masterSignature || !Vault.verify(payload, masterSignature, this.secretSalt)) {
+        throw new Error('رد صلاحیت امنیتی: فایل پشتیبان مخدوش یا دستکاری شده است!');
+      }
+
+      // بازنشانی داده‌ها
+      await this.clearStore(Config.STORES.SETTINGS);
+      for (const s of payload.settings || []) await this.putRaw(Config.STORES.SETTINGS, s);
+
+      await this.clearStore(Config.STORES.SAVE_STATES);
+      for (const st of payload.saveStates || []) await this.putRaw(Config.STORES.SAVE_STATES, st);
+
+      await this.clearStore(Config.STORES.HIGH_SCORES);
+      for (const sc of payload.highScores || []) await this.putRaw(Config.STORES.HIGH_SCORES, sc);
+
+      return true;
+    }
+
+    close() {
+      if (this.db) {
+        this.db.close();
+        this.db = null;
+      }
+    }
   }
 
-  /**
-   * پشتیبان‌گیری کامل از داده‌های بازی در قالب ساختار JSON امن
-   * @returns {Promise<string>}
-   */
-  async exportFullSnapshot() {
-    const stores = [
-      DATABASE_CONFIG.STORES.PROFILES,
-      DATABASE_CONFIG.STORES.SAVES,
-      DATABASE_CONFIG.STORES.SETTINGS,
-      DATABASE_CONFIG.STORES.LEADERBOARD
-    ];
+  // --- ریپازیتوری‌های تخصصی استورها ---
 
-    const snapshot = {
-      engine: 'B2.st Super Mario',
-      version: DATABASE_CONFIG.VERSION,
-      exportedAt: Date.now(),
-      data: {}
-    };
-
-    for (const store of stores) {
-      snapshot.data[store] = await this.getAll(store);
+  class SaveStateRepository {
+    constructor(dbLayer) {
+      this.db = dbLayer;
+      this.storeName = Config.STORES.SAVE_STATES;
     }
 
-    const payloadString = JSON.stringify(snapshot);
-    const checksum = await CryptoSecurity.generateChecksum(payloadString);
-    return JSON.stringify({ snapshot, checksum });
+    async save(saveModel) {
+      const validation = saveModel.validate();
+      if (!validation.isValid) {
+        throw new Error(`خطای اعتبارسنجی فایل ذخیره: ${validation.errors.join(', ')}`);
+      }
+      saveModel.sign(this.db.secretSalt);
+      const dataToStore = saveModel.serialize();
+      await this.db.putRaw(this.storeName, dataToStore);
+      return saveModel;
+    }
+
+    async load(slotId) {
+      const raw = await this.db.getRaw(this.storeName, slotId);
+      if (!raw) return null;
+      const model = new SaveModel(raw);
+      const isValid = model.verifyIntegrity(this.db.secretSalt);
+      return {
+        saveState: model,
+        isValidIntegrity: isValid,
+        isTampered: !isValid
+      };
+    }
+
+    async listSlots() {
+      const all = await this.db.getAllRaw(this.storeName);
+      return all.map(item => {
+        const model = new SaveModel(item);
+        const isValid = model.verifyIntegrity(this.db.secretSalt);
+        return {
+          slotId: model.slotId,
+          label: model.label,
+          score: model.stats.score,
+          coins: model.stats.coins,
+          lives: model.stats.lives,
+          world: `${model.stats.world}-${model.stats.level}`,
+          updatedAt: model.updatedAt,
+          isValidIntegrity: isValid,
+          isTampered: !isValid
+        };
+      });
+    }
+
+    async delete(slotId) {
+      return this.db.deleteRaw(this.storeName, slotId);
+    }
   }
 
-  /**
-   * بازگردانی داده‌ها از فایل پشتیبان همراه با کنترل صحت
-   * @param {string} jsonDump 
-   * @returns {Promise<boolean>}
-   */
-  async importFullSnapshot(jsonDump) {
-    const parsed = JSON.parse(jsonDump);
-    if (!parsed.snapshot || !parsed.checksum) {
-      throw new Error('Invalid backup file format.');
+  class HighScoreRepository {
+    constructor(dbLayer) {
+      this.db = dbLayer;
+      this.storeName = Config.STORES.HIGH_SCORES;
     }
 
-    const isValid = (await CryptoSecurity.generateChecksum(JSON.stringify(parsed.snapshot))) === parsed.checksum;
-    if (!isValid) {
-      throw new Error('Snapshot integrity check failed. The file may be modified or corrupted.');
+    async record(scoreModel) {
+      const validation = scoreModel.validate();
+      if (!validation.isValid) {
+        throw new Error(`خطای اعتبارسنجی امتیاز: ${validation.errors.join(', ')}`);
+      }
+      scoreModel.sign(this.db.secretSalt);
+      const serialized = scoreModel.serialize();
+      const insertId = await this.db.putRaw(this.storeName, serialized);
+      scoreModel.id = insertId;
+      return scoreModel;
     }
 
-    const data = parsed.snapshot.data;
-    for (const [storeName, records] of Object.entries(data)) {
-      if (this.db.objectStoreNames.contains(storeName)) {
-        await this.clearStore(storeName);
-        for (const item of records) {
-          await this.put(storeName, item, false);
+    async getTop(limit = 10, worldFilter = null) {
+      const all = await this.db.getAllRaw(this.storeName);
+      const verified = [];
+      for (const item of all) {
+        const model = new ScoreModel(item);
+        const isValid = model.verifyIntegrity(this.db.secretSalt);
+        if (isValid || !Config.SECURITY.STRICT_VERIFICATION) {
+          if (!worldFilter || model.world === worldFilter) {
+            verified.push(model);
+          }
         }
       }
+      verified.sort((a, b) => b.score - a.score);
+      return verified.slice(0, limit);
     }
-    return true;
-  }
 
-  /**
-   * ثبت رخداد حسابرسی امنیتی
-   * @private
-   */
-  async _recordAudit(action, metadata = {}) {
-    try {
-      if (!this.db || !this.db.objectStoreNames.contains(DATABASE_CONFIG.STORES.AUDIT_LOGS)) return;
-      const logEntry = {
-        id: `audit_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
-        action,
-        metadata,
-        timestamp: Date.now()
-      };
-      await this.put(DATABASE_CONFIG.STORES.AUDIT_LOGS, logEntry, false);
-    } catch (e) {
-      console.warn('[DatabaseLayer] Could not record audit log:', e);
+    async clear() {
+      return this.db.clearStore(this.storeName);
     }
   }
 
-  /**
-   * بارگذاری پیش‌فرض تنظیمات در اولین لود
-   * @private
-   */
-  async _seedDefaults() {
-    const settings = await this.getAll(DATABASE_CONFIG.STORES.SETTINGS);
-    if (settings.length === 0) {
-      for (const [key, value] of Object.entries(DATABASE_CONFIG.DEFAULT_SETTINGS)) {
-        await this.put(DATABASE_CONFIG.STORES.SETTINGS, { key, value }, false);
+  class SettingsRepository {
+    constructor(dbLayer) {
+      this.db = dbLayer;
+      this.storeName = Config.STORES.SETTINGS;
+      this.defaultId = 'active_profile_settings';
+    }
+
+    async get() {
+      const raw = await this.db.getRaw(this.storeName, this.defaultId);
+      if (!raw) return null;
+      const model = new SettingsModelClass(raw);
+      model.verifyIntegrity(this.db.secretSalt);
+      return model;
+    }
+
+    async save(settingsModel) {
+      const validation = settingsModel.validate();
+      if (!validation.isValid) {
+        throw new Error(`خطای اعتبارسنجی تنظیمات: ${validation.errors.join(', ')}`);
       }
+      settingsModel.sign(this.db.secretSalt);
+      await this.db.putRaw(this.storeName, settingsModel.serialize());
+      return settingsModel;
+    }
+
+    async resetToDefault() {
+      const defaults = new SettingsModelClass();
+      return this.save(defaults);
     }
   }
 
-  /**
-   * بازیابی شماتیک بر اساس نام ObjectStore
-   * @private
-   */
-  _getSchemaForStore(storeName) {
-    for (const schema of Object.values(Schemas)) {
-      if (schema.storeName === storeName) return schema;
-    }
-    return null;
+  if (typeof module !== 'undefined' && module.exports) {
+    module.exports = {
+      DatabaseLayer,
+      MemoryStorageDriver,
+      SaveStateRepository,
+      HighScoreRepository,
+      SettingsRepository
+    };
+  } else {
+    global.DatabaseLayer = DatabaseLayer;
   }
-
-  /**
-   * اطمینان از آماده بودن اتصال دیتابیس
-   * @private
-   */
-  async _ensureConnection() {
-    if (!this.isOpen || !this.db) {
-      await this.initialize();
-    }
-  }
-}
+})(typeof window !== 'undefined' ? window : globalThis);

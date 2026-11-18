@@ -1,55 +1,63 @@
 /**
- * Deterministic Fixed-Step Game Loop with requestAnimationFrame
+ * Fixed-Timestep Game Loop Manager
+ * Studio: B2.st
  */
+
+import { CANVAS } from '../../config/constants.js';
+
 export class GameLoop {
-  constructor(fixedStep, updateFn, renderFn) {
-    this.fixedStep = fixedStep;
+  constructor(updateFn, renderFn, fixedDelta = CANVAS.FIXED_DELTA_TIME) {
     this.updateFn = updateFn;
     this.renderFn = renderFn;
-
-    this.accumulator = 0;
-    this.lastTime = 0;
+    this.fixedDelta = fixedDelta;
     this.isRunning = false;
+    this.lastTime = 0;
+    this.accumulator = 0;
     this.rafId = null;
-
-    this._loop = this._loop.bind(this);
   }
 
   start() {
-    if (this.isRunning) return;
     this.isRunning = true;
-    this.lastTime = performance.now();
+    this.lastTime = typeof performance !== 'undefined' ? performance.now() : Date.now();
     this.accumulator = 0;
-    this.rafId = requestAnimationFrame(this._loop);
+
+    const frame = (currentTime) => {
+      if (!this.isRunning) return;
+
+      const delta = (currentTime - this.lastTime) / 1000;
+      this.lastTime = currentTime;
+
+      // Cap delta time to prevent spiral of death on lag spikes
+      const clampedDelta = Math.min(delta, 0.25);
+      this.accumulator += clampedDelta;
+
+      while (this.accumulator >= this.fixedDelta) {
+        this.updateFn(this.fixedDelta);
+        this.accumulator -= this.fixedDelta;
+      }
+
+      this.renderFn();
+
+      if (typeof requestAnimationFrame !== 'undefined') {
+        this.rafId = requestAnimationFrame(frame);
+      }
+    };
+
+    if (typeof requestAnimationFrame !== 'undefined') {
+      this.rafId = requestAnimationFrame(frame);
+    }
   }
 
   stop() {
     this.isRunning = false;
-    if (this.rafId) {
+    if (this.rafId && typeof cancelAnimationFrame !== 'undefined') {
       cancelAnimationFrame(this.rafId);
-      this.rafId = null;
     }
+    this.rafId = null;
   }
 
-  _loop(currentTime) {
-    if (!this.isRunning) return;
-
-    let deltaSeconds = (currentTime - this.lastTime) / 1000;
-    this.lastTime = currentTime;
-
-    // Prevent spiral of death on tab-out
-    if (deltaSeconds > 0.1) {
-      deltaSeconds = 0.1;
-    }
-
-    this.accumulator += deltaSeconds;
-
-    while (this.accumulator >= this.fixedStep) {
-      this.updateFn(this.fixedStep);
-      this.accumulator -= this.fixedStep;
-    }
-
-    this.renderFn(this.accumulator / this.fixedStep);
-    this.rafId = requestAnimationFrame(this._loop);
+  step(customDelta = this.fixedDelta) {
+    this.updateFn(customDelta);
+    this.renderFn();
   }
 }

@@ -1,175 +1,180 @@
 /**
- * هویت اصلی ماریو (Mario Character Entity & State Machine)
- * همراه با پشتیبانی از ذخیره و بازیابی وضعیت از طریق مدل SaveStateModel
+ * Mario Player Entity
+ * Handles acceleration, jumps, states (Small/Super), animation and interactions.
+ * Layer: Entities & Components
+ * Studio: B2.st
  */
-(function (global) {
-  'use strict';
 
-  const BBox = typeof BoundingBox !== 'undefined'
-    ? BoundingBox
-    : (typeof require !== 'undefined' ? require('../engine/physics').BoundingBox : null);
+import { Entity } from './entity.js';
+import { CONFIG } from '../../config/game_config.js';
 
-  const Vec = typeof Vector2D !== 'undefined'
-    ? Vector2D
-    : (typeof require !== 'undefined' ? require('../engine/physics').Vector2D : null);
+export class Mario extends Entity {
+  constructor(x, y, spriteGen, soundEngine) {
+    super(x, y, 14, 16);
+    this.spriteGen = spriteGen;
+    this.sound = soundEngine;
 
-  class Mario {
-    constructor(x = 40, y = 180) {
-      this.position = new Vec(x, y);
-      this.velocity = new Vec(0, 0);
-      this.width = 14;
+    this.facing = 'right';
+    this.isSuper = false;
+    this.invulnerableTime = 0;
+    this.animTimer = 0;
+    this.runFrame = 'run1';
+
+    this.isDying = false;
+    this.deathTimer = 0;
+    this.score = 0;
+    this.coins = 0;
+  }
+
+  grow() {
+    if (!this.isSuper) {
+      this.isSuper = true;
+      this.height = 30;
+      this.position.y -= 14;
+      this.sound.playPowerup();
+      this.invulnerableTime = 1.0;
+    }
+  }
+
+  shrink() {
+    if (this.invulnerableTime > 0) return;
+
+    if (this.isSuper) {
+      this.isSuper = false;
       this.height = 16;
-      this.powerState = 'small'; // 'small' | 'super'
-      this.isGrounded = false;
-      this.facingRight = true;
-      this.isDead = false;
-      this.deathTimer = 0;
-      this.moveSpeed = 140;
-      this.runSpeed = 210;
-      this.jumpForce = -350;
-      this.animFrame = 0;
-      this.animTimer = 0;
-    }
-
-    getBounds() {
-      return new BBox(this.position.x, this.position.y, this.width, this.height);
-    }
-
-    jump(audioEngine) {
-      if (this.isGrounded && !this.isDead) {
-        this.velocity.y = this.jumpForce;
-        this.isGrounded = false;
-        if (audioEngine) audioEngine.playJump();
-      }
-    }
-
-    die(audioEngine) {
-      if (this.isDead) return;
-      this.isDead = true;
-      this.velocity.set(0, -320);
-      this.deathTimer = 2.5;
-      if (audioEngine) audioEngine.playDie();
-    }
-
-    powerUp(audioEngine) {
-      if (this.powerState === 'small') {
-        this.powerState = 'super';
-        this.height = 28;
-        this.position.y -= 12;
-        if (audioEngine) audioEngine.playPowerup();
-      }
-    }
-
-    update(dt, inputState) {
-      if (this.isDead) {
-        this.position.y += this.velocity.y * dt;
-        this.velocity.y += 980 * dt;
-        this.deathTimer -= dt;
-        return;
-      }
-
-      const speed = inputState.sprint ? this.runSpeed : this.moveSpeed;
-
-      if (inputState.left) {
-        this.velocity.x = -speed;
-        this.facingRight = false;
-      } else if (inputState.right) {
-        this.velocity.x = speed;
-        this.facingRight = true;
-      } else {
-        this.velocity.x = 0;
-      }
-
-      // انیمیشن قدم زدن
-      if (Math.abs(this.velocity.x) > 10 && this.isGrounded) {
-        this.animTimer += dt;
-        if (this.animTimer > 0.12) {
-          this.animFrame = (this.animFrame + 1) % 3;
-          this.animTimer = 0;
-        }
-      } else {
-        this.animFrame = 0;
-      }
-
-      // افتادن در چاله و مرگ
-      if (this.position.y > 260) {
-        this.die();
-      }
-    }
-
-    render(ctx, camera) {
-      const screenX = Math.round(this.position.x - camera.x);
-      const screenY = Math.round(this.position.y - camera.y);
-
-      ctx.save();
-      if (!this.facingRight) {
-        ctx.translate(screenX + this.width, screenY);
-        ctx.scale(-1, 1);
-      } else {
-        ctx.translate(screenX, screenY);
-      }
-
-      const isSuper = this.powerState === 'super';
-
-      // رسم کاراکتر رترو NES ماریو (قرمز و آبی کلاسیک)
-      if (this.isDead) {
-        // ماریو در حال پرش مرگ
-        ctx.fillStyle = '#d82800';
-        ctx.fillRect(2, 2, 10, 6);
-        ctx.fillStyle = '#0028a0';
-        ctx.fillRect(1, 8, 12, 8);
-        ctx.restore();
-        return;
-      }
-
-      if (!isSuper) {
-        // ماریو کوچک (Small Mario)
-        // کلاه و پیراهن قرمز
-        ctx.fillStyle = '#d82800';
-        ctx.fillRect(3, 0, 8, 3); // کلاه
-        ctx.fillRect(2, 7, 10, 5); // لباس قرمز سینه
-
-        // صورت هلویی
-        ctx.fillStyle = '#fc9838';
-        ctx.fillRect(3, 3, 7, 4);
-        ctx.fillStyle = '#000000';
-        ctx.fillRect(7, 4, 2, 2); // سبیل/چشم
-
-        // شلوار سرهمی آبی (Overalls)
-        ctx.fillStyle = '#0028a0';
-        ctx.fillRect(3, 10, 8, 4);
-
-        // کفش قهوه‌ای
-        ctx.fillStyle = '#6c3400';
-        ctx.fillRect(this.animFrame === 1 ? 0 : 2, 13, 4, 3);
-        ctx.fillRect(this.animFrame === 2 ? 10 : 8, 13, 4, 3);
-      } else {
-        // سوپر ماریو (Super Mario)
-        ctx.fillStyle = '#d82800';
-        ctx.fillRect(3, 0, 8, 5);
-        ctx.fillStyle = '#fc9838';
-        ctx.fillRect(3, 5, 8, 6);
-        ctx.fillStyle = '#000000';
-        ctx.fillRect(7, 7, 2, 2);
-
-        ctx.fillStyle = '#d82800';
-        ctx.fillRect(1, 11, 12, 8);
-
-        ctx.fillStyle = '#0028a0';
-        ctx.fillRect(3, 18, 8, 6);
-
-        ctx.fillStyle = '#6c3400';
-        ctx.fillRect(1, 24, 5, 4);
-        ctx.fillRect(8, 24, 5, 4);
-      }
-
-      ctx.restore();
+      this.invulnerableTime = 2.0;
+      this.sound.playStomp();
+    } else {
+      this.die();
     }
   }
 
-  if (typeof module !== 'undefined' && module.exports) {
-    module.exports = { Mario };
-  } else {
-    global.Mario = Mario;
+  die() {
+    if (this.isDying) return;
+    this.isDying = true;
+    this.hasGravity = false;
+    this.velocity.set(0, -320);
+    this.sound.playDeath();
   }
-})(typeof window !== 'undefined' ? window : globalThis);
+
+  jump() {
+    if (this.onGround && !this.isDying) {
+      this.velocity.y = -CONFIG.PHYSICS.JUMP_FORCE;
+      this.onGround = false;
+      this.sound.playJump();
+    }
+  }
+
+  bounce() {
+    this.velocity.y = -CONFIG.PHYSICS.BOUNCE_FORCE;
+    this.onGround = false;
+  }
+
+  onCeilingHit(tileX, tileY, tile) {
+    if (tile.type === 'question' && !tile.triggered) {
+      tile.triggered = true;
+      tile.type = 'empty_block';
+      if (tile.contents === 'mushroom') {
+        this.tileMap.spawnMushroom(tileX, tileY - 1);
+      } else {
+        this.coins++;
+        this.score += 200;
+        this.sound.playCoin();
+      }
+    } else if (tile.type === 'brick') {
+      if (this.isSuper) {
+        this.tileMap.destroyTile(tileX, tileY);
+        this.sound.playStomp();
+        this.score += 50;
+      } else {
+        this.sound.playStomp();
+      }
+    }
+  }
+
+  updateControls(input, deltaTime) {
+    if (this.isDying) return;
+
+    const maxSpeed = input.keys.run ? CONFIG.PHYSICS.MAX_RUN_SPEED : CONFIG.PHYSICS.MAX_WALK_SPEED;
+    const accel = input.keys.run ? CONFIG.PHYSICS.RUN_ACCEL : CONFIG.PHYSICS.WALK_ACCEL;
+
+    if (input.keys.right) {
+      this.facing = 'right';
+      if (this.velocity.x < maxSpeed) {
+        this.velocity.x += accel * deltaTime;
+      }
+    } else if (input.keys.left) {
+      this.facing = 'left';
+      if (this.velocity.x > -maxSpeed) {
+        this.velocity.x -= accel * deltaTime;
+      }
+    } else {
+      // Natural Friction
+      if (this.velocity.x > 0) {
+        this.velocity.x = Math.max(0, this.velocity.x - CONFIG.PHYSICS.DECELERATION * deltaTime);
+      } else if (this.velocity.x < 0) {
+        this.velocity.x = Math.min(0, this.velocity.x + CONFIG.PHYSICS.DECELERATION * deltaTime);
+      }
+    }
+
+    if (input.consumeJump()) {
+      this.jump();
+    }
+  }
+
+  update(deltaTime) {
+    if (this.isDying) {
+      this.deathTimer += deltaTime;
+      // Death jump animation after brief delay
+      if (this.deathTimer > 0.4) {
+        this.position.y += this.velocity.y * deltaTime;
+        this.velocity.y += CONFIG.PHYSICS.GRAVITY * deltaTime;
+      }
+      return;
+    }
+
+    if (this.invulnerableTime > 0) {
+      this.invulnerableTime -= deltaTime;
+    }
+
+    // Animation cycle
+    if (Math.abs(this.velocity.x) > 10 && this.onGround) {
+      this.animTimer += deltaTime * (Math.abs(this.velocity.x) / 10);
+      this.runFrame = Math.floor(this.animTimer) % 2 === 0 ? 'run1' : 'stand';
+    } else {
+      this.runFrame = 'stand';
+    }
+
+    // Fall in abyss check
+    if (this.position.y > CONFIG.CANVAS.HEIGHT + 40) {
+      this.die();
+    }
+  }
+
+  render(ctx, camera) {
+    const renderX = Math.round(this.position.x - camera.x);
+    const renderY = Math.round(this.position.y - camera.y);
+
+    // Flicker when invulnerable
+    if (this.invulnerableTime > 0 && Math.floor(Date.now() / 80) % 2 === 0) {
+      return;
+    }
+
+    let frame = this.runFrame;
+    if (!this.onGround && !this.isDying) {
+      frame = 'jump';
+    }
+
+    const sprite = this.spriteGen.getMarioSprite(frame, this.isSuper);
+
+    ctx.save();
+    if (this.facing === 'left') {
+      ctx.translate(renderX + this.width, renderY);
+      ctx.scale(-1, 1);
+      ctx.drawImage(sprite, -2, 0);
+    } else {
+      ctx.drawImage(sprite, renderX - 1, renderY);
+    }
+    ctx.restore();
+  }
+}

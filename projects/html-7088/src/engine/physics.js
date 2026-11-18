@@ -1,141 +1,124 @@
 /**
- * موتور فیزیک AABB و بردارها (2D Physics & Collision Engine)
+ * AABB (Axis-Aligned Bounding Box) Physics Engine
+ * Handles gravity, collisions, resolution, and spatial bounds.
+ * Layer: Central Engine
+ * Studio: B2.st
  */
-(function (global) {
-  'use strict';
 
-  class Vector2D {
-    constructor(x = 0, y = 0) {
-      this.x = x;
-      this.y = y;
-    }
-    set(x, y) {
-      this.x = x;
-      this.y = y;
-      return this;
-    }
-    add(v) {
-      this.x += v.x;
-      this.y += v.y;
-      return this;
-    }
-    multiply(scalar) {
-      this.x *= scalar;
-      this.y *= scalar;
-      return this;
-    }
-    clone() {
-      return new Vector2D(this.x, this.y);
+import { CONFIG } from '../../config/game_config.js';
+
+export class PhysicsEngine {
+  constructor(tileMap) {
+    this.tileMap = tileMap;
+    this.gravity = CONFIG.PHYSICS.GRAVITY;
+    this.maxFallSpeed = CONFIG.PHYSICS.MAX_FALL_SPEED;
+  }
+
+  /**
+   * Check if two rectangular entities intersect
+   */
+  static checkAABB(rectA, rectB) {
+    return (
+      rectA.x < rectB.x + rectB.width &&
+      rectA.x + rectA.width > rectB.x &&
+      rectA.y < rectB.y + rectB.height &&
+      rectA.y + rectA.height > rectB.y
+    );
+  }
+
+  /**
+   * Applies gravity to an entity's velocity
+   */
+  applyGravity(entity, deltaTime) {
+    if (!entity.hasGravity || entity.isDead) return;
+
+    entity.velocity.y += this.gravity * deltaTime;
+    if (entity.velocity.y > this.maxFallSpeed) {
+      entity.velocity.y = this.maxFallSpeed;
     }
   }
 
-  class BoundingBox {
-    constructor(x = 0, y = 0, width = 16, height = 16) {
-      this.x = x;
-      this.y = y;
-      this.width = width;
-      this.height = height;
-    }
-    get left() { return this.x; }
-    get right() { return this.x + this.width; }
-    get top() { return this.y; }
-    get bottom() { return this.y + this.height; }
+  /**
+   * Moves entity along X axis and resolves tile collisions
+   */
+  resolveMapCollisionX(entity, deltaTime) {
+    entity.position.x += entity.velocity.x * deltaTime;
 
-    intersects(other) {
-      return (
-        this.left < other.right &&
-        this.right > other.left &&
-        this.top < other.bottom &&
-        this.bottom > other.top
-      );
-    }
-  }
+    const tileSize = this.tileMap.tileSize;
+    const startTileY = Math.floor(entity.position.y / tileSize);
+    const endTileY = Math.floor((entity.position.y + entity.height - 0.01) / tileSize);
 
-  class PhysicsEngine {
-    constructor(options = {}) {
-      this.gravity = options.gravity || 980; // پیکسل بر مجذور ثانیه
-      this.terminalVelocity = options.terminalVelocity || 500;
-      this.friction = options.friction || 0.88;
-    }
-
-    /**
-     * اعمال نیروی گرانش و سرعت با گام زمانی معین
-     */
-    applyGravity(entity, dt) {
-      if (!entity.isGrounded) {
-        entity.velocity.y += this.gravity * dt;
-        if (entity.velocity.y > this.terminalVelocity) {
-          entity.velocity.y = this.terminalVelocity;
-        }
-      }
-    }
-
-    /**
-     * اعمال اصطکاک افقی به بدنه
-     */
-    applyFriction(entity) {
-      if (entity.isGrounded) {
-        entity.velocity.x *= this.friction;
-        if (Math.abs(entity.velocity.x) < 2) {
+    if (entity.velocity.x > 0) {
+      // Moving Right
+      const rightTileX = Math.floor((entity.position.x + entity.width) / tileSize);
+      for (let ty = startTileY; ty <= endTileY; ty++) {
+        const tile = this.tileMap.getTile(rightTileX, ty);
+        if (tile && tile.isSolid) {
+          entity.position.x = rightTileX * tileSize - entity.width;
+          entity.onWallCollide('right');
           entity.velocity.x = 0;
+          break;
         }
       }
-    }
-
-    /**
-     * حل برخورد جعبه محصورکننده با کاشی‌های سخت نقشه (Tilemap AABB Resolution)
-     */
-    resolveTileCollision(entity, levelMap, tileSize = 16) {
-      const box = entity.getBounds();
-
-      // ۱. بررسی و حل برخورد در محور Y
-      entity.position.y += entity.velocity.y * (1 / 60);
-      let updatedBox = entity.getBounds();
-      let tilesY = levelMap.getSolidTilesInBox(updatedBox, tileSize);
-
-      entity.isGrounded = false;
-      for (const tile of tilesY) {
-        if (entity.velocity.y > 0) { // سقوط به پایین و برخورد با زمین
-          if (updatedBox.bottom > tile.top && updatedBox.top < tile.top) {
-            entity.position.y = tile.top - entity.height;
-            entity.velocity.y = 0;
-            entity.isGrounded = true;
-          }
-        } else if (entity.velocity.y < 0) { // پرش به بالا و برخورد با زیر بلاک
-          if (updatedBox.top < tile.bottom && updatedBox.bottom > tile.bottom) {
-            entity.position.y = tile.bottom;
-            entity.velocity.y = 0;
-            if (tile.onHit) tile.onHit(entity);
-          }
-        }
-      }
-
-      // ۲. بررسی و حل برخورد در محور X
-      entity.position.x += entity.velocity.x * (1 / 60);
-      updatedBox = entity.getBounds();
-      let tilesX = levelMap.getSolidTilesInBox(updatedBox, tileSize);
-
-      for (const tile of tilesX) {
-        if (entity.velocity.x > 0) { // حرکت به راست و برخورد با دیواره
-          if (updatedBox.right > tile.left && updatedBox.left < tile.left) {
-            entity.position.x = tile.left - entity.width;
-            entity.velocity.x = 0;
-          }
-        } else if (entity.velocity.x < 0) { // حرکت به چپ
-          if (updatedBox.left < tile.right && updatedBox.right > tile.right) {
-            entity.position.x = tile.right;
-            entity.velocity.x = 0;
-          }
+    } else if (entity.velocity.x < 0) {
+      // Moving Left
+      const leftTileX = Math.floor(entity.position.x / tileSize);
+      for (let ty = startTileY; ty <= endTileY; ty++) {
+        const tile = this.tileMap.getTile(leftTileX, ty);
+        if (tile && tile.isSolid) {
+          entity.position.x = (leftTileX + 1) * tileSize;
+          entity.onWallCollide('left');
+          entity.velocity.x = 0;
+          break;
         }
       }
     }
   }
 
-  if (typeof module !== 'undefined' && module.exports) {
-    module.exports = { Vector2D, BoundingBox, PhysicsEngine };
-  } else {
-    global.Vector2D = Vector2D;
-    global.BoundingBox = BoundingBox;
-    global.PhysicsEngine = PhysicsEngine;
+  /**
+   * Moves entity along Y axis and resolves floor / ceiling collisions
+   */
+  resolveMapCollisionY(entity, deltaTime) {
+    entity.position.y += entity.velocity.y * deltaTime;
+    entity.onGround = false;
+
+    const tileSize = this.tileMap.tileSize;
+    const startTileX = Math.floor(entity.position.x / tileSize);
+    const endTileX = Math.floor((entity.position.x + entity.width - 0.01) / tileSize);
+
+    if (entity.velocity.y > 0) {
+      // Falling down
+      const bottomTileY = Math.floor((entity.position.y + entity.height) / tileSize);
+      for (let tx = startTileX; tx <= endTileX; tx++) {
+        const tile = this.tileMap.getTile(tx, bottomTileY);
+        if (tile && tile.isSolid) {
+          entity.position.y = bottomTileY * tileSize - entity.height;
+          entity.velocity.y = 0;
+          entity.onGround = true;
+          break;
+        }
+      }
+    } else if (entity.velocity.y < 0) {
+      // Jumping up into ceiling / block
+      const topTileY = Math.floor(entity.position.y / tileSize);
+      for (let tx = startTileX; tx <= endTileX; tx++) {
+        const tile = this.tileMap.getTile(tx, topTileY);
+        if (tile && tile.isSolid) {
+          entity.position.y = (topTileY + 1) * tileSize;
+          entity.velocity.y = 0;
+          entity.onCeilingHit(tx, topTileY, tile);
+          break;
+        }
+      }
+    }
   }
-})(typeof window !== 'undefined' ? window : globalThis);
+
+  /**
+   * Full movement and collision update for an entity
+   */
+  updateEntity(entity, deltaTime) {
+    this.applyGravity(entity, deltaTime);
+    this.resolveMapCollisionX(entity, deltaTime);
+    this.resolveMapCollisionY(entity, deltaTime);
+  }
+}

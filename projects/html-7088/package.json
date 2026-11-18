@@ -2,45 +2,43 @@
 {
   "name": "mario-game-b2st",
   "version": "1.0.0",
-  "description": "Super Mario Bros HTML5 Game by B2.st Studio",
+  "description": "Super Mario Bros HTML5 Game - B2.st Studio",
   "main": "index.html",
   "scripts": {
-    "start": "npx serve . -p $PORT",
-    "dev": "npx serve . -p 3000 --cors",
-    "lint": "echo 'No linting configured for pure HTML project'",
-    "test": "echo 'Open index.html in browser to test'",
-    "build": "echo 'No build step needed - pure HTML/JS/CSS'",
-    "security-check": "node config/security_check.js",
-    "validate-env": "node config/env_config.js --validate"
+    "start": "npx http-server . -p 8080 -o",
+    "dev": "npx http-server . -p 3000 -c-1 -o",
+    "build": "node config/build.js",
+    "lint": "npx eslint src/ --ext .js",
+    "test": "node config/test_runner.js",
+    "validate:env": "node config/env_config.js --validate",
+    "security:audit": "npm audit --production",
+    "clean": "node config/clean.js"
   },
   "keywords": [
     "mario",
-    "game",
-    "html5",
+    "html5-game",
     "canvas",
-    "javascript",
-    "platformer"
+    "platformer",
+    "b2st"
   ],
   "author": "B2.st Studio",
   "license": "MIT",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/b2st/mario-game"
+  "devDependencies": {
+    "http-server": "^14.1.1",
+    "eslint": "^8.56.0"
   },
   "engines": {
     "node": ">=16.0.0",
     "npm": ">=8.0.0"
   },
-  "dependencies": {
-    "serve": "^14.2.4"
-  },
-  "devDependencies": {
-    "dotenv": "^16.4.7"
-  },
   "browserslist": [
     "> 1%",
     "last 2 versions",
     "not dead"
-  ]
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/b2st/mario-game"
+  }
 }
 ```

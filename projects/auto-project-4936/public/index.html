@@ -1,0 +1,270 @@
+```html
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LinkBox — کوتاه‌کننده لینک هوشمند</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;700;900&display=swap" rel="stylesheet" />
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: { vazir: ['Vazirmatn', 'system-ui', 'sans-serif'] },
+          colors: {
+            brand: {
+              50: '#eef2ff', 100: '#e0e7ff', 200: '#c7d2fe',
+              500: '#6366f1', 600: '#4f46e5', 700: '#4338ca', 900: '#312e81',
+            },
+          },
+        },
+      },
+    };
+  </script>
+  <style>
+    [x-cloak] { display: none !important; }
+  </style>
+</head>
+<body class="font-vazir bg-gray-50 text-gray-800 min-h-screen">
+
+  <!-- ─── Main App ─── -->
+  <div x-data="app()" x-cloak class="min-h-screen flex flex-col">
+
+    <!-- ─── Navbar ─── -->
+    <nav class="bg-white shadow-sm border-b border-gray-100">
+      <div class="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
+        <a href="/" class="flex items-center gap-2">
+          <span class="text-2xl">🔗</span>
+          <span class="text-xl font-bold text-brand-600">LinkBox</span>
+        </a>
+        <div class="flex items-center gap-3">
+          <template x-if="!token">
+            <div class="flex gap-2">
+              <button @click="view = 'login'" class="px-4 py-2 text-sm text-brand-600 hover:bg-brand-50 rounded-lg transition">ورود</button>
+              <button @click="view = 'register'" class="px-4 py-2 text-sm bg-brand-600 text-white rounded-lg hover:bg-brand-700 transition">ثبت‌نام</button>
+            </div>
+          </template>
+          <template x-if="token">
+            <div class="flex items-center gap-3">
+              <span class="text-sm text-gray-500" x-text="user?.displayName || user?.username"></span>
+              <button @click="logout()" class="px-3 py-1.5 text-sm text-red-600 hover:bg-red-50 rounded-lg transition">خروج</button>
+            </div>
+          </template>
+        </div>
+      </div>
+    </nav>
+
+    <!-- ─── Content ─── -->
+    <main class="flex-1 max-w-5xl mx-auto w-full px-4 py-10">
+
+      <!-- ── Landing (No Auth) ── -->
+      <template x-if="!token && view === 'landing'">
+        <div class="text-center py-20">
+          <h1 class="text-4xl md:text-5xl font-black text-gray-900 mb-4">لینک‌هاتو <span class="text-brand-600">کوتاه</span> کن</h1>
+          <p class="text-lg text-gray-500 mb-8 max-w-md mx-auto">لینک‌باکس: کوتاه‌کننده لینک هوشمند با صفحه بیو و آنالیتیکس لحظه‌ای</p>
+          <button @click="view = 'register'" class="px-8 py-3 bg-brand-600 text-white rounded-xl text-lg font-medium hover:bg-brand-700 transition shadow-lg shadow-brand-200">
+            شروع رایگان ←
+          </button>
+        </div>
+      </template>
+
+      <!-- ── Login Form ── -->
+      <template x-if="!token && view === 'login'">
+        <div class="max-w-md mx-auto bg-white rounded-2xl shadow-sm border p-8">
+          <h2 class="text-2xl font-bold mb-6 text-center">ورود به حساب</h2>
+          <form @submit.prevent="login()">
+            <div class="mb-4">
+              <label class="block text-sm font-medium mb-1">ایمیل</label>
+              <input x-model="form.email" type="email" required
+                class="w-full px-4 py-2.5 border rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent outline-none" dir="ltr" />
+            </div>
+            <div class="mb-6">
+              <label class="block text-sm font-medium mb-1">رمز عبور</label>
+              <input x-model="form.password" type="password" required
+                class="w-full px-4 py-2.5 border rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent outline-none" dir="ltr" />
+            </div>
+            <template x-if="error">
+              <div class="mb-4 p-3 bg-red-50 text-red-600 rounded-lg text-sm" x-text="error"></div>
+            </template>
+            <button type="submit" :disabled="loading"
+              class="w-full py-2.5 bg-brand-600 text-white rounded-lg font-medium hover:bg-brand-700 transition disabled:opacity-50">
+              <span x-show="!loading">ورود</span>
+              <span x-show="loading">صبر کنید...</span>
+            </button>
+          </form>
+          <p class="text-center text-sm text-gray-500 mt-4">
+            حساب ندارید؟
+            <button @click="view = 'register'; error = ''" class="text-brand-600 hover:underline">ثبت‌نام کنید</button>
+          </p>
+        </div>
+      </template>
+
+      <!-- ── Register Form ── -->
+      <template x-if="!token && view === 'register'">
+        <div class="max-w-md mx-auto bg-white rounded-2xl shadow-sm border p-8">
+          <h2 class="text-2xl font-bold mb-6 text-center">ساخت حساب جدید</h2>
+          <form @submit.prevent="register()">
+            <div class="mb-4">
+              <label class="block text-sm font-medium mb-1">ایمیل</label>
+              <input x-model="form.email" type="email" required
+                class="w-full px-4 py-2.5 border rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent outline-none" dir="ltr" />
+            </div>
+            <div class="mb-4">
+              <label class="block text-sm font-medium mb-1">نام کاربری</label>
+              <input x-model="form.username" type="text" required minlength="3" maxlength="30"
+                class="w-full px-4 py-2.5 border rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent outline-none" dir="ltr"
+                placeholder="your-username" />
+            </div>
+            <div class="mb-4">
+              <label class="block text-sm font-medium mb-1">نام نمایشی <span class="text-gray-400">(اختیاری)</span></label>
+              <input x-model="form.displayName" type="text"
+                class="w-full px-4 py-2.5 border rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent outline-none" />
+            </div>
+            <div class="mb-6">
+              <label class="block text-sm font-medium mb-1">رمز عبور</label>
+              <input x-model="form.password" type="password" required minlength="8"
+                class="w-full px-4 py-2.5 border rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent outline-none" dir="ltr" />
+              <p class="text-xs text-gray-400 mt-1">حداقل ۸ کاراکتر</p>
+            </div>
+            <template x-if="error">
+              <div class="mb-4 p-3 bg-red-50 text-red-600 rounded-lg text-sm" x-text="error"></div>
+            </template>
+            <button type="submit" :disabled="loading"
+              class="w-full py-2.5 bg-brand-600 text-white rounded-lg font-medium hover:bg-brand-700 transition disabled:opacity-50">
+              <span x-show="!loading">ثبت‌نام</span>
+              <span x-show="loading">صبر کنید...</span>
+            </button>
+          </form>
+          <p class="text-center text-sm text-gray-500 mt-4">
+            حساب دارید؟
+            <button @click="view = 'login'; error = ''" class="text-brand-600 hover:underline">وارد شوید</button>
+          </p>
+        </div>
+      </template>
+
+      <!-- ── Dashboard (Authenticated) ── -->
+      <template x-if="token">
+        <div>
+          <div class="bg-white rounded-2xl shadow-sm border p-8 text-center">
+            <h2 class="text-2xl font-bold mb-2">👋 خوش آمدید، <span x-text="user?.displayName || user?.username"></span></h2>
+            <p class="text-gray-500">داشبورد لینک‌باکس — به‌زودی لینک‌ها و آنالیتیکس اینجا نمایش داده می‌شود.</p>
+            <div class="mt-6 flex justify-center gap-4 text-sm text-gray-400">
+              <span>📧 <span x-text="user?.email"></span></span>
+              <span>📦 پلن: <span x-text="user?.plan" class="capitalize"></span></span>
+            </div>
+          </div>
+        </div>
+      </template>
+
+    </main>
+
+    <!-- ─── Footer ─── -->
+    <footer class="text-center py-6 text-sm text-gray-400 border-t bg-white">
+      ساخته‌شده با ❤️ توسط <a href="https://b2.st" class="text-brand-600 hover:underline">B2.st Studio</a>
+    </footer>
+
+  </div>
+
+  <!-- ─── App Script ─── -->
+  <script>
+    function app() {
+      return {
+        // State
+        token: localStorage.getItem('linkbox_token') || '',
+        user: JSON.parse(localStorage.getItem('linkbox_user') || 'null'),
+        view: 'landing', // landing | login | register
+        loading: false,
+        error: '',
+        form: { email: '', password: '', username: '', displayName: '' },
+
+        // ── Init ──
+        init() {
+          if (this.token) this.fetchMe();
+        },
+
+        // ── API Helper ──
+        async api(method, url, body = null) {
+          const headers = { 'Content-Type': 'application/json' };
+          if (this.token) headers['Authorization'] = `Bearer ${this.token}`;
+          const opts = { method, headers };
+          if (body) opts.body = JSON.stringify(body);
+          const res = await fetch(url, opts);
+          const data = await res.json();
+          if (!data.success) throw new Error(data.error?.message || 'خطای ناشناخته');
+          return data.data;
+        },
+
+        // ── Register ──
+        async register() {
+          this.error = '';
+          this.loading = true;
+          try {
+            const data = await this.api('POST', '/auth/register', {
+              email: this.form.email,
+              password: this.form.password,
+              username: this.form.username,
+              displayName: this.form.displayName,
+            });
+            this.setAuth(data.token, data.user);
+          } catch (e) {
+            this.error = e.message;
+          } finally {
+            this.loading = false;
+          }
+        },
+
+        // ── Login ──
+        async login() {
+          this.error = '';
+          this.loading = true;
+          try {
+            const data = await this.api('POST', '/auth/login', {
+              email: this.form.email,
+              password: this.form.password,
+            });
+            this.setAuth(data.token, data.user);
+          } catch (e) {
+            this.error = e.message;
+          } finally {
+            this.loading = false;
+          }
+        },
+
+        // ── Fetch Me ──
+        async fetchMe() {
+          try {
+            const data = await this.api('GET', '/auth/me');
+            this.user = data.user;
+            localStorage.setItem('linkbox_user', JSON.stringify(data.user));
+          } catch {
+            this.logout();
+          }
+        },
+
+        // ── Set Auth ──
+        setAuth(token, user) {
+          this.token = token;
+          this.user = user;
+          localStorage.setItem('linkbox_token', token);
+          localStorage.setItem('linkbox_user', JSON.stringify(user));
+          this.form = { email: '', password: '', username: '', displayName: '' };
+        },
+
+        // ── Logout ──
+        logout() {
+          this.token = '';
+          this.user = null;
+          this.view = 'landing';
+          localStorage.removeItem('linkbox_token');
+          localStorage.removeItem('linkbox_user');
+        },
+      };
+    }
+  </script>
+
+</body>
+</html>
+```

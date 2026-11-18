@@ -1,49 +1,41 @@
 /**
- * Dynamic Viewport Camera with Lookahead & Deadzones
+ * 2D Horizontal Scrolling Viewport Camera
+ * Enforces classic NES Mario rule: Viewport never scrolls backwards
  */
-
-import { CONFIG } from '../../config/game.config.js';
-
 export class Camera {
-  constructor() {
+  constructor(width, height) {
     this.x = 0;
     this.y = 0;
-    this.width = CONFIG.CANVAS.INTERNAL_WIDTH;
-    this.height = CONFIG.CANVAS.INTERNAL_HEIGHT;
-    this.shakeDuration = 0;
-    this.shakeIntensity = 0;
+    this.width = width;
+    this.height = height;
+    this.lookAhead = 0.45;
   }
 
-  update(target, maxLevelWidth, dt) {
-    if (!target) return;
+  update(target, maxLevelWidth) {
+    const targetCenterX = target.position.x + target.size.x * 0.5;
+    const desiredX = targetCenterX - this.width * this.lookAhead;
 
-    // Classic NES Mario camera only scrolls right forward
-    const deadzoneCenterX = this.x + this.width * 0.42;
-
-    if (target.x > deadzoneCenterX) {
-      this.x = Math.max(this.x, target.x - this.width * 0.42);
+    // Keep advancing rightwards, prevent scroll backwards
+    if (desiredX > this.x) {
+      this.x = desiredX;
     }
 
-    // Horizontal limit
-    const maxX = maxLevelWidth * CONFIG.TILES.SIZE - this.width;
-    if (this.x > maxX) this.x = maxX;
-    if (this.x < 0) this.x = 0;
-
-    // Screen Shake effect
-    if (this.shakeDuration > 0) {
-      this.shakeDuration -= dt;
-      this.shakeOffset = (Math.random() - 0.5) * this.shakeIntensity;
-    } else {
-      this.shakeOffset = 0;
+    // Clamp right level boundary
+    const maxX = Math.max(0, maxLevelWidth - this.width);
+    if (this.x > maxX) {
+      this.x = maxX;
     }
   }
 
-  shake(duration = 0.2, intensity = 4) {
-    this.shakeDuration = duration;
-    this.shakeIntensity = intensity;
+  worldToScreen(x, y) {
+    return {
+      x: Math.round(x - this.x),
+      y: Math.round(y - this.y)
+    };
   }
 
-  isVisible(x, width) {
-    return x + width >= this.x && x <= this.x + this.width;
+  reset() {
+    this.x = 0;
+    this.y = 0;
   }
 }

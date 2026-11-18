@@ -1,13 +1,15 @@
 <!DOCTYPE html>
-<html lang="fa" dir="rtl">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>استودیو B2.st | بازی کلاسیک سوپر ماریو NES</title>
+  <title>B2.st Super Mario WebEngine - NES Edition</title>
   <style>
-    @font-face {
-      font-family: 'NESFont';
-      src: local('Courier New'), monospace;
+    :root {
+      --bg-color: #0b0f19;
+      --nes-font: 'Courier New', Courier, monospace;
+      --gold: #fcd800;
+      --accent: #e52521;
     }
 
     * {
@@ -15,48 +17,47 @@
       margin: 0;
       padding: 0;
       user-select: none;
+      -webkit-user-select: none;
     }
 
     body {
-      background-color: #0b0d13;
-      color: #ffffff;
-      font-family: 'NESFont', monospace;
+      background-color: var(--bg-color);
+      color: #fff;
+      font-family: var(--nes-font);
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
       min-height: 100vh;
-      overflow: hidden;
+      overflow-x: hidden;
     }
 
-    /* شل بدنه دستگاه آرکید و قاب تلویزیون CRT */
-    .arcade-container {
+    /* Cabinet Shell */
+    .arcade-wrapper {
       position: relative;
-      background: #1e222d;
-      border: 8px solid #323846;
+      background: #1a1e29;
+      border: 4px solid #2e384d;
       border-radius: 12px;
-      box-shadow: 0 16px 40px rgba(0, 0, 0, 0.8), inset 0 0 10px rgba(0, 0, 0, 0.6);
-      padding: 12px;
+      padding: 18px;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.8), 0 0 30px rgba(229, 37, 33, 0.2);
       display: flex;
       flex-direction: column;
       align-items: center;
     }
 
-    /* نوار وضعیت بالای صفحه NES HUD */
-    .nes-hud {
+    /* NES HUD Header */
+    .hud {
       width: 100%;
-      max-width: 512px;
+      max-width: 768px;
       display: flex;
       justify-content: space-between;
-      padding: 6px 12px;
-      font-size: 14px;
+      align-items: center;
       font-weight: bold;
-      letter-spacing: 1px;
-      color: #ffffff;
-      text-shadow: 2px 2px #000000;
-      background: #000000;
-      border-bottom: 2px solid #444;
-      margin-bottom: 4px;
+      font-size: 14px;
+      letter-spacing: 2px;
+      margin-bottom: 12px;
+      text-transform: uppercase;
+      text-shadow: 2px 2px #000;
     }
 
     .hud-item {
@@ -66,662 +67,233 @@
     }
 
     .hud-title {
-      color: #fcb088;
-      font-size: 11px;
+      color: #fff;
       margin-bottom: 2px;
     }
 
-    /* بوم بازی Canvas */
-    .canvas-wrapper {
+    .hud-value {
+      color: var(--gold);
+    }
+
+    /* Screen Container */
+    .screen-container {
       position: relative;
-      width: 512px;
-      height: 480px;
-      background-color: #6888fc;
+      border: 4px solid #000;
+      background-color: #5c94fc;
       overflow: hidden;
-      border: 2px solid #000000;
+      border-radius: 4px;
     }
 
     canvas#gameCanvas {
-      width: 100%;
-      height: 100%;
+      display: block;
+      width: 768px;
+      height: 720px;
       image-rendering: pixelated;
       image-rendering: crisp-edges;
-      display: block;
     }
 
-    /* افکت خطوط اسکن تلویزیون قدیمی CRT */
+    /* CRT Scanlines Filter Overlay */
     .crt-overlay {
+      pointer-events: none;
       position: absolute;
       top: 0;
       left: 0;
       width: 100%;
       height: 100%;
-      pointer-events: none;
-      background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.35) 50%),
-                  linear-gradient(90deg, rgba(255, 0, 0, 0.04), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.04));
-      background-size: 100% 4px, 6px 100%;
-      z-index: 10;
-      transition: opacity 0.2s ease;
+      background: linear-gradient(
+        rgba(18, 16, 16, 0) 50%,
+        rgba(0, 0, 0, 0.25) 50%
+      ), linear-gradient(
+        90deg,
+        rgba(255, 0, 0, 0.03),
+        rgba(0, 255, 0, 0.01),
+        rgba(0, 0, 255, 0.03)
+      );
+      background-size: 100% 3px, 6px 100%;
     }
 
-    .crt-overlay.disabled {
-      opacity: 0;
-    }
-
-    /* دکمه‌های کنترل پنل رترو */
-    .control-bar {
+    /* Navigation Bar */
+    .meta-bar {
+      margin-top: 14px;
       width: 100%;
       display: flex;
       justify-content: space-between;
-      margin-top: 8px;
-      gap: 8px;
+      align-items: center;
+      font-size: 12px;
+      color: #94a3b8;
     }
 
-    .retro-btn {
-      flex: 1;
-      background: #c84c0c;
+    .swagger-btn {
+      background: linear-gradient(135deg, #10b981 0%, #059669 100%);
       color: #ffffff;
-      border: 2px solid #ffffff;
-      padding: 6px 4px;
-      font-family: inherit;
-      font-size: 11px;
+      padding: 6px 14px;
+      border-radius: 6px;
+      text-decoration: none;
       font-weight: bold;
-      cursor: pointer;
-      text-transform: uppercase;
-      box-shadow: 2px 2px 0px #000000;
-      transition: background 0.1s, transform 0.05s;
+      transition: all 0.2s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      border: 1px solid #34d399;
     }
 
-    .retro-btn:active {
-      transform: translate(2px, 2px);
-      box-shadow: none;
+    .swagger-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
     }
 
-    .retro-btn.secondary {
-      background: #0028a0;
-    }
-
-    .retro-btn.success {
-      background: #00a800;
-    }
-
-    /* پنجره‌های مودال تنظیمات و ذخیره‌سازی */
-    .modal-overlay {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background: rgba(0, 0, 0, 0.85);
+    /* Mobile Virtual Controls */
+    .virtual-controls {
       display: none;
-      flex-direction: column;
+      width: 100%;
+      max-width: 768px;
+      justify-content: space-between;
+      margin-top: 15px;
+    }
+
+    .dpad, .action-buttons {
+      display: flex;
+      gap: 12px;
+    }
+
+    .touch-btn {
+      background: #2a3447;
+      border: 2px solid #475569;
+      color: #fff;
+      font-family: inherit;
+      font-weight: bold;
+      font-size: 16px;
+      width: 58px;
+      height: 58px;
+      border-radius: 50%;
+      display: flex;
       align-items: center;
       justify-content: center;
-      z-index: 30;
-      padding: 16px;
+      touch-action: manipulation;
     }
 
-    .modal-overlay.active {
-      display: flex;
+    .touch-btn:active {
+      background: var(--accent);
     }
 
-    .modal-card {
-      background: #10141f;
-      border: 3px solid #fcb088;
-      border-radius: 4px;
-      width: 90%;
-      max-width: 440px;
-      padding: 16px;
-      box-shadow: 0 0 20px rgba(252, 176, 136, 0.3);
-      text-align: right;
-    }
-
-    .modal-title {
-      color: #fcb088;
-      font-size: 15px;
-      margin-bottom: 12px;
-      text-align: center;
-      border-bottom: 1px dashed #fcb088;
-      padding-bottom: 6px;
-    }
-
-    .slot-list {
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-      margin-bottom: 12px;
-      max-height: 220px;
-      overflow-y: auto;
-    }
-
-    .slot-item {
-      background: #1a2030;
-      border: 1px solid #444;
-      padding: 8px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      font-size: 11px;
-    }
-
-    .badge-verified {
-      background: #00a800;
-      color: white;
-      padding: 2px 4px;
-      border-radius: 2px;
-      font-size: 9px;
-    }
-
-    .badge-tampered {
-      background: #d82800;
-      color: white;
-      padding: 2px 4px;
-      border-radius: 2px;
-      font-weight: bold;
-      font-size: 9px;
-      animation: blink 0.8s infinite;
-    }
-
-    @keyframes blink {
-      50% { opacity: 0.4; }
-    }
-
-    .settings-row {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 10px;
-      font-size: 11px;
-    }
-
-    .settings-row input[type="range"] {
-      width: 120px;
+    @media (max-width: 820px) {
+      canvas#gameCanvas {
+        width: 100vw;
+        max-width: 100vw;
+        height: auto;
+        aspect-ratio: 256 / 240;
+      }
+      .arcade-wrapper {
+        border-radius: 0;
+        border: none;
+        padding: 8px;
+      }
+      .virtual-controls {
+        display: flex;
+      }
     }
   </style>
 </head>
 <body>
 
-  <div class="arcade-container">
+  <div class="arcade-wrapper">
     <!-- NES HUD -->
-    <div class="nes-hud">
+    <div class="hud">
       <div class="hud-item">
         <span class="hud-title">MARIO</span>
-        <span id="hudScore">000000</span>
+        <span class="hud-value" id="hud-score">000000</span>
       </div>
       <div class="hud-item">
         <span class="hud-title">COINS</span>
-        <span id="hudCoins">🪙x00</span>
+        <span class="hud-value" id="hud-coins">🪙 x00</span>
       </div>
       <div class="hud-item">
         <span class="hud-title">WORLD</span>
-        <span id="hudWorld">1-1</span>
+        <span class="hud-value" id="hud-world">1-1</span>
       </div>
       <div class="hud-item">
         <span class="hud-title">TIME</span>
-        <span id="hudTime">400</span>
+        <span class="hud-value" id="hud-time">400</span>
       </div>
       <div class="hud-item">
         <span class="hud-title">LIVES</span>
-        <span id="hudLives">x3</span>
+        <span class="hud-value" id="hud-lives">❤ 3</span>
       </div>
     </div>
 
-    <!-- Canvas Wrapper with CRT Scanline Shader -->
-    <div class="canvas-wrapper">
+    <!-- Screen Canvas -->
+    <div class="screen-container">
       <canvas id="gameCanvas" width="256" height="240"></canvas>
-      <div id="crtOverlay" class="crt-overlay"></div>
-
-      <!-- مودال مدیریت فایل‌های ذخیره (Save / Load Slot Manager) -->
-      <div id="saveLoadModal" class="modal-overlay">
-        <div class="modal-card">
-          <div class="modal-title">💾 مدیریت امن فایل‌های ذخیره (DatabaseLayer)</div>
-          <div class="slot-list" id="slotsContainer">
-            <!-- اسلات‌ها توسط جاوااسکریپت تزریق می‌شوند -->
-          </div>
-          <div style="display: flex; gap: 6px;">
-            <button class="retro-btn success" id="btnQuickSave">ذخیره سریع (QuickSave)</button>
-            <button class="retro-btn secondary" id="btnCloseSaveModal">بستن</button>
-          </div>
-        </div>
-      </div>
-
-      <!-- مودال تنظیمات (Settings) -->
-      <div id="settingsModal" class="modal-overlay">
-        <div class="modal-card">
-          <div class="modal-title">⚙️ تنظیمات گرافیک و صدا</div>
-          <div class="settings-row">
-            <span>صدای اصلی (Master):</span>
-            <input type="range" id="volumeMaster" min="0" max="1" step="0.1" value="0.8">
-          </div>
-          <div class="settings-row">
-            <span>افکت‌های صوتی (SFX):</span>
-            <input type="range" id="volumeSfx" min="0" max="1" step="0.1" value="0.9">
-          </div>
-          <div class="settings-row">
-            <span>موسیقی پس‌زمینه (BGM):</span>
-            <input type="range" id="volumeBgm" min="0" max="1" step="0.1" value="0.6">
-          </div>
-          <div class="settings-row">
-            <span>فیلتر اسکن‌لاین تلویزیون (CRT):</span>
-            <input type="checkbox" id="checkCrt" checked>
-          </div>
-          <div style="display: flex; gap: 6px; margin-top: 12px;">
-            <button class="retro-btn success" id="btnSaveSettings">ذخیره در دیتابیس</button>
-            <button class="retro-btn secondary" id="btnCloseSettings">بستن</button>
-          </div>
-        </div>
-      </div>
-
-      <!-- مودال تابلوی امتیازات برتر (Leaderboard) -->
-      <div id="leaderboardModal" class="modal-overlay">
-        <div class="modal-card">
-          <div class="modal-title">🏆 تابلوی قهرمانان B2.st High Scores</div>
-          <div class="slot-list" id="leaderboardContainer"></div>
-          <button class="retro-btn secondary" id="btnCloseLeaderboard" style="width: 100%;">بستن</button>
-        </div>
-      </div>
+      <div class="crt-overlay"></div>
     </div>
 
-    <!-- کنترل بار پایین -->
-    <div class="control-bar">
-      <button class="retro-btn" id="btnPauseGame">توقف (P)</button>
-      <button class="retro-btn secondary" id="btnOpenSave">ذخیره / بازیابی</button>
-      <button class="retro-btn" id="btnOpenLeaderboard">رکوردهای برتر</button>
-      <button class="retro-btn secondary" id="btnOpenSettings">تنظیمات</button>
+    <!-- Metadata and Docs Link -->
+    <div class="meta-bar">
+      <div>Controls: <b>[A/D] or [Arrows]</b> Move | <b>[W/Space]</b> Jump | <b>[Shift]</b> Run | <b>[P]</b> Pause | <b>[M]</b> Mute</div>
+      <a href="/swagger.html" class="swagger-btn" target="_blank">
+        ⚡ Interactive OpenAPI / Swagger Docs
+      </a>
+    </div>
+
+    <!-- Mobile Virtual Controls -->
+    <div class="virtual-controls">
+      <div class="dpad">
+        <button class="touch-btn" id="btn-left">◀</button>
+        <button class="touch-btn" id="btn-right">▶</button>
+      </div>
+      <div class="action-buttons">
+        <button class="touch-btn" id="btn-run" style="background: #3b82f6;">B</button>
+        <button class="touch-btn" id="btn-jump" style="background: #ef4444;">A</button>
+      </div>
     </div>
   </div>
 
-  <!-- اسکریپت‌های معماری ماژولار -->
-  <script src="../config/database.config.js"></script>
-  <script src="../src/db/security/crypto_vault.js"></script>
-  <script src="../src/db/models/base_model.js"></script>
-  <script src="../src/db/models/save_state_model.js"></script>
-  <script src="../src/db/models/high_score_model.js"></script>
-  <script src="../src/db/models/settings_model.js"></script>
-  <script src="../src/db/migrations/migrations.js"></script>
-  <script src="../src/db/migrations/migration_runner.js"></script>
-  <script src="../src/db/database_layer.js"></script>
+  <script type="module">
+    import { Game } from './src/engine/Game.js';
 
-  <script src="../src/engine/physics.js"></script>
-  <script src="../src/engine/camera.js"></script>
-  <script src="../src/engine/game_loop.js"></script>
-  <script src="../src/entities/goomba.js"></script>
-  <script src="../src/entities/mario.js"></script>
-  <script src="../src/levels/level_1_1.js"></script>
-
-  <!-- برنامه اصلی و ارکستراسیون گیم‌پلی -->
-  <script>
-    (async function () {
-      'use strict';
-
-      // ۱. راه‌اندازی سینتی‌سایزر صدا با Web Audio API
-      class RetroAudioEngine {
-        constructor() {
-          this.ctx = null;
-          this.masterVol = 0.8;
-          this.sfxVol = 0.9;
-        }
-        init() {
-          if (!this.ctx) {
-            const AudioCtx = window.AudioContext || window.webkitAudioContext;
-            if (AudioCtx) this.ctx = new AudioCtx();
-          }
-        }
-        playTone(freq, type, duration, startVol = 0.1) {
-          if (!this.ctx) return;
-          try {
-            const osc = this.ctx.createOscillator();
-            const gain = this.ctx.createGain();
-            osc.type = type;
-            osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
-            gain.gain.setValueAtTime(startVol * this.masterVol * this.sfxVol, this.ctx.currentTime);
-            gain.gain.exponentialRampToValueAtTime(0.0001, this.ctx.currentTime + duration);
-            osc.connect(gain);
-            gain.connect(this.ctx.destination);
-            osc.start();
-            osc.stop(this.ctx.currentTime + duration);
-          } catch(e) {}
-        }
-        playJump() {
-          this.init();
-          if (!this.ctx) return;
-          try {
-            const osc = this.ctx.createOscillator();
-            const gain = this.ctx.createGain();
-            osc.type = 'square';
-            osc.frequency.setValueAtTime(150, this.ctx.currentTime);
-            osc.frequency.exponentialRampToValueAtTime(450, this.ctx.currentTime + 0.15);
-            gain.gain.setValueAtTime(0.12 * this.masterVol * this.sfxVol, this.ctx.currentTime);
-            gain.gain.linearRampToValueAtTime(0.001, this.ctx.currentTime + 0.15);
-            osc.connect(gain);
-            gain.connect(this.ctx.destination);
-            osc.start();
-            osc.stop(this.ctx.currentTime + 0.15);
-          } catch(e) {}
-        }
-        playCoin() {
-          this.init();
-          this.playTone(987, 'square', 0.08, 0.15);
-          setTimeout(() => this.playTone(1318, 'square', 0.25, 0.15), 80);
-        }
-        playPowerup() {
-          this.init();
-          [330, 392, 659, 523, 587, 784].forEach((f, i) => {
-            setTimeout(() => this.playTone(f, 'triangle', 0.1, 0.2), i * 60);
-          });
-        }
-        playDie() {
-          this.init();
-          [500, 400, 300, 200].forEach((f, i) => {
-            setTimeout(() => this.playTone(f, 'sawtooth', 0.15, 0.2), i * 90);
-          });
-        }
-      }
-
-      const audio = new RetroAudioEngine();
-
-      // ۲. راه‌اندازی لایه دیتابیس امن B2.st
-      const db = new DatabaseLayer();
-      await db.initialize();
-      console.log('✅ لایه دیتابیس امن و سیستم Migration با موفقیت بارگذاری شد.');
-
-      // اعمال تنظیمات ذخیره شده
-      const userSettings = await db.settings.get();
-      if (userSettings) {
-        audio.masterVol = userSettings.masterVolume;
-        audio.sfxVol = userSettings.sfxVolume;
-        document.getElementById('crtOverlay').classList.toggle('disabled', !userSettings.crtScanlines);
-        document.getElementById('checkCrt').checked = userSettings.crtScanlines;
-        document.getElementById('volumeMaster').value = userSettings.masterVolume;
-        document.getElementById('volumeSfx').value = userSettings.sfxVolume;
-        document.getElementById('volumeBgm').value = userSettings.bgmVolume;
-      }
-
-      // ۳. اجزای موتور بازی
+    window.addEventListener('DOMContentLoaded', () => {
       const canvas = document.getElementById('gameCanvas');
-      const ctx = canvas.getContext('2d');
-      const physics = new PhysicsEngine({ gravity: 980 });
-      const camera = new Camera(256, 240);
-      let level = new Level1_1();
-      let mario = new Mario(40, 180);
+      const game = new Game(canvas);
+      game.start();
 
-      let enemies = [
-        new Goomba('g1', 350, 192),
-        new Goomba('g2', 550, 192),
-        new Goomba('g3', 900, 192),
-        new Goomba('g4', 1100, 192)
-      ];
-
-      const stats = {
-        score: 0,
-        coins: 0,
-        world: '1',
-        level: '1',
-        lives: 3,
-        timeRemaining: 400
-      };
-
-      let isPaused = false;
-      const inputState = { left: false, right: false, sprint: false };
-
-      // اتصالات رویداد برخورد سکه و پاورآپ
-      level.onCoinCollect = () => {
-        stats.coins += 1;
-        stats.score += 200;
-        audio.playCoin();
-        updateHUD();
-      };
-
-      level.onPowerupSpawn = () => {
-        mario.powerUp(audio);
-        stats.score += 1000;
-        updateHUD();
-      };
+      // HUD Sync Loop
+      const hudScore = document.getElementById('hud-score');
+      const hudCoins = document.getElementById('hud-coins');
+      const hudWorld = document.getElementById('hud-world');
+      const hudTime = document.getElementById('hud-time');
+      const hudLives = document.getElementById('hud-lives');
 
       function updateHUD() {
-        document.getElementById('hudScore').innerText = String(stats.score).padStart(6, '0');
-        document.getElementById('hudCoins').innerText = `🪙x${String(stats.coins).padStart(2, '0')}`;
-        document.getElementById('hudWorld').innerText = `${stats.world}-${stats.level}`;
-        document.getElementById('hudTime').innerText = Math.ceil(stats.timeRemaining);
-        document.getElementById('hudLives').innerText = `x${stats.lives}`;
+        hudScore.textContent = game.score.toString().padStart(6, '0');
+        hudCoins.textContent = `🪙 x${game.coins.toString().padStart(2, '0')}`;
+        hudWorld.textContent = game.world;
+        hudTime.textContent = Math.ceil(game.time).toString().padStart(3, '0');
+        hudLives.textContent = `❤ ${game.lives}`;
+        requestAnimationFrame(updateHUD);
       }
+      requestAnimationFrame(updateHUD);
 
-      // کنترل کلیدهای کیبورد
-      window.addEventListener('keydown', (e) => {
-        audio.init();
-        if (e.code === 'ArrowLeft' || e.code === 'KeyA') inputState.left = true;
-        if (e.code === 'ArrowRight' || e.code === 'KeyD') inputState.right = true;
-        if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') inputState.sprint = true;
-        if (e.code === 'Space' || e.code === 'ArrowUp' || e.code === 'KeyW') {
-          mario.jump(audio);
-        }
-        if (e.code === 'KeyP') togglePause();
-      });
-
-      window.addEventListener('keyup', (e) => {
-        if (e.code === 'ArrowLeft' || e.code === 'KeyA') inputState.left = false;
-        if (e.code === 'ArrowRight' || e.code === 'KeyD') inputState.right = false;
-        if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') inputState.sprint = false;
-      });
-
-      // چرخه به‌روزرسانی فیزیک و انتیتی‌ها
-      function update(dt) {
-        if (isPaused) return;
-
-        stats.timeRemaining = Math.max(0, stats.timeRemaining - dt * 0.5);
-        if (stats.timeRemaining <= 0 && !mario.isDead) mario.die(audio);
-
-        // به‌روزرسانی فیزیک ماریو
-        mario.update(dt, inputState);
-        physics.applyGravity(mario, dt);
-        physics.resolveTileCollision(mario, level, 16);
-
-        // به‌روزرسانی دوربین
-        camera.update(mario.position.x);
-
-        // به‌روزرسانی و حل برخورد با گومباها
-        for (const enemy of enemies) {
-          enemy.update(dt, level);
-          if (!enemy.isDead && !enemy.isSquashed && !mario.isDead) {
-            const mBox = mario.getBounds();
-            const eBox = enemy.getBounds();
-            if (mBox.intersects(eBox)) {
-              // آیا ماریو از بالا روی سر گومبا پریده است؟
-              if (mario.velocity.y > 0 && mBox.bottom - mario.velocity.y * dt <= eBox.top + 6) {
-                enemy.squash();
-                mario.velocity.y = -220;
-                stats.score += 100;
-                audio.playJump();
-                updateHUD();
-              } else {
-                mario.die(audio);
-              }
-            }
-          }
-        }
-
-        // بررسی پرچم پایان مرحله
-        if (mario.position.x >= level.flagPole.x && !mario.isDead) {
-          stats.score += 5000;
-          db.highScores.record(new HighScoreModel({
-            playerName: 'HERO',
-            score: stats.score,
-            coins: stats.coins,
-            world: `${stats.world}-${stats.level}`
-          })).then(() => {
-            alert('🎉 آفرین! مرحله ۱-۱ با موفقیت به پایان رسید و امتیاز شما ثبت شد.');
-            location.reload();
-          });
-          isPaused = true;
-        }
-
-        updateHUD();
-      }
-
-      function render() {
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        level.render(ctx, camera);
-        for (const enemy of enemies) enemy.render(ctx, camera);
-        mario.render(ctx, camera);
-      }
-
-      const loop = new GameLoop(update, render);
-      loop.start();
-
-      function togglePause() {
-        isPaused = !isPaused;
-        document.getElementById('btnPauseGame').innerText = isPaused ? 'ادامه (P)' : 'توقف (P)';
-      }
-
-      // --- پیاده‌سازی رابط کاربری و تعامل با DatabaseLayer ---
-
-      // مدیریت اسلات‌های ذخیره
-      const saveModal = document.getElementById('saveLoadModal');
-      const slotsContainer = document.getElementById('slotsContainer');
-
-      async function refreshSaveSlots() {
-        slotsContainer.innerHTML = '';
-        const slots = await db.saveStates.listSlots();
-        if (slots.length === 0) {
-          slotsContainer.innerHTML = '<div style="font-size:11px; text-align:center; padding:10px;">هیچ فایلی ذخیره نشده است.</div>';
-          return;
-        }
-
-        for (const s of slots) {
-          const item = document.createElement('div');
-          item.className = 'slot-item';
-          const badge = s.isValidIntegrity 
-            ? '<span class="badge-verified">امضا تایید شد</span>' 
-            : '<span class="badge-tampered">⚠️ دستکاری شده</span>';
-
-          item.innerHTML = `
-            <div>
-              <strong>${s.label}</strong> [${s.world}]<br>
-              <small>امتیاز: ${s.score} | سکه: ${s.coins} | جان: ${s.lives}</small><br>
-              ${badge}
-            </div>
-            <div style="display:flex; gap:4px;">
-              <button class="retro-btn success" style="padding:4px;" onclick="loadSlot('${s.slotId}')">بارگذاری</button>
-              <button class="retro-btn" style="padding:4px;" onclick="deleteSlot('${s.slotId}')">حذف</button>
-            </div>
-          `;
-          slotsContainer.appendChild(item);
-        }
-      }
-
-      window.loadSlot = async (slotId) => {
-        const result = await db.saveStates.loadSlot(slotId);
-        if (!result) return alert('فایل ذخیره یافت نشد.');
-
-        if (result.isTampered) {
-          const proceed = confirm('هشدار امنیتی: امضای دیجیتال این فایل مخدوش است و دستکاری شده است! آیا مطمئنید؟');
-          if (!proceed) return;
-        }
-
-        const state = result.saveState;
-        mario.position.x = state.mario.x;
-        mario.position.y = state.mario.y;
-        mario.powerState = state.mario.powerState;
-        stats.score = state.stats.score;
-        stats.coins = state.stats.coins;
-        stats.lives = state.stats.lives;
-        stats.timeRemaining = state.stats.timeRemaining;
-        stats.world = state.stats.world;
-        stats.level = state.stats.level;
-        mario.isDead = false;
-        saveModal.classList.remove('active');
-        isPaused = false;
-        alert(`اسلات ${slotId} با موفقیت بارگذاری شد.`);
+      // Virtual Touch Event Binding
+      const bindBtn = (id, action) => {
+        const btn = document.getElementById(id);
+        if (!btn) return;
+        btn.addEventListener('touchstart', (e) => {
+          e.preventDefault();
+          game.input.setVirtualAction(action, true);
+        });
+        btn.addEventListener('touchend', (e) => {
+          e.preventDefault();
+          game.input.setVirtualAction(action, false);
+        });
+        btn.addEventListener('mousedown', () => game.input.setVirtualAction(action, true));
+        btn.addEventListener('mouseup', () => game.input.setVirtualAction(action, false));
       };
 
-      window.deleteSlot = async (slotId) => {
-        await db.saveStates.delete(slotId);
-        await refreshSaveSlots();
-      };
-
-      document.getElementById('btnQuickSave').addEventListener('click', async () => {
-        const saveModel = SaveStateModel.fromGameState(
-          'quicksave',
-          `QuickSave - ${new Date().toLocaleTimeString('fa-IR')}`,
-          mario,
-          stats
-        );
-        await db.saveStates.save(saveModel);
-        await refreshSaveSlots();
-      });
-
-      document.getElementById('btnOpenSave').addEventListener('click', () => {
-        isPaused = true;
-        saveModal.classList.add('active');
-        refreshSaveSlots();
-      });
-
-      document.getElementById('btnCloseSaveModal').addEventListener('click', () => {
-        saveModal.classList.remove('active');
-        isPaused = false;
-      });
-
-      // تنظیمات
-      const settingsModal = document.getElementById('settingsModal');
-      document.getElementById('btnOpenSettings').addEventListener('click', () => {
-        isPaused = true;
-        settingsModal.classList.add('active');
-      });
-
-      document.getElementById('btnCloseSettings').addEventListener('click', () => {
-        settingsModal.classList.remove('active');
-        isPaused = false;
-      });
-
-      document.getElementById('btnSaveSettings').addEventListener('click', async () => {
-        const master = parseFloat(document.getElementById('volumeMaster').value);
-        const sfx = parseFloat(document.getElementById('volumeSfx').value);
-        const bgm = parseFloat(document.getElementById('volumeBgm').value);
-        const crt = document.getElementById('checkCrt').checked;
-
-        const newSettings = new SettingsModel({
-          masterVolume: master,
-          sfxVolume: sfx,
-          bgmVolume: bgm,
-          crtScanlines: crt
-        });
-
-        await db.settings.save(newSettings);
-        audio.masterVol = master;
-        audio.sfxVol = sfx;
-        document.getElementById('crtOverlay').classList.toggle('disabled', !crt);
-        settingsModal.classList.remove('active');
-        isPaused = false;
-        alert('تنظیمات با موفقیت در دیتابیس امن ذخیره شد.');
-      });
-
-      // تابلوی امتیازات برتر
-      const leaderboardModal = document.getElementById('leaderboardModal');
-      document.getElementById('btnOpenLeaderboard').addEventListener('click', async () => {
-        isPaused = true;
-        leaderboardModal.classList.add('active');
-        const container = document.getElementById('leaderboardContainer');
-        container.innerHTML = '<div style="font-size:11px; text-align:center;">در حال بارگذاری...</div>';
-        const scores = await db.highScores.getTop(10);
-        container.innerHTML = '';
-        scores.forEach((s, idx) => {
-          const row = document.createElement('div');
-          row.className = 'slot-item';
-          row.innerHTML = `
-            <span><strong>#${idx + 1} ${s.playerName}</strong></span>
-            <span>امتیاز: ${s.score} | مرحله: ${s.world}</span>
-          `;
-          container.appendChild(row);
-        });
-      });
-
-      document.getElementById('btnCloseLeaderboard').addEventListener('click', () => {
-        leaderboardModal.classList.remove('active');
-        isPaused = false;
-      });
-
-      document.getElementById('btnPauseGame').addEventListener('click', togglePause);
-    })();
+      bindBtn('btn-left', 'left');
+      bindBtn('btn-right', 'right');
+      bindBtn('btn-jump', 'jump');
+      bindBtn('btn-run', 'run');
+    });
   </script>
 </body>
 </html>

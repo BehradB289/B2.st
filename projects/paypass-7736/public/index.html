@@ -1,0 +1,872 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl" class="dark scroll-smooth">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PayPass | پی‌پاس — پلتفرم میکرومانتایز آنی و فروش تک‌محتوایی</title>
+  
+  <!-- فونت وزیرمتن از CDN -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@200;300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Vazirmatn', 'system-ui', 'sans-serif'],
+          },
+          colors: {
+            darkBg: '#090D16',
+            brandPurple: '#8B5CF6',
+            brandCyan: '#06B6D4',
+            surface: 'rgba(255, 255, 255, 0.03)',
+            surfaceHover: 'rgba(255, 255, 255, 0.07)',
+          },
+          animation: {
+            'blob-slow': 'blobFloat 18s infinite ease-in-out alternate',
+            'blob-reverse': 'blobFloatRev 22s infinite ease-in-out alternate',
+            'pulse-subtle': 'pulseSubtle 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+            'shimmer': 'shimmer 2.2s infinite',
+          },
+          keyframes: {
+            blobFloat: {
+              '0%': { transform: 'translate(0px, 0px) scale(1)' },
+              '50%': { transform: 'translate(60px, -40px) scale(1.12)' },
+              '100%': { transform: 'translate(-40px, 50px) scale(0.95)' },
+            },
+            blobFloatRev: {
+              '0%': { transform: 'translate(0px, 0px) scale(1)' },
+              '50%': { transform: 'translate(-70px, 60px) scale(1.15)' },
+              '100%': { transform: 'translate(50px, -30px) scale(0.92)' },
+            },
+            pulseSubtle: {
+              '0%, 100%': { opacity: 0.8 },
+              '50%': { opacity: 0.4 },
+            },
+            shimmer: {
+              '100%': { transform: 'translateX(-100%)' },
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    /* سفارشی‌سازی‌های لوکس Glassmorphism */
+    body {
+      background-color: #090D16;
+      font-family: 'Vazirmatn', sans-serif;
+      overflow-x: hidden;
+      selection-background-color: #8B5CF6;
+      selection-color: #ffffff;
+    }
+
+    ::selection {
+      background: rgba(139, 92, 246, 0.4);
+      color: #fff;
+    }
+
+    /* نویز سینمایی پس‌زمینه */
+    .bg-noise {
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.035'/%3E%3C/svg%3E");
+    }
+
+    /* گرید ارگانیک فضایی */
+    .cyber-grid {
+      background-size: 50px 50px;
+      background-image: 
+        linear-gradient(to right, rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+    }
+
+    /* اسکرول بار مدرن */
+    ::-webkit-scrollbar {
+      width: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #090D16;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: rgba(139, 92, 246, 0.3);
+      border-radius: 999px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: rgba(6, 182, 212, 0.5);
+    }
+
+    /* درخشش نئونی دکمه CTA */
+    .neon-cta-glow {
+      position: relative;
+    }
+    .neon-cta-glow::before {
+      content: '';
+      position: absolute;
+      inset: -2px;
+      background: linear-gradient(90deg, #8B5CF6, #06B6D4, #8B5CF6);
+      background-size: 200% 100%;
+      border-radius: inherit;
+      z-index: -1;
+      filter: blur(12px);
+      opacity: 0.65;
+      transition: opacity 0.3s ease, filter 0.3s ease;
+      animation: gradientShift 4s linear infinite;
+    }
+    .neon-cta-glow:hover::before {
+      opacity: 1;
+      filter: blur(18px);
+    }
+
+    @keyframes gradientShift {
+      0% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
+    }
+
+    /* پالس پرتو دسترسی */
+    .unlock-radar {
+      box-shadow: 0 0 0 0 rgba(6, 182, 212, 0.6);
+      animation: radar 2s infinite cubic-bezier(0.25, 0, 0, 1);
+    }
+    @keyframes radar {
+      to {
+        box-shadow: 0 0 0 24px rgba(6, 182, 212, 0);
+      }
+    }
+  </style>
+</head>
+
+<body class="min-h-screen text-slate-100 relative bg-noise cyber-grid antialiased">
+
+  <!-- ==================== Ambient Lighting Background ==================== -->
+  <div class="fixed inset-0 overflow-hidden pointer-events-none z-0">
+    <!-- اورب بنفش رقصان بالا چپ/راست -->
+    <div class="absolute -top-32 -right-32 w-[550px] h-[550px] bg-[#8B5CF6] opacity-35 rounded-full blur-[140px] animate-blob-slow mix-blend-screen"></div>
+    <!-- اورب فیروزه‌ای پویا پایین راست/چپ -->
+    <div class="absolute top-1/3 -left-36 w-[520px] h-[520px] bg-[#06B6D4] opacity-25 rounded-full blur-[150px] animate-blob-reverse mix-blend-screen"></div>
+    <!-- هاله ثانویه بنفش مرکز پایین -->
+    <div class="absolute -bottom-40 right-1/4 w-[600px] h-[600px] bg-[#8B5CF6] opacity-20 rounded-full blur-[160px] animate-blob-slow"></div>
+  </div>
+
+  <!-- کانتینر اصلی اپلیکیشن -->
+  <div class="relative z-10 flex flex-col min-h-screen justify-between">
+
+    <!-- ==================== Navbar / Glass Header ==================== -->
+    <header class="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6">
+      <nav class="backdrop-blur-xl bg-white/[0.04] border border-white/10 rounded-2xl px-5 py-3.5 flex items-center justify-between shadow-2xl shadow-black/40">
+        
+        <!-- برند و لوگو -->
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-[#8B5CF6] to-[#06B6D4] p-[1.5px] shadow-lg shadow-purple-500/25">
+            <div class="w-full h-full bg-[#090D16] rounded-[10px] flex items-center justify-center">
+              <svg class="w-5 h-5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3">
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                <circle cx="12" cy="16" r="1.5" fill="currentColor" />
+              </svg>
+            </div>
+          </div>
+          <div>
+            <div class="flex items-center gap-2">
+              <span class="font-extrabold text-lg tracking-tight bg-gradient-to-r from-white via-purple-100 to-cyan-300 bg-clip-text text-transparent">PayPass</span>
+              <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-cyan-500/10 border border-cyan-400/30 text-cyan-300 tracking-wider">v2.5 PRO</span>
+            </div>
+            <p class="text-[11px] text-slate-400 font-light -mt-0.5">پلتفرم میکرومانتایز آنی • استودیو B2.st</p>
+          </div>
+        </div>
+
+        <!-- تگ وضعیت زنده شبکه شاپرک و استبل‌کوین -->
+        <div class="hidden md:flex items-center gap-6">
+          <div class="flex items-center gap-2.5 px-3 py-1.5 rounded-full bg-white/[0.03] border border-white/5 text-xs text-slate-300">
+            <span class="relative flex h-2 w-2">
+              <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+              <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+            </span>
+            <span>درگاه شتاب و کریپتو: <span class="text-emerald-400 font-medium">فعال و آنی (۰.۲ ثانیه)</span></span>
+          </div>
+
+          <div class="text-xs text-slate-400 flex items-center gap-1.5">
+            <svg class="w-4 h-4 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+            </svg>
+            <span>رمزنگاری سرتاسری AES-256</span>
+          </div>
+        </div>
+
+        <!-- اکشن سریع سازنده -->
+        <div class="flex items-center gap-3">
+          <button id="toggleDemoModeBtn" class="text-xs font-semibold px-3.5 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-slate-200 border border-white/10 transition-all flex items-center gap-1.5 active:scale-95">
+            <span class="w-1.5 h-1.5 rounded-full bg-purple-400"></span>
+            <span>تغییر محتوای تستی</span>
+          </button>
+          <a href="#simulator-section" class="text-xs font-bold px-4 py-2 rounded-xl bg-gradient-to-r from-purple-600 to-cyan-600 text-white shadow-md shadow-purple-600/30 hover:opacity-90 transition active:scale-95">
+            ساخت لینک فروش
+          </a>
+        </div>
+
+      </nav>
+    </header>
+
+    <!-- ==================== Main Showcase Hero ==================== -->
+    <main class="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 md:py-14 flex-1 flex flex-col justify-center">
+
+      <!-- تیتر و معرفی پروتکل -->
+      <div class="text-center max-w-3xl mx-auto mb-10 md:mb-12">
+        <div class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-purple-500/10 border border-purple-500/20 text-purple-300 text-xs font-medium mb-4 backdrop-blur-md">
+          <span class="animate-pulse">✨</span>
+          <span>معماری بدون اصطکاک فروش تک‌محتوایی (Zero-Friction MicroPay)</span>
+        </div>
+        <h1 class="text-3xl sm:text-5xl lg:text-6xl font-black tracking-tight leading-tight sm:leading-tight">
+          فروش هر محتوا با
+          <span class="bg-gradient-to-l from-cyan-400 via-teal-300 to-purple-400 bg-clip-text text-transparent">یک لینک قفل‌شده</span>
+          در ۳۰ ثانیه
+        </h1>
+        <p class="mt-4 text-slate-400 text-sm sm:text-base md:text-lg leading-relaxed font-light max-w-2xl mx-auto">
+          پرامپت هوش مصنوعی، فایل سه‌بعدی، ویس، ویدیو یا فایل Notion را در قالب یک لینک شیشه‌ای بفروشید. 
+          خریدار <strong class="text-white font-medium">بدون ثبت‌نام</strong> می‌پردازد و در لحظه محتوا را باز می‌کند.
+        </p>
+      </div>
+
+      <!-- شبکه دو ستونه تعاملی (کارت معلق مرکزی + پنل مشخصات زنده) -->
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center max-w-6xl mx-auto w-full">
+        
+        <!-- ستون راست: کارت معلق اصلی Glassmorphism پی‌پاس -->
+        <div class="lg:col-span-7 flex justify-center w-full">
+          
+          <div class="relative w-full max-w-lg group">
+            
+            <!-- حاشیه نورانی گرادیانی دینامیک پشت کارت -->
+            <div class="absolute -inset-0.5 bg-gradient-to-r from-[#8B5CF6] via-[#06B6D4] to-[#8B5CF6] rounded-[28px] blur-xl opacity-40 group-hover:opacity-75 transition duration-700 animate-pulse-subtle"></div>
+            
+            <!-- کارت شیشه‌ای اصلی ترند ۲۰۲۵ طبق دقیق مشخصات ماموریت -->
+            <div id="paypassCard" class="relative backdrop-blur-xl bg-white/5 border border-white/10 rounded-3xl shadow-[0_0_50px_-12px_rgba(139,92,246,0.3)] p-6 sm:p-8 transition-all duration-500">
+              
+              <!-- برچسب هدر کارت و مانیتور وضعیت -->
+              <div class="flex items-center justify-between pb-5 border-b border-white/10">
+                <div class="flex items-center gap-3">
+                  <div class="relative">
+                    <img id="creatorAvatar" src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&auto=format&fit=crop&q=80" alt="Avatar" class="w-11 h-11 rounded-2xl object-cover ring-2 ring-purple-500/40 p-0.5 bg-purple-900/40" />
+                    <span class="absolute -bottom-1 -left-1 w-4 h-4 bg-cyan-400 rounded-full border-2 border-[#090D16] flex items-center justify-center">
+                      <svg class="w-2.5 h-2.5 text-black" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+                      </svg>
+                    </span>
+                  </div>
+                  <div>
+                    <h3 id="creatorName" class="text-sm font-bold text-white flex items-center gap-1.5">
+                      نیلوفر شمس • استودیو آرکی‌تک
+                    </h3>
+                    <p class="text-xs text-purple-300/80 flex items-center gap-1">
+                      <span>تأیید شده سطح طلایی</span>
+                      <span class="text-slate-500">•</span>
+                      <span>۴۲۸ فروش موفق</span>
+                    </p>
+                  </div>
+                </div>
+
+                <!-- برچسب وضعیت قفل/آزاد -->
+                <div id="stateBadge" class="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-purple-500/15 border border-purple-400/30 text-purple-200">
+                  <svg id="badgeIcon" class="w-3.5 h-3.5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+                  </svg>
+                  <span id="badgeText">محتوای قفل‌شده</span>
+                </div>
+              </div>
+
+              <!-- بخش اطلاعات محصول تک‌محتوایی -->
+              <div class="mt-6">
+                <div class="flex items-start justify-between gap-4">
+                  <div>
+                    <span class="text-[11px] font-semibold text-cyan-400 tracking-wider uppercase bg-cyan-400/10 px-2 py-0.5 rounded-md border border-cyan-400/20">
+                      پک پرامپت مهندسی شده V6
+                    </span>
+                    <h2 id="productTitle" class="text-lg sm:text-xl font-bold text-white mt-2 leading-snug">
+                      ۱۰ پرامپت اختصاصی Midjourney برای رندرهای معماری فوتورئال و لوکس
+                    </h2>
+                  </div>
+                  <div class="text-left shrink-0">
+                    <span class="text-xs text-slate-400 block line-through">۸۵,۰۰۰</span>
+                    <div class="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-l from-white to-cyan-300">
+                      <span id="productPrice">۳۹,۰۰۰</span>
+                      <span class="text-xs font-normal text-slate-300 mr-1">تومان</span>
+                    </div>
+                  </div>
+                </div>
+
+                <p id="productDesc" class="mt-3 text-xs sm:text-sm text-slate-300 leading-relaxed font-light">
+                  شامل تنظیمات نورپردازی سینمایی، زاویه دید زاها حدید، کد متریال‌های بتن براق و چوب گردو به همراه منفی‌نویسی (Negative Prompts) جهت حذف نویز.
+                </p>
+              </div>
+
+              <!-- ================= STATE 1: نمای قفل و پیش‌نمایش تار ================= -->
+              <div id="lockedView" class="mt-6 space-y-5">
+                
+                <!-- پیش‌نمایش بلور شده محتوای مخفی -->
+                <div class="relative rounded-2xl overflow-hidden border border-white/10 bg-black/40 p-4">
+                  <!-- محتوای مات شده -->
+                  <div class="filter blur-md select-none opacity-40 pointer-events-none text-xs font-mono space-y-2 text-cyan-200">
+                    <p>/imagine prompt: ultra luxury modern villa in damavand, parametric architecture, floor-to-ceiling glass facade, dusk lighting, 8k octane render --ar 16:9 --v 6.0 --s 750</p>
+                    <p>Drive Secret Link: https://paypass.link/vault/d7a8e9f2bc-full-presets.zip [742MB]</p>
+                    <p>License Key: PP-2025-ARCH-994821</p>
+                  </div>
+
+                  <!-- اورلی مرکزی قفل نئونی -->
+                  <div class="absolute inset-0 flex flex-col items-center justify-center bg-black/60 backdrop-blur-[2px]">
+                    <div class="w-12 h-12 rounded-2xl bg-gradient-to-tr from-purple-600 to-cyan-500 p-0.5 shadow-lg shadow-purple-500/30 flex items-center justify-center">
+                      <div class="w-full h-full bg-[#090D16] rounded-[14px] flex items-center justify-center">
+                        <svg class="w-6 h-6 text-cyan-300 animate-bounce" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+                        </svg>
+                      </div>
+                    </div>
+                    <p class="text-xs font-medium text-slate-200 mt-2">برای مشاهده متن کامل پرامپت‌ها و لینک دانلود پرداخت کنید</p>
+                    <span class="text-[10px] text-cyan-300/80 mt-0.5">آزادسازی خودکار کمتر از ۱۰ ثانیه</span>
+                  </div>
+                </div>
+
+                <!-- اینپوت‌های شفاف نئونی -->
+                <div class="space-y-3">
+                  <div>
+                    <label class="block text-xs font-medium text-slate-300 mb-1.5 flex justify-between">
+                      <span>شماره موبایل یا ایمیل (جهت پیامک رسید و لینک دائمی)</span>
+                      <span class="text-slate-500 text-[11px]">اختیاری</span>
+                    </label>
+                    <div class="relative">
+                      <input 
+                        type="text" 
+                        id="payerContact" 
+                        placeholder="۰۹۱۲۳۴۵۶۷۸۹ یا email@domain.com" 
+                        class="w-full px-4 py-3 rounded-xl bg-white/[0.04] border border-white/10 text-white placeholder-slate-500 text-sm focus:outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/20 transition backdrop-blur-md"
+                      />
+                      <div class="absolute left-3 top-3.5 text-slate-500 pointer-events-none">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 12a4 4 0 10-8 0 4 4 0 008 0zm0 0v1.5a2.5 2.5 0 005 0V12a9 9 0 10-9 9m4.5-1.206a8.959 8.959 0 01-4.5 1.206"/>
+                        </svg>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- انتخاب روش پرداخت فوری -->
+                  <div class="grid grid-cols-2 gap-2 text-xs">
+                    <label class="flex items-center justify-between p-2.5 rounded-xl border border-cyan-500/40 bg-cyan-500/10 cursor-pointer transition">
+                      <div class="flex items-center gap-2">
+                        <input type="radio" name="payMethod" checked class="text-cyan-500 focus:ring-0 bg-transparent" />
+                        <span class="font-medium text-white">کارت‌های شتاب (شاپرک)</span>
+                      </div>
+                      <span class="text-[10px] text-cyan-300 bg-cyan-900/60 px-1.5 py-0.5 rounded">آنی</span>
+                    </label>
+                    <label class="flex items-center justify-between p-2.5 rounded-xl border border-white/10 bg-white/[0.02] hover:bg-white/[0.05] cursor-pointer transition">
+                      <div class="flex items-center gap-2">
+                        <input type="radio" name="payMethod" class="text-purple-500 focus:ring-0 bg-transparent" />
+                        <span class="font-medium text-slate-300">تتر / تون (USDT/TON)</span>
+                      </div>
+                      <span class="text-[10px] text-purple-300 bg-purple-900/40 px-1.5 py-0.5 rounded">وب۳</span>
+                    </label>
+                  </div>
+                </div>
+
+                <!-- دکمه CTA گرادیانی درخشان طبق پرامپت دیزاین -->
+                <button 
+                  id="payButton" 
+                  onclick="triggerPaymentSimulation()"
+                  class="neon-cta-glow w-full py-4 px-6 rounded-2xl bg-gradient-to-r from-purple-600 via-indigo-600 to-cyan-500 text-white font-bold text-base shadow-xl flex items-center justify-center gap-3 transition-all transform hover:scale-[1.01] active:scale-[0.98] cursor-pointer"
+                >
+                  <svg class="w-5 h-5 text-cyan-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                  </svg>
+                  <span>پرداخت و آزادسازی فوری محتوا (۳۹,۰۰۰ تومان)</span>
+                </button>
+
+                <!-- پیام امنیت و ضمانت بازگشت -->
+                <div class="flex items-center justify-center gap-4 text-[11px] text-slate-400 pt-1">
+                  <span class="flex items-center gap-1">
+                    <svg class="w-3.5 h-3.5 text-emerald-400" fill="currentColor" viewBox="0 0 20 20">
+                      <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                    </svg>
+                    بدون نیاز به ثبت‌نام
+                  </span>
+                  <span>•</span>
+                  <span>دسترسی بلافاصله پس از تراکنش</span>
+                  <span>•</span>
+                  <span class="text-cyan-400">تضمین سلامت فایل</span>
+                </div>
+
+              </div>
+
+              <!-- ================= STATE 2: انیمیشن لودینگ و تایید تراکنش ================= -->
+              <div id="processingView" class="hidden my-8 py-8 flex flex-col items-center justify-center text-center">
+                <div class="relative w-20 h-20 mb-5">
+                  <div class="unlock-radar absolute inset-0 rounded-full border-2 border-cyan-400"></div>
+                  <div class="w-20 h-20 rounded-full border-4 border-white/10 border-t-purple-500 border-r-cyan-400 animate-spin"></div>
+                  <div class="absolute inset-0 flex items-center justify-center">
+                    <svg class="w-7 h-7 text-cyan-400 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 11c0 3.517-1.009 6.799-2.753 9.571m-3.44-2.04l.054-.09A13.916 13.916 0 008 11a4 4 0 118 0c0 1.017-.07 2.019-.203 3m-2.118 6.844A21.88 21.88 0 0015.171 17m3.839 1.132c.645-2.266.99-4.659.99-7.132A8 8 0 004 11m0 0a8 8 0 00-.99 7.132m0 0l.09.054A21.88 21.88 0 007.829 17"/>
+                    </svg>
+                  </div>
+                </div>
+                <h4 id="procStepTitle" class="text-base font-bold text-white">در حال تایید شتاب و رمزگشایی کلید...</h4>
+                <p id="procStepDesc" class="text-xs text-slate-400 mt-2 font-mono">STEP 2/3: SHA-256 Token Validation</p>
+                
+                <div class="w-64 bg-white/10 h-1.5 rounded-full mt-5 overflow-hidden">
+                  <div id="progressBar" class="h-full bg-gradient-to-r from-purple-500 to-cyan-400 w-1/3 transition-all duration-700"></div>
+                </div>
+              </div>
+
+              <!-- ================= STATE 3: وضعیت موفقیت و آزادسازی آنی محتوا ================= -->
+              <div id="unlockedView" class="hidden mt-6 space-y-5 animate-fade-in">
+                
+                <!-- آلرت موفقیت -->
+                <div class="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-400/30 flex items-center gap-3">
+                  <div class="w-9 h-9 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>
+                    </svg>
+                  </div>
+                  <div>
+                    <h4 class="text-sm font-bold text-emerald-300">پرداخت با موفقیت تایید شد!</h4>
+                    <p class="text-[11px] text-emerald-200/80">کد رهگیری شتاب: <span class="font-mono">TRX-948102847</span> • محتوا آنلاک گردید</p>
+                  </div>
+                </div>
+
+                <!-- باکس نمایش محتوای اختصاصی آنلاک شده -->
+                <div class="rounded-2xl border border-cyan-400/30 bg-black/60 p-5 relative overflow-hidden">
+                  <div class="flex items-center justify-between pb-3 mb-3 border-b border-white/10">
+                    <span class="text-xs font-bold text-cyan-300 flex items-center gap-1.5">
+                      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z"/>
+                      </svg>
+                      محتوای محرمانه خریداری شده:
+                    </span>
+                    <button onclick="copySecretContent()" class="text-[11px] text-slate-300 hover:text-white bg-white/10 px-2.5 py-1 rounded-lg transition flex items-center gap-1">
+                      <svg id="copyIcon" class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+                      </svg>
+                      <span id="copyText">کپی متن</span>
+                    </button>
+                  </div>
+
+                  <!-- متن آنلاک شده واقعی -->
+                  <div id="unlockedContentBox" class="text-xs font-mono text-cyan-100 bg-[#090D16]/80 p-3.5 rounded-xl border border-cyan-500/20 leading-relaxed overflow-x-auto space-y-2 select-all">
+                    <p class="text-purple-300"># پرامپت طلایی معماری (Master Prompt):</p>
+                    <p class="text-slate-200">/imagine prompt: brutalist concrete penthouse in Tehran mountains, cantilevered pool, ultra realistic morning mist, Hasselblad H6D-100c, cinematic photoreal, lumen lighting, hyperdetailed interior --ar 16:9 --v 6.0 --style raw</p>
+                    <div class="pt-2 text-slate-400 border-t border-white/5 flex items-center justify-between">
+                      <span>کلید لایسنس: <strong class="text-white">PP-2025-ARCH-VIP-339</strong></span>
+                    </div>
+                  </div>
+
+                  <!-- دکمه دانلود فایل ضمیمه -->
+                  <div class="mt-4 flex flex-col sm:flex-row gap-2.5">
+                    <a href="#download" onclick="alert('فایل زیپ پرامپت‌ها و فایل‌های PDF با موفقیت دانلود شد.'); return false;" class="flex-1 py-3 px-4 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20 hover:opacity-95 transition">
+                      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+                      </svg>
+                      دانلود فایل فشرده ضمایم (ZIP - ۲۸MB)
+                    </a>
+                    <button onclick="resetToLocked()" class="py-3 px-4 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 text-xs font-medium border border-white/10 transition">
+                      تست مجدد قفل
+                    </button>
+                  </div>
+                </div>
+
+                <p class="text-center text-[11px] text-slate-400">
+                  این لینک و فاکتور تا ۳۰ روز به آدرس تماس شما نیز ارسال شد.
+                </p>
+
+              </div>
+
+            </div>
+          </div>
+        </div>
+
+        <!-- ستون چپ: شاخص‌ها، ارزش پیشنهادی و میکرواستیت‌ها -->
+        <div class="lg:col-span-5 space-y-6">
+          
+          <!-- بنر هایلایت ۳۰ ثانیه‌ای -->
+          <div class="p-6 rounded-3xl backdrop-blur-xl bg-white/[0.03] border border-white/10 relative overflow-hidden">
+            <div class="absolute -right-10 -bottom-10 w-40 h-40 bg-purple-600/20 rounded-full blur-2xl pointer-events-none"></div>
+            
+            <div class="flex items-center gap-3 mb-3">
+              <span class="w-8 h-8 rounded-lg bg-cyan-500/20 text-cyan-300 flex items-center justify-center text-sm font-bold">۱</span>
+              <h3 class="text-white font-bold text-base">بدون سبد خرید، بدون پسورد</h3>
+            </div>
+            <p class="text-slate-400 text-xs sm:text-sm leading-relaxed font-light">
+              در فروشگاه‌های سنتی بیش از ۷۰٪ کاربران حین پروسه لاگین و سبد خرید منصرف می‌شوند. در پی‌پاس، خریدار مستقیم وارد درگاه شاپرک یا والت شده و در همان صفحه محتوا را می‌بیند.
+            </p>
+          </div>
+
+          <!-- کارت متریک‌های ترند ۲۰۲۵ -->
+          <div class="grid grid-cols-2 gap-4">
+            <div class="p-4 rounded-2xl backdrop-blur-xl bg-white/[0.02] border border-white/5 hover:border-white/10 transition">
+              <div class="text-2xl sm:text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-300">
+                ۹۹.۴٪
+              </div>
+              <div class="text-xs text-slate-400 mt-1">نرخ نهایی‌سازی پرداخت (Conversion)</div>
+            </div>
+            <div class="p-4 rounded-2xl backdrop-blur-xl bg-white/[0.02] border border-white/5 hover:border-white/10 transition">
+              <div class="text-2xl sm:text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-teal-300">
+                &lt; ۱۲ ثانیه
+              </div>
+              <div class="text-xs text-slate-400 mt-1">میانگین زمان دسترسی تا آزادسازی</div>
+            </div>
+          </div>
+
+          <!-- تاییدیه زنده آخرین خریداران (Live Social Proof Ticker) -->
+          <div class="p-4 rounded-2xl backdrop-blur-xl bg-white/[0.02] border border-white/10 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+              <div class="w-3 h-3 rounded-full bg-emerald-400 animate-ping"></div>
+              <div>
+                <p id="liveTickerText" class="text-xs text-slate-200 font-medium">مهسا از اصفهان همین الان پرامپت را خرید</p>
+                <p class="text-[10px] text-slate-500">۸ ثانیه پیش از طریق کارت به کارت مستقیم</p>
+              </div>
+            </div>
+            <span class="text-xs font-mono font-bold text-cyan-300">۳۹,۰۰۰ ت</span>
+          </div>
+
+          <!-- قابلیت‌های کلیدی پی‌پاس -->
+          <div class="space-y-3 pt-2">
+            <div class="flex items-start gap-3">
+              <div class="mt-1 w-5 h-5 rounded-full bg-purple-500/20 text-purple-400 flex items-center justify-center shrink-0">
+                <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>
+              </div>
+              <p class="text-xs text-slate-300"><strong class="text-white">پشتیبانی از انواع فایل:</strong> لینک گوگل درایو، متن و کلید اختصاصی، فایل دانلودی، کدهای Notion، ویدیو غیرقابل دانلود.</p>
+            </div>
+            <div class="flex items-start gap-3">
+              <div class="mt-1 w-5 h-5 rounded-full bg-cyan-500/20 text-cyan-400 flex items-center justify-center shrink-0">
+                <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>
+              </div>
+              <p class="text-xs text-slate-300"><strong class="text-white">تسویه آنی شبا و تتر:</strong> مبالغ فروش در پایان هر روز مستقیماً به شبای سازنده بدون کارمزد مخفی واریز می‌شود.</p>
+            </div>
+          </div>
+
+        </div>
+
+      </div>
+
+      <!-- ==================== Interactive Link Generator / Creator Studio ==================== -->
+      <section id="simulator-section" class="mt-20 md:mt-28 max-w-4xl mx-auto w-full">
+        
+        <div class="text-center mb-8">
+          <span class="text-xs font-bold text-cyan-400 uppercase tracking-widest bg-cyan-400/10 px-3 py-1 rounded-full border border-cyan-400/20">استودیوی تعاملی سازنده</span>
+          <h2 class="text-2xl sm:text-3xl font-extrabold text-white mt-2">خودتان لینک PayPass بسازید و آزمایش کنید</h2>
+          <p class="text-xs sm:text-sm text-slate-400 mt-1">مشخصات زیر را ویرایش کنید تا کارت پیش‌نمایش بالا فوراً تغییر شکل دهد</p>
+        </div>
+
+        <div class="backdrop-blur-2xl bg-white/[0.03] border border-white/10 rounded-3xl p-6 sm:p-8 shadow-2xl relative">
+          
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+            <div>
+              <label class="block text-xs font-semibold text-slate-300 mb-1.5">عنوان فایل یا پرامپت فروشی</label>
+              <input 
+                type="text" 
+                id="inputTitle" 
+                value="۱۰ پرامپت اختصاصی Midjourney برای رندرهای معماری فوتورئال و لوکس" 
+                class="w-full px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white text-xs sm:text-sm focus:outline-none focus:border-purple-400 focus:ring-1 focus:ring-purple-400/30"
+              />
+            </div>
+
+            <div>
+              <label class="block text-xs font-semibold text-slate-300 mb-1.5">قیمت میکرومانتایز (تومان)</label>
+              <input 
+                type="number" 
+                id="inputPrice" 
+                value="39000" 
+                step="5000"
+                class="w-full px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white text-xs sm:text-sm focus:outline-none focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400/30 font-mono"
+              />
+            </div>
+
+            <div class="md:col-span-2">
+              <label class="block text-xs font-semibold text-slate-300 mb-1.5">محتوای مخفی که بعد از پرداخت ظاهر شود (پرامپت، لینک درایو، پسورد و...)</label>
+              <textarea 
+                id="inputSecret" 
+                rows="2"
+                class="w-full px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-cyan-200 font-mono text-xs focus:outline-none focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400/30"
+              >/imagine prompt: ultra luxury penthouse, dusk cinematic lighting, Hasselblad photoreal --v 6.0 --ar 16:9</textarea>
+            </div>
+          </div>
+
+          <div class="mt-6 pt-5 border-t border-white/10 flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div class="flex items-center gap-2 text-xs text-slate-400">
+              <svg class="w-4 h-4 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/>
+              </svg>
+              <span>لینک اختصاصی شما: <span class="text-cyan-300 font-mono">paypass.st/p/arch-v6-luxury</span></span>
+            </div>
+
+            <button 
+              onclick="applyCustomSettings()"
+              class="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-gradient-to-r from-purple-500 to-cyan-500 text-white font-bold text-xs hover:opacity-90 active:scale-95 transition shadow-lg shadow-purple-600/20"
+            >
+              به‌روزرسانی کارت پیش‌نمایش
+            </button>
+          </div>
+
+        </div>
+
+      </section>
+
+    </main>
+
+    <!-- ==================== Footer ==================== -->
+    <footer class="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 mt-12 border-t border-white/5 text-center sm:text-right flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-500">
+      <div class="flex items-center gap-2">
+        <span class="w-2 h-2 rounded-full bg-cyan-400"></span>
+        <span>طراحی شده برای سال ۲۰۲۵ توسط <span class="text-slate-300 font-bold">B2.st Studio</span></span>
+        <span class="text-slate-600">|</span>
+        <span>پروتوتایپ شیشه‌ای پی‌پاس (PayPass)</span>
+      </div>
+
+      <div class="flex items-center gap-6 text-slate-400">
+        <a href="#" class="hover:text-cyan-300 transition">مستندات API</a>
+        <a href="#" class="hover:text-cyan-300 transition">کارمزد ۱٪</a>
+        <a href="#" class="hover:text-cyan-300 transition">قوانین و امانت‌داری</a>
+      </div>
+    </footer>
+
+  </div>
+
+  <!-- کانوَس کانفتی اختصاصی بدون وابستگی به لایبرری خارجی -->
+  <canvas id="confettiCanvas" class="fixed inset-0 pointer-events-none z-50"></canvas>
+
+  <!-- ==================== Interactive Logic & Micro-Animations ==================== -->
+  <script>
+    // صداگذاری سینت‌شده با Web Audio API (بدون فایل خارجی و خطا)
+    function playUnlockSound() {
+      try {
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(587.33, audioCtx.currentTime); // D5
+        osc.frequency.exponentialRampToValueAtTime(880, audioCtx.currentTime + 0.15); // A5
+        osc.frequency.exponentialRampToValueAtTime(1174.66, audioCtx.currentTime + 0.35); // D6
+
+        gain.gain.setValueAtTime(0.01, audioCtx.currentTime);
+        gain.gain.linearRampToValueAtTime(0.25, audioCtx.currentTime + 0.1);
+        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.6);
+
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.65);
+      } catch (e) {
+        console.log('Web Audio not allowed before user gesture');
+      }
+    }
+
+    // شبیه‌ساز پرداخت ۳۰ ثانیه‌ای
+    function triggerPaymentSimulation() {
+      const lockedView = document.getElementById('lockedView');
+      const processingView = document.getElementById('processingView');
+      const unlockedView = document.getElementById('unlockedView');
+      const stateBadge = document.getElementById('stateBadge');
+      const badgeIcon = document.getElementById('badgeIcon');
+      const badgeText = document.getElementById('badgeText');
+      const procStepTitle = document.getElementById('procStepTitle');
+      const procStepDesc = document.getElementById('procStepDesc');
+      const progressBar = document.getElementById('progressBar');
+
+      // رفتن به حالت پردازش
+      lockedView.classList.add('hidden');
+      processingView.classList.remove('hidden');
+
+      stateBadge.className = "flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-cyan-500/15 border border-cyan-400/30 text-cyan-200 animate-pulse";
+      badgeText.innerText = "در حال ارتباط با شبکه...";
+
+      // مرحله ۱: اتصال به درگاه
+      progressBar.style.width = "40%";
+      setTimeout(() => {
+        procStepTitle.innerText = "تایید امضای دیجیتال و دریافت توکن شاپرک...";
+        procStepDesc.innerText = "SHAPARAK POS GATEWAY • STATUS: 200 OK";
+        progressBar.style.width = "75%";
+      }, 700);
+
+      // مرحله ۲: آزادسازی و بازگشت موفق
+      setTimeout(() => {
+        progressBar.style.width = "100%";
+        procStepTitle.innerText = "رمزگشایی با موفقیت انجام شد!";
+        procStepDesc.innerText = "ACCESS GRANTED • UNLOCKING CONTENT";
+      }, 1400);
+
+      // ورود به حالت آنلاک
+      setTimeout(() => {
+        processingView.classList.add('hidden');
+        unlockedView.classList.remove('hidden');
+
+        // تغییر وضعیت نشانگر
+        stateBadge.className = "flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/20 border border-emerald-400/40 text-emerald-300";
+        badgeText.innerText = "محتوا آنلاک شد ✓";
+        badgeIcon.innerHTML = `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z"/>`;
+
+        // افکت صوتی و کانفتی
+        playUnlockSound();
+        fireConfetti();
+      }, 1900);
+    }
+
+    // بازگرداندن کارت به حالت قفل برای تست مداوم
+    function resetToLocked() {
+      document.getElementById('unlockedView').classList.add('hidden');
+      document.getElementById('processingView').classList.add('hidden');
+      document.getElementById('lockedView').classList.remove('hidden');
+
+      const stateBadge = document.getElementById('stateBadge');
+      const badgeIcon = document.getElementById('badgeIcon');
+      const badgeText = document.getElementById('badgeText');
+
+      stateBadge.className = "flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-purple-500/15 border border-purple-400/30 text-purple-200";
+      badgeText.innerText = "محتوای قفل‌شده";
+      badgeIcon.innerHTML = `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>`;
+    }
+
+    // اعمال فیلدهای سفارشی از بخش استودیو سازنده
+    function applyCustomSettings() {
+      const title = document.getElementById('inputTitle').value;
+      const price = Number(document.getElementById('inputPrice').value || 0).toLocaleString('fa-IR');
+      const secret = document.getElementById('inputSecret').value;
+
+      document.getElementById('productTitle').innerText = title;
+      document.getElementById('productPrice').innerText = price;
+      document.getElementById('unlockedContentBox').innerHTML = `<p class="text-purple-300"># محتوای اختصاصی آنلاک شده:</p><p class="text-white">${secret}</p><div class="pt-2 text-slate-400 border-t border-white/5">شناسه لایسنس اختصاصی سازنده تایید شد.</div>`;
+      
+      document.getElementById('payButton').querySelector('span').innerText = `پرداخت و آزادسازی فوری محتوا (${price} تومان)`;
+
+      // اسکرول نرم به بالا برای دیدن کارت
+      window.scrollTo({ top: 120, behavior: 'smooth' });
+
+      // افکت چشمک روی کارت
+      const card = document.getElementById('paypassCard');
+      card.classList.add('ring-2', 'ring-cyan-400');
+      setTimeout(() => card.classList.remove('ring-2', 'ring-cyan-400'), 1200);
+    }
+
+    // جابجایی بین حالت‌های دمو با دکمه بالا
+    let currentDemo = 0;
+    const demoPresets = [
+      {
+        title: "کد تخفیف اختصاصی ۷۰٪ سرورهای Hetzner آلمان",
+        price: "۲۵,۰۰۰",
+        creator: "شایان از CloudBax",
+        secret: "PROMO-CODE: HETZ-DE-2025-X992 (معتبر تا پایان ماه)"
+      },
+      {
+        title: "ویس خصوصی ۵ دقیقه‌ای: استراتژی عقد قراردادهای دلاری ۲۰۲۵",
+        price: "۴۹,۰۰۰",
+        creator: "استودیو B2.st",
+        secret: "https://paypass.st/audio-stream/b2st-private-consulting-v9.mp3"
+      },
+      {
+        title: "۱۰ پرامپت اختصاصی Midjourney برای رندرهای معماری فوتورئال و لوکس",
+        price: "۳۹,۰۰۰",
+        creator: "نیلوفر شمس • استودیو آرکی‌تک",
+        secret: "/imagine prompt: ultra luxury modern penthouse damavand --v 6.0 --ar 16:9"
+      }
+    ];
+
+    document.getElementById('toggleDemoModeBtn').addEventListener('click', () => {
+      currentDemo = (currentDemo + 1) % demoPresets.length;
+      const p = demoPresets[currentDemo];
+      document.getElementById('productTitle').innerText = p.title;
+      document.getElementById('productPrice').innerText = p.price;
+      document.getElementById('creatorName').innerText = p.creator;
+      document.getElementById('inputTitle').value = p.title;
+      document.getElementById('inputSecret').value = p.secret;
+      document.getElementById('payButton').querySelector('span').innerText = `پرداخت و آزادسازی فوری محتوا (${p.price} تومان)`;
+      resetToLocked();
+    });
+
+    // کپی متن محتوای آنلاک شده در کلیپ‌بورد
+    function copySecretContent() {
+      const textToCopy = document.getElementById('unlockedContentBox').innerText;
+      navigator.clipboard.writeText(textToCopy).then(() => {
+        const copyText = document.getElementById('copyText');
+        copyText.innerText = "کپی شد! ✓";
+        setTimeout(() => copyText.innerText = "کپی متن", 2000);
+      });
+    }
+
+    // چرخش متن تیکر زنده فروش
+    const fakeFeed = [
+      { name: "مهسا از اصفهان", item: "پرامپت معماری لوکس", price: "۳۹,۰۰۰ ت" },
+      { name: "آرش از تهران", item: "لایسنس پلاگین فیگما", price: "۵۵,۰۰۰ ت" },
+      { name: "کیوان از شیراز", item: "تمپلیت مالی Notion", price: "۱۹,۰۰۰ ت" },
+      { name: "سارا از مشهد", item: "پک براش دیجیتال پینت", price: "۲۹,۰۰۰ ت" }
+    ];
+    let feedIndex = 0;
+    setInterval(() => {
+      feedIndex = (feedIndex + 1) % fakeFeed.length;
+      const el = document.getElementById('liveTickerText');
+      el.style.opacity = '0';
+      setTimeout(() => {
+        el.innerText = `${fakeFeed[feedIndex].name} همین الان «${fakeFeed[feedIndex].item}» را خرید`;
+        el.style.opacity = '1';
+      }, 300);
+    }, 4500);
+
+    // ==================== موتور سبک پرتاب کانفتی نئونی ====================
+    function fireConfetti() {
+      const canvas = document.getElementById('confettiCanvas');
+      const ctx = canvas.getContext('2d');
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+
+      const particles = [];
+      const colors = ['#8B5CF6', '#06B6D4', '#10B981', '#F43F5E', '#FBBF24', '#ffffff'];
+
+      for (let i = 0; i < 90; i++) {
+        particles.push({
+          x: canvas.width / 2,
+          y: canvas.height * 0.45,
+          vx: (Math.random() - 0.5) * 14,
+          vy: (Math.random() - 0.7) * 14,
+          size: Math.random() * 7 + 4,
+          color: colors[Math.floor(Math.random() * colors.length)],
+          rotation: Math.random() * 360,
+          vRot: (Math.random() - 0.5) * 10,
+          opacity: 1
+        });
+      }
+
+      let animationFrame;
+      function render() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        let active = false;
+
+        particles.forEach(p => {
+          p.x += p.vx;
+          p.y += p.vy;
+          p.vy += 0.25; // جاذبه
+          p.rotation += p.vRot;
+          p.opacity -= 0.012;
+
+          if (p.opacity > 0) {
+            active = true;
+            ctx.save();
+            ctx.translate(p.x, p.y);
+            ctx.rotate((p.rotation * Math.PI) / 180);
+            ctx.fillStyle = p.color;
+            ctx.globalAlpha = Math.max(0, p.opacity);
+            ctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size * 0.7);
+            ctx.restore();
+          }
+        });
+
+        if (active) {
+          animationFrame = requestAnimationFrame(render);
+        } else {
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          cancelAnimationFrame(animationFrame);
+        }
+      }
+      render();
+    }
+  </script>
+</body>
+</html>

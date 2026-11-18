@@ -1,26 +1,26 @@
+```json
 {
-  "name": "@b2st/mario-html5",
+  "name": "b2st-mario",
   "version": "1.0.0",
-  "description": "Modular NES Mario Engine in Canvas 2D & ES6+ by B2.st Studio",
-  "type": "module",
-  "scripts": {
-    "test": "node --test tests/**/*.test.js",
-    "docker:build": "docker compose build",
-    "docker:up": "docker compose up -d",
-    "docker:down": "docker compose down",
-    "deploy": "bash scripts/deploy.sh"
+  "description": "🎮 B2.st Mario — بازی ماریو با HTML5 Canvas و ابزار CLI مدیریتی",
+  "main": "src/cli.js",
+  "bin": {
+    "mario": "src/cli.js"
   },
-  "keywords": [
-    "mario",
-    "nes",
-    "canvas-2d",
-    "game-engine",
-    "ecs",
-    "b2st"
-  ],
+  "scripts": {
+    "start": "node src/cli.js serve",
+    "dev": "node src/cli.js serve --port 3000",
+    "build": "node src/cli.js build --minify",
+    "test": "node src/cli.js test",
+    "health": "node src/cli.js health",
+    "status": "node src/cli.js status --verbose",
+    "clean": "node src/cli.js clean"
+  },
+  "keywords": ["mario", "game", "canvas", "html5", "retro", "nes"],
   "author": "B2.st Studio",
   "license": "MIT",
   "engines": {
-    "node": ">=20.0.0"
+    "node": ">=16.0.0"
   }
 }
+```

@@ -14,6 +14,7 @@ projects/paypass-7736/
 ├── docs/ARCHITECTURE.md
 ├── docs/ARCHITECTURE_CRYPTO.md
 ├── docs/PAYMENT_FLOW.md
+├── docs/testing-guide.md
 ├── package.json
 ├── public/index.html
 ├── src/actions/paypass.ts
@@ -22,6 +23,7 @@ projects/paypass-7736/
 ├── src/app/checkout/verify/page.tsx
 ├── src/app/globals.css
 ├── src/app/layout.tsx
+├── src/app/p/[slug]/page.tsx
 ├── src/app/page.tsx
 ├── src/components/buyer/BuyerUnlockView.tsx
 ├── src/components/create/CreateLinkForm.tsx
@@ -31,18 +33,25 @@ projects/paypass-7736/
 ├── src/components/ui/Navbar.tsx
 ├── src/lib/crypto.ts
 ├── src/lib/fee.ts
+├── src/lib/gateway.ts
 ├── src/lib/payment/zarinpal.ts
 ├── src/lib/supabase.ts
 ├── src/lib/supabase/server.ts
 ├── src/lib/utils.ts
+├── src/playwright.config.ts
 ├── src/postcss.config.js
 ├── src/tailwind.config.ts
 ├── src/tsconfig.json
 ├── src/types/database.ts
 ├── src/types/index.ts
 ├── src/types/payment.ts
+├── src/types/paypass.ts
+├── src/vitest.config.ts
 ├── supabase/migrations/20240101_init_paypass.sql
 ├── tests/crypto.test.js
 ├── tests/crypto.test.ts
+├── tests/e2e-checkout.spec.ts
+├── tests/payment-actions.test.ts
 ├── tests/payment.test.ts
+├── tests/setup.ts
 ```

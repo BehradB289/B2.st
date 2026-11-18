@@ -9,16 +9,19 @@
 ```text
 projects/html-7088/
 ├── config/database.config.js
+├── config/game.config.js
 ├── config/game_config.js
 ├── docs/ARCHITECTURE.md
 ├── docs/DATABASE_SCHEMA.md
 ├── docs/DEBUG_SYNTAX.md
 ├── docs/TEST_SPEC.md
 ├── docs/architecture.md
+├── docs/openapi.json
 ├── index.html
 ├── package.json
 ├── public/index.html
 ├── public/style.css
+├── public/swagger.html
 ├── src/core/error_shield.js
 ├── src/core/memory_guard.js
 ├── src/core/performance_cache.js
@@ -61,6 +64,7 @@ projects/html-7088/
 ├── src/levels/level_1_1.js
 ├── src/main.js
 ├── src/security/owasp_guard.js
+├── src/services/network_retry.js
 ├── src/vitest.config.js
 ├── src/world/Level.js
 ├── tests/collision.test.js

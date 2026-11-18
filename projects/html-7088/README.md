@@ -9,15 +9,19 @@
 ```text
 projects/html-7088/
 ├── docs/ARCHITECTURE.md
+├── docs/DEBUG_SYNTAX.md
 ├── docs/TEST_SPEC.md
 ├── docs/architecture.md
+├── index.html
 ├── package.json
 ├── public/index.html
 ├── public/style.css
 ├── src/engine/AABB.js
 ├── src/engine/Audio.js
+├── src/engine/AudioSystem.js
 ├── src/engine/Camera.js
 ├── src/engine/EventEmitter.js
+├── src/engine/Game.js
 ├── src/engine/GameLoop.js
 ├── src/engine/Input.js
 ├── src/engine/InputHandler.js
@@ -35,6 +39,7 @@ projects/html-7088/
 ├── src/levels/World1_1.js
 ├── src/main.js
 ├── src/vitest.config.js
+├── src/world/Level.js
 ├── tests/collision.test.js
 ├── tests/physics.test.js
 ```

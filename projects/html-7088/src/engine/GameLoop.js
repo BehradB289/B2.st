@@ -1,31 +1,30 @@
 /**
- * Fixed Timestep Precision Game Loop
+ * Deterministic Fixed-Step Game Loop with requestAnimationFrame
  */
-
 export class GameLoop {
-  constructor(updateFn, renderFn, fixedDelta = 1 / 60) {
+  constructor(fixedStep, updateFn, renderFn) {
+    this.fixedStep = fixedStep;
     this.updateFn = updateFn;
     this.renderFn = renderFn;
-    this.fixedDelta = fixedDelta;
 
-    this.lastTime = 0;
     this.accumulator = 0;
-    this.running = false;
+    this.lastTime = 0;
+    this.isRunning = false;
     this.rafId = null;
 
     this._loop = this._loop.bind(this);
   }
 
   start() {
-    if (this.running) return;
-    this.running = true;
+    if (this.isRunning) return;
+    this.isRunning = true;
     this.lastTime = performance.now();
     this.accumulator = 0;
     this.rafId = requestAnimationFrame(this._loop);
   }
 
   stop() {
-    this.running = false;
+    this.isRunning = false;
     if (this.rafId) {
       cancelAnimationFrame(this.rafId);
       this.rafId = null;
@@ -33,22 +32,24 @@ export class GameLoop {
   }
 
   _loop(currentTime) {
-    if (!this.running) return;
+    if (!this.isRunning) return;
 
-    let frameTime = (currentTime - this.lastTime) / 1000;
-    if (frameTime > 0.25) frameTime = 0.25; // Prevent spiral of death
+    let deltaSeconds = (currentTime - this.lastTime) / 1000;
     this.lastTime = currentTime;
 
-    this.accumulator += frameTime;
-
-    while (this.accumulator >= this.fixedDelta) {
-      this.updateFn(this.fixedDelta);
-      this.accumulator -= this.fixedDelta;
+    // Prevent spiral of death on tab-out
+    if (deltaSeconds > 0.1) {
+      deltaSeconds = 0.1;
     }
 
-    const alpha = this.accumulator / this.fixedDelta;
-    this.renderFn(alpha);
+    this.accumulator += deltaSeconds;
 
+    while (this.accumulator >= this.fixedStep) {
+      this.updateFn(this.fixedStep);
+      this.accumulator -= this.fixedStep;
+    }
+
+    this.renderFn(this.accumulator / this.fixedStep);
     this.rafId = requestAnimationFrame(this._loop);
   }
 }

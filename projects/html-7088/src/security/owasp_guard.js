@@ -1,134 +1,84 @@
 /**
- * ============================================================================
- * Studio B2.st - Cyber Security & 10-Layer Runtime Application Self-Protection (RASP)
- * Project: Mario HTML5 Game Engine
- * Module: OWASP Software Firewall & Runtime Guard (owasp_guard.js)
- * Architecture: 10-Layer Hardened Defense Shield
- * ============================================================================
+ * ==============================================================================
+ * B2.st Cyber Defense Lab - Autonomous Software Firewall & OWASP Guard v2.4
+ * Engine: 10-Layer Deep Packet & DOM Inspection Runtime (DDIP-R)
+ * Focus: OWASP Top 10 (Client-Side XSS, Pre-flight SQLi Filtering, Token Vault)
+ * Target: HTML5 Mario Engine Environment
+ * ==============================================================================
  */
 
-(function (root, factory) {
-    'use strict';
-    if (typeof define === 'function' && define.amd) {
-        define([], factory);
-    } else if (typeof exports === 'object') {
-        module.exports = factory();
-    } else {
-        root.OWASPGuard = factory();
-    }
-}(typeof window !== 'undefined' ? window : this, function () {
+(function (window, document) {
     'use strict';
 
-    // Layer 1: Immutable Configuration & Threat Telemetry Matrix
-    const SECURITY_CONFIG = Object.freeze({
-        STRICT_CSP: true,
-        MAX_INPUT_LENGTH: 64,
-        TOKEN_STORAGE_KEY: '__b2_mario_secure_token__',
-        ALLOWED_ORIGINS: [window.location.origin],
-        SQLI_REGEX: /(\b(SELECT|INSERT|UPDATE|DELETE|DROP|UNION|ALTER|EXEC|DECLARE|MERGE|TRUNCATE)\b)|(--|\/\*|\*\/|;|['"]\s*OR\s*['"]?1['"]?\s*=\s*['"]?1|['"]\s*OR\s*true|@@version)/i,
-        XSS_REGEX: /((<|\%3C)\s*[^\n\r>]*(\/|\%2F)?(script|iframe|object|embed|applet|style|svg|form|input|base|link|meta)[^\n\r>]*>)|(javascript:|data:text\/html|vbscript:|livescript:)|(\bon\w+\s*=)/i,
-        TOKEN_ENTROPY_PATTERN: /^[a-zA-Z0-9\-_]{32,}\.[a-zA-Z0-9\-_]{32,}\.[a-zA-Z0-9\-_]{32,}$/, // JWT-like
-        VIOLATION_LOG_LIMIT: 100
+    // مسدودسازی اجرای تکراری
+    if (window.__OWASP_GUARD_ACTIVE__) {
+        console.warn('[B2.st-Shield] گارد امنیتی از قبل در حافظه فعال است.');
+        return;
+    }
+
+    // ==========================================
+    // LAYER 1 & 2: امضاهای تشخیصی (XSS & SQLi Signatures)
+    // ==========================================
+    const SIGNATURES = Object.freeze({
+        SQLI: [
+            /(\b(SELECT|INSERT|UPDATE|DELETE|DROP|UNION|ALTER|EXEC|CREATE|TRUNCATE)\b\s+)/i,
+            /(--|#|\/\*|\*\/|;)/,
+            /('|\b)(OR|AND)\b.+?=.+?/i,
+            /\bWAITFOR\b\s+\bDELAY\b/i,
+            /\bBENCHMARK\b\s*\(.+?,.+?\)/i
+        ],
+        XSS: [
+            /<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi,
+            /javascript\s*:/gi,
+            /vbscript\s*:/gi,
+            /data\s*:\s*text\/html/gi,
+            /on\w+\s*=\s*(['"]).*?\1/gi,
+            /on\w+\s*=\s*[^>\s]+/gi,
+            /<(iframe|object|embed|svg|img|style|link)\b.*?(src|href|data|onerror|onload)\s*=.*?>/gi
+        ],
+        TOKEN_PATTERNS: [
+            /bearer\s+[a-zA-Z0-9_\-\.]{20,}/i,
+            /eyJ[a-zA-Z0-9_\-]{10,}\.eyJ[a-zA-Z0-9_\-]{10,}\.[a-zA-Z0-9_\-]{10,}/, // JWT Regex
+            /[0-9a-fA-F]{32,64}/ // Generic Token/Key Hex
+        ]
     });
 
-    const SecurityTelemetry = {
-        violations: [],
-        logViolation: function (type, detail, severity = 'CRITICAL') {
-            const incident = Object.freeze({
-                timestamp: new Date().toISOString(),
-                type: type,
-                detail: String(detail).substring(0, 256),
-                severity: severity,
-                stack: new Error().stack
-            });
-            this.violations.unshift(incident);
-            if (this.violations.length > SECURITY_CONFIG.VIOLATION_LOG_LIMIT) {
-                this.violations.pop();
+    // ==========================================
+    // LAYER 3: گاوصندوق حافظه امن (Isolated Token Vault)
+    // ==========================================
+    const TokenVault = (function () {
+        const _vault = new WeakMap();
+        const _keyReference = { id: 'B2_MARIO_ENCRYPTED_VAULT' };
+        _vault.set(_keyReference, new Map());
+
+        return {
+            set: function (key, token) {
+                if (typeof token !== 'string') throw new TypeError('[Vault] فرمت توکن نامعتبر است.');
+                // فیلتر مقادیر پیش از ذخیره‌سازی
+                const sanitizedToken = token.trim();
+                _vault.get(_keyReference).set(key, sanitizedToken);
+                // ممانعت از قرارگیری توکن در storage عمومی
+                sessionStorage.removeItem(key);
+                localStorage.removeItem(key);
+            },
+            get: function (key) {
+                return _vault.get(_keyReference).get(key) || null;
+            },
+            revoke: function (key) {
+                _vault.get(_keyReference).delete(key);
+            },
+            has: function (key) {
+                return _vault.get(_keyReference).has(key);
             }
-            console.warn(`[OWASP_FIREWALL_ALERT] [${severity}] ${type}:`, detail);
-        }
-    };
+        };
+    })();
 
-    // Layer 2: Deep Cryptographic Token Vault (Token Leakage Barrier)
-    class SecureTokenVault {
-        #memoryVault = new Map();
-
-        constructor() {
-            this.#purgeLeakedTokensFromStorage();
-            this.#stripTokensFromURL();
-        }
-
-        #purgeLeakedTokensFromStorage() {
-            try {
-                // Remove unprotected plain tokens stored carelessly
-                const suspiciousKeys = ['token', 'jwt', 'auth', 'mario_token', 'session'];
-                [localStorage, sessionStorage].forEach(store => {
-                    for (let i = store.length - 1; i >= 0; i--) {
-                        const key = store.key(i);
-                        if (suspiciousKeys.some(s => key.toLowerCase().includes(s))) {
-                            SecurityTelemetry.logViolation('TOKEN_STORAGE_LEAK', `Removed plain token candidate in storage: ${key}`);
-                            store.removeItem(key);
-                        }
-                    }
-                });
-            } catch (e) {
-                // Storage might be restricted
-            }
-        }
-
-        #stripTokensFromURL() {
-            try {
-                if (window.location.search || window.location.hash) {
-                    const url = new URL(window.location.href);
-                    let mutated = false;
-                    const params = ['token', 'jwt', 'access_token', 'auth'];
-                    params.forEach(p => {
-                        if (url.searchParams.has(p)) {
-                            SecurityTelemetry.logViolation('TOKEN_URL_EXPOSURE', `Stripped token parameter: ${p}`);
-                            url.searchParams.delete(p);
-                            mutated = true;
-                        }
-                    });
-                    if (url.hash.includes('token=')) {
-                        SecurityTelemetry.logViolation('TOKEN_URL_FRAGMENT_EXPOSURE', 'Stripped hash token fragment');
-                        url.hash = '';
-                        mutated = true;
-                    }
-                    if (mutated) {
-                        window.history.replaceState({}, document.title, url.pathname + url.search);
-                    }
-                }
-            } catch (e) {
-                // Defensive catch
-            }
-        }
-
-        setSecureToken(key, value) {
-            if (typeof key !== 'string' || typeof value !== 'string') return false;
-            // Never expose real tokens to DOM/Local Storage; isolate in memory
-            this.#memoryVault.set(key, Object.freeze({
-                val: value,
-                created: Date.now()
-            }));
-            return true;
-        }
-
-        getSecureToken(key) {
-            const entry = this.#memoryVault.get(key);
-            return entry ? entry.val : null;
-        }
-
-        revoke(key) {
-            this.#memoryVault.delete(key);
-        }
-    }
-
-    const tokenVault = new SecureTokenVault();
-
-    // Layer 3: Anti-XSS Sanitizer & Strict Encoding Engine
+    // ==========================================
+    // LAYER 4: موتور پالایش و بهسازی داده (Sanitizer)
+    // ==========================================
     const Sanitizer = {
-        encodeHTML: function (str) {
-            if (typeof str !== 'string') return '';
+        escapeHTML: function (str) {
+            if (typeof str !== 'string') return str;
             return str
                 .replace(/&/g, '&amp;')
                 .replace(/</g, '&lt;')
@@ -138,230 +88,224 @@
                 .replace(/\//g, '&#x2F;');
         },
 
-        validateSafeText: function (input) {
-            if (typeof input !== 'string') return '';
-            let sanitized = input.trim();
-            if (sanitized.length > SECURITY_CONFIG.MAX_INPUT_LENGTH) {
-                sanitized = sanitized.substring(0, SECURITY_CONFIG.MAX_INPUT_LENGTH);
-            }
-            if (SECURITY_CONFIG.XSS_REGEX.test(sanitized)) {
-                SecurityTelemetry.logViolation('XSS_ATTACK_MITIGATED', sanitized);
-                return this.encodeHTML(sanitized.replace(SECURITY_CONFIG.XSS_REGEX, ''));
-            }
-            return this.encodeHTML(sanitized);
-        }
-    };
+        inspectPayload: function (data, context = 'GENERAL') {
+            if (typeof data !== 'string') return true;
 
-    // Layer 4: SQL Injection Inspection & Prevention Engine
-    const SQLiShield = {
-        isMalicious: function (payload) {
-            if (!payload) return false;
-            let targetString = '';
-            if (typeof payload === 'string') {
-                targetString = payload;
-            } else if (typeof payload === 'object') {
-                try {
-                    targetString = JSON.stringify(payload);
-                } catch {
+            // اعتبارسنجی عبارات حمله SQLi
+            for (let regex of SIGNATURES.SQLI) {
+                if (regex.test(data)) {
+                    SecurityAuditor.logViolation('CRITICAL', `تلاش برای تزریق SQL شناسایی شد در زمینه: ${context}`, data);
                     return false;
                 }
             }
 
-            if (SECURITY_CONFIG.SQLI_REGEX.test(targetString)) {
-                SecurityTelemetry.logViolation('SQLI_ATTACK_DETECTED', targetString);
-                return true;
+            // اعتبارسنجی عبارات حمله XSS
+            for (let regex of SIGNATURES.XSS) {
+                if (regex.test(data)) {
+                    SecurityAuditor.logViolation('CRITICAL', `تزریق اسکریپت آلوده (XSS) مسدود شد در زمینه: ${context}`, data);
+                    return false;
+                }
             }
-            return false;
-        },
 
-        filterInput: function (str) {
-            if (this.isMalicious(str)) {
-                return '';
-            }
-            return Sanitizer.validateSafeText(str);
+            return true;
         }
     };
 
-    // Layer 5: Prototype Hijack Protection & DOM Sink Sandboxing
-    (function sealDOMSinks() {
-        // Intercept innerHTML injection vector
-        const originalSetInnerHTML = Object.getOwnPropertyDescriptor(Element.prototype, 'innerHTML').set;
+    // ==========================================
+    // LAYER 5: لاگر و بازرس رویدادهای امنیتی (Security Auditor)
+    // ==========================================
+    const SecurityAuditor = {
+        logViolation: function (severity, description, payload) {
+            const report = {
+                timestamp: new Date().toISOString(),
+                severity: severity,
+                event: description,
+                // کپسوله‌سازی برای جلوگیری از بازتولید اسکریپت داخل لاگ
+                sample: Sanitizer.escapeHTML(String(payload).slice(0, 80)),
+                engine: 'OWASP-B2-Guard'
+            };
+            console.error(`🚨 [B2.st SECURITY ALARM] [${severity}]: ${description}`, report);
+            window.dispatchEvent(new CustomEvent('owasp-security-violation', { detail: report }));
+        }
+    };
+
+    // ==========================================
+    // LAYER 6: ایمن‌سازی ورودی‌های DOM (Virtual Sinks)
+    // ==========================================
+    function patchDOMSinks() {
+        // ۱. مهار innerHTML
+        const originalInnerHTMLDescriptor = Object.getOwnPropertyDescriptor(Element.prototype, 'innerHTML');
         Object.defineProperty(Element.prototype, 'innerHTML', {
-            set: function (dirtyContent) {
-                if (typeof dirtyContent === 'string' && SECURITY_CONFIG.XSS_REGEX.test(dirtyContent)) {
-                    SecurityTelemetry.logViolation('DOM_XSS_SINK_BLOCKED', dirtyContent);
-                    dirtyContent = Sanitizer.encodeHTML(dirtyContent);
+            set: function (value) {
+                if (typeof value === 'string') {
+                    if (!Sanitizer.inspectPayload(value, 'Element.innerHTML')) {
+                        console.warn('[B2.st-Shield] ورودی innerHTML فاقد ایمنی است؛ پالایش خودکار انجام شد.');
+                        value = Sanitizer.escapeHTML(value);
+                    }
                 }
-                return originalSetInnerHTML.call(this, dirtyContent);
+                return originalInnerHTMLDescriptor.set.call(this, value);
             },
-            configurable: false,
-            enumerable: true
+            get: function () {
+                return originalInnerHTMLDescriptor.get.call(this);
+            },
+            configurable: false
         });
 
-        // Intercept dangerous code-execution sinks
+        // ۲. مهار setAttribute جهت جلوگیری از تزریق Event Handlerهای نامتعارف و آدرس‌های خطرناک
+        const originalSetAttribute = Element.prototype.setAttribute;
+        Element.prototype.setAttribute = function (name, value) {
+            const attrName = name.toLowerCase().trim();
+            const attrValue = String(value);
+
+            if (attrName.startsWith('on')) {
+                SecurityAuditor.logViolation('HIGH', `مسدودسازی تخصیص هندلر درون‌خطی خطرناک: ${attrName}`, attrValue);
+                return;
+            }
+
+            if ((attrName === 'src' || attrName === 'href') &&
+                (attrValue.toLowerCase().startsWith('javascript:') || attrValue.toLowerCase().startsWith('data:text/html'))) {
+                SecurityAuditor.logViolation('CRITICAL', `تلاش برای اجرای اسکریپت در شناسه ${attrName}`, attrValue);
+                return;
+            }
+
+            return originalSetAttribute.call(this, name, value);
+        };
+
+        // ۳. محافظت از توابع مفسر مستقیم (eval, Function constructor)
         window.eval = function () {
-            SecurityTelemetry.logViolation('EVAL_EXECUTION_BLOCKED', 'Dynamic eval disabled by OWASP Guard.');
-            throw new Error('[OWASP] eval() is permanently disabled for security.');
+            SecurityAuditor.logViolation('CRITICAL', 'تلاش نامعتبر برای فراخوانی eval مسدود شد.', 'eval execution');
+            throw new Error('[B2.st Security] فراخوانی مستقیم eval از لحاظ امنیتی ممنوع می‌باشد.');
         };
+    }
 
-        window.Function = new Proxy(window.Function, {
-            construct(target, args) {
-                SecurityTelemetry.logViolation('FUNCTION_CONSTRUCTOR_BLOCKED', 'Dynamic Function constructor blocked.');
-                throw new Error('[OWASP] Dynamic code evaluation disabled.');
-            }
-        });
-    })();
-
-    // Layer 6: Network Layer Firewall (Fetch/XHR Guard against Token Leakage & SQLi Payloads)
-    (function installNetworkFirewall() {
+    // ==========================================
+    // LAYER 7: فایروال ترافیک شبکه (Fetch & XHR Interceptor)
+    // ==========================================
+    function setupNetworkFirewall() {
+        // ۱. رهگیری Fetch API
         const originalFetch = window.fetch;
-        window.fetch = async function (input, init = {}) {
-            const urlString = typeof input === 'string' ? input : (input && input.url ? input.url : '');
+        window.fetch = async function (resource, options = {}) {
+            const url = typeof resource === 'string' ? resource : resource.url;
 
-            // Token Leakage Prevention: Ensure credentials/tokens never leak to unknown domains
-            const isLocalRequest = SECURITY_CONFIG.ALLOWED_ORIGINS.some(allowed => urlString.startsWith('/') || urlString.startsWith(allowed));
-            if (!isLocalRequest && init && init.headers) {
-                const headers = new Headers(init.headers);
-                if (headers.has('Authorization') || headers.has('x-access-token')) {
-                    SecurityTelemetry.logViolation('CROSS_ORIGIN_TOKEN_LEAK_PREVENTED', urlString);
-                    headers.delete('Authorization');
-                    headers.delete('x-access-token');
-                    init.headers = headers;
+            // ارزیابی آدرس اینترنتی (Query Strings)
+            if (!Sanitizer.inspectPayload(url, 'Fetch URL Query')) {
+                throw new SecurityError('[B2.st Firewall] درخواست به دلیل شناسایی کاراکترهای مخرب متوقف شد.');
+            }
+
+            // بازرسی بادی درخواست
+            if (options.body && typeof options.body === 'string') {
+                if (!Sanitizer.inspectPayload(options.body, 'Fetch Body Data')) {
+                    throw new SecurityError('[B2.st Firewall] بدنه ارسالی به علت نقض سیاست OWASP معلق شد.');
                 }
             }
 
-            // Inspect Outbound Payload for SQLi & XSS
-            if (init && init.body) {
-                if (SQLiShield.isMalicious(init.body)) {
-                    SecurityTelemetry.logViolation('OUTBOUND_SQLI_PAYLOAD_ABORTED', urlString);
-                    throw new Error('[OWASP] Network request aborted: Malicious payload detected.');
+            // پیشگیری از افشای توکن در دامنه‌های غریبه (Token Leakage Defense)
+            try {
+                const parsedUrl = new URL(url, window.location.origin);
+                if (parsedUrl.origin !== window.location.origin) {
+                    if (options.headers) {
+                        const headersObj = new Headers(options.headers);
+                        if (headersObj.has('Authorization')) {
+                            SecurityAuditor.logViolation('HIGH', 'نشت توکن در دامنه سوم شخص شناسایی و بلاک شد.', url);
+                            headersObj.delete('Authorization');
+                            options.headers = headersObj;
+                        }
+                    }
+                }
+            } catch (e) {
+                // ادامه مسیر در صورت خطای تجزیه
+            }
+
+            return originalFetch.apply(this, [resource, options]);
+        };
+
+        // ۲. رهگیری XMLHttpRequest
+        const originalXHROpen = XMLHttpRequest.prototype.open;
+        XMLHttpRequest.prototype.open = function (method, url, ...rest) {
+            if (!Sanitizer.inspectPayload(url, 'XHR Open URL')) {
+                throw new SecurityError('[B2.st Firewall] درخواست XHR متوقف شد.');
+            }
+            return originalXHROpen.apply(this, [method, url, ...rest]);
+        };
+
+        const originalXHRSend = XMLHttpRequest.prototype.send;
+        XMLHttpRequest.prototype.send = function (body) {
+            if (body && typeof body === 'string') {
+                if (!Sanitizer.inspectPayload(body, 'XHR Payload Data')) {
+                    throw new SecurityError('[B2.st Firewall] بدنه XHR مسدود شد.');
                 }
             }
-
-            return originalFetch.apply(this, [input, init]);
+            return originalXHRSend.apply(this, [body]);
         };
+    }
 
-        // Proxy XMLHttpRequest
-        const originalOpen = XMLHttpRequest.prototype.open;
-        const originalSend = XMLHttpRequest.prototype.send;
-
-        XMLHttpRequest.prototype.open = function (method, url) {
-            this._b2_url = url;
-            return originalOpen.apply(this, arguments);
-        };
-
-        XMLHttpRequest.prototype.send = function (data) {
-            if (data && SQLiShield.isMalicious(data)) {
-                SecurityTelemetry.logViolation('XHR_SQLI_PAYLOAD_ABORTED', this._b2_url);
-                throw new Error('[OWASP] XHR transmission aborted due to security policy.');
+    // ==========================================
+    // LAYER 8: فیلتراسیون زنده فیلدهای بازی ماریو (UI/Input Sanitizer)
+    // ==========================================
+    function attachInputFilterEngine() {
+        document.addEventListener('input', function (event) {
+            const target = event.target;
+            if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) {
+                const currentVal = target.value;
+                // حذف بلافاصله کاراکترهای کنترلی تزریق قبل از پردازش موتور بازی
+                if (!Sanitizer.inspectPayload(currentVal, 'Realtime Form Input')) {
+                    target.value = Sanitizer.escapeHTML(currentVal)
+                        .replace(/[<>'"`;()=]/g, '');
+                    target.dispatchEvent(new Event('change'));
+                }
             }
-            return originalSend.apply(this, arguments);
-        };
-    })();
+        }, true);
+    }
 
-    // Layer 7: Memory Integrity Guard for Game Engine State
-    class MarioMemoryVault {
-        #state = {
-            score: 0,
-            lives: 3,
-            coins: 0
-        };
-
-        #checksum = 0;
-
-        constructor() {
-            this.#updateChecksum();
-        }
-
-        #calculateChecksum(s) {
-            const str = `${s.score}:${s.lives}:${s.coins}#B2_SECURE_SALT`;
-            let hash = 0;
-            for (let i = 0; i < str.length; i++) {
-                hash = ((hash << 5) - hash) + str.charCodeAt(i);
-                hash |= 0;
+    // ==========================================
+    // LAYER 9 & 10: سخت‌سازی نشست و انجماد ماژول
+    // ==========================================
+    function protectHistoryAndReferrer() {
+        // حذف پارامترهای توکن‌دار از URL
+        if (window.history && window.history.replaceState) {
+            const currentUrl = new URL(window.location.href);
+            let cleaned = false;
+            ['token', 'auth', 'jwt', 'access_token', 'api_key'].forEach(param => {
+                if (currentUrl.searchParams.has(param)) {
+                    TokenVault.set(param, currentUrl.searchParams.get(param));
+                    currentUrl.searchParams.delete(param);
+                    cleaned = true;
+                }
+            });
+            if (cleaned) {
+                window.history.replaceState({}, document.title, currentUrl.pathname + currentUrl.search);
+                console.info('[B2.st-Shield] پارامترهای توکن از نوار آدرس پاک و به والت امن منتقل گردید.');
             }
-            return hash;
-        }
-
-        #updateChecksum() {
-            this.#checksum = this.#calculateChecksum(this.#state);
-        }
-
-        verifyIntegrity() {
-            if (this.#calculateChecksum(this.#state) !== this.#checksum) {
-                SecurityTelemetry.logViolation('MEMORY_CORRUPTION_OR_TAMPER', 'State signature mismatch');
-                this.#state.score = 0;
-                this.#state.lives = 0;
-                return false;
-            }
-            return true;
-        }
-
-        update(mutationFn) {
-            if (!this.verifyIntegrity()) return false;
-            mutationFn(this.#state);
-            this.#updateChecksum();
-            return true;
-        }
-
-        read() {
-            if (!this.verifyIntegrity()) {
-                return { score: 0, lives: 0, coins: 0 };
-            }
-            return Object.freeze({ ...this.#state });
         }
     }
 
-    // Layer 8: Meta CSP Dynamic Enforcer
-    (function enforceCSP() {
-        if (!SECURITY_CONFIG.STRICT_CSP) return;
-        const existingMeta = document.querySelector('meta[http-equiv="Content-Security-Policy"]');
-        if (!existingMeta) {
-            const meta = document.createElement('meta');
-            meta.httpEquiv = 'Content-Security-Policy';
-            meta.content = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:;";
-            document.head.appendChild(meta);
-        }
-    })();
+    // فعال‌سازی تمامی لایه‌ها
+    try {
+        patchDOMSinks();
+        setupNetworkFirewall();
+        attachInputFilterEngine();
+        protectHistoryAndReferrer();
 
-    // Layer 9: Safe UI Input Adapter for Mario Game Components
-    function attachSafeInputBinder(inputElement, onSafeSubmit) {
-        if (!inputElement) return;
+        // نشانه ران‌تایم محافظت‌شده
+        Object.defineProperty(window, '__OWASP_GUARD_ACTIVE__', {
+            value: true,
+            writable: false,
+            configurable: false
+        });
 
-        inputElement.setAttribute('maxlength', SECURITY_CONFIG.MAX_INPUT_LENGTH);
-        inputElement.setAttribute('autocomplete', 'off');
-
-        inputElement.addEventListener('paste', function (e) {
-            const pasteData = (e.clipboardData || window.clipboardData).getData('text');
-            if (SQLiShield.isMalicious(pasteData) || SECURITY_CONFIG.XSS_REGEX.test(pasteData)) {
-                e.preventDefault();
-                SecurityTelemetry.logViolation('MALICIOUS_CLIPBOARD_PASTE', pasteData);
-                alert('کاراکترهای غیرمجاز در متن الصاق شده شناسایی و مسدود شدند.');
+        // افشای ایمن APIهای موردنیاز بازی
+        window.B2Secure = Object.freeze({
+            sanitize: Sanitizer.escapeHTML,
+            verifySafeString: Sanitizer.inspectPayload,
+            vault: TokenVault,
+            auditor: {
+                reportThreat: SecurityAuditor.logViolation
             }
         });
 
-        inputElement.addEventListener('keydown', function (e) {
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                const sanitized = Sanitizer.validateSafeText(inputElement.value);
-                if (sanitized !== inputElement.value) {
-                    inputElement.value = sanitized;
-                }
-                if (onSafeSubmit) onSafeSubmit(sanitized);
-            }
-        });
+        console.info('%c[B2.st Studio] موتور OWASP Guard با موفقیت بارگذاری شد. کلیه سطوح نفوذ مسدود هستند.', 'color: #00ff00; font-weight: bold;');
+    } catch (err) {
+        console.error('[B2.st Shield Fatal Error] راه‌اندازی گارد امنیتی ناموفق بود:', err);
     }
 
-    // Layer 10: External Frozen Interface & Anti-Tampering Shield
-    const OWASPGuardInstance = {
-        Sanitizer: Object.freeze(Sanitizer),
-        SQLiShield: Object.freeze(SQLiShield),
-        TokenVault: tokenVault,
-        GameMemory: new MarioMemoryVault(),
-        attachSafeInputBinder: attachSafeInputBinder,
-        getTelemetry: () => [...SecurityTelemetry.violations],
-        version: '10.0.0-PROD-STABLE'
-    };
-
-    return Object.freeze(OWASPGuardInstance);
-}));
+})(window, document);

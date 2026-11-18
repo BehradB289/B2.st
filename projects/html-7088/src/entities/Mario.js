@@ -1,122 +1,126 @@
 import { Entity } from './Entity.js';
+import { GameConfig } from '../../config/game_config.js';
 
-'use strict';
-
+/**
+ * موجودیت بازیکن اصلی ماریو
+ */
 export class Mario extends Entity {
-    constructor(x, y) {
-        super(x, y, 28, 38);
-        this.moveSpeed = 220;
-        this.runSpeed = 340;
-        this.jumpForce = 520;
-        this.gravity = 1450;
+    /**
+     * @param {number} x 
+     * @param {number} y 
+     * @param {import('../levels/SpriteSheet.js').SpriteSheet} spriteSheet 
+     * @param {import('../engine/AudioEngine.js').AudioEngine} audio 
+     */
+    constructor(x, y, spriteSheet, audio) {
+        super(x, y, 14, 16); // محدوده برخورد فیزیکی دقیق
+        this.spriteSheet = spriteSheet;
+        this.audio = audio;
+        this.tag = 'mario';
+
         this.facingRight = true;
-        this.isJumping = false;
-        this.isDead = false;
-        this.deathTimer = 0;
+        this.animTimer = 0;
+        this.animFrame = 0;
+        this.invulnerableTimer = 0;
     }
 
-    update(dt, input, level, audio) {
+    update(dt, input) {
         if (this.isDead) {
-            this.deathTimer += dt;
-            this.vy += this.gravity * 0.8 * dt;
-            this.y += this.vy * dt;
+            // شبیه‌سازی انیمیشن مرگ و جهش به بالا و سقوط
+            this.velocity.y += GameConfig.WORLD.GRAVITY * 0.7 * dt;
+            this.position.y += this.velocity.y * dt;
             return;
         }
 
-        const speed = input.keys.run ? this.runSpeed : this.moveSpeed;
+        // بررسی زمان مصونیت پس از آسیب
+        if (this.invulnerableTimer > 0) {
+            this.invulnerableTimer -= dt;
+        }
 
-        // شتاب و حرکت افقی
-        if (input.keys.left) {
-            this.vx = -speed;
-            this.facingRight = false;
-        } else if (input.keys.right) {
-            this.vx = speed;
+        const accel = input.keys.run ? GameConfig.MARIO.RUN_ACCELERATION : GameConfig.MARIO.MOVE_ACCELERATION;
+        const maxSpeed = input.keys.run ? GameConfig.MARIO.MAX_RUN_SPEED : GameConfig.MARIO.MAX_WALK_SPEED;
+
+        // ورودی افقی
+        if (input.keys.right) {
+            this.velocity.x += accel * dt;
             this.facingRight = true;
+        } else if (input.keys.left) {
+            this.velocity.x -= accel * dt;
+            this.facingRight = false;
         } else {
-            this.vx = 0;
+            // اعمال اصطکاک سطح
+            this.velocity.x *= GameConfig.WORLD.FRICTION;
+            if (Math.abs(this.velocity.x) < 5) this.velocity.x = 0;
         }
 
-        // پرش
-        if (input.keys.jump && this.isGrounded && !this.isJumping) {
-            this.vy = -this.jumpForce;
+        // محدودسازی حداکثر سرعت افقی
+        if (this.velocity.x > maxSpeed) this.velocity.x = maxSpeed;
+        if (this.velocity.x < -maxSpeed) this.velocity.x = -maxSpeed;
+
+        // فرمان پرش
+        if (input.keys.jump && this.isGrounded) {
+            this.velocity.y = -GameConfig.MARIO.JUMP_FORCE;
             this.isGrounded = false;
-            this.isJumping = true;
-            if (audio) audio.playJump();
+            this.audio.playJump();
         }
 
-        // قطع پرش در صورت رها کردن دکمه برای کنترل ارتفاع
-        if (!input.keys.jump && this.vy < -200) {
-            this.vy = -200;
+        // اعمال گرانش جهانی
+        this.velocity.y += GameConfig.WORLD.GRAVITY * dt;
+        if (this.velocity.y > GameConfig.WORLD.MAX_FALL_SPEED) {
+            this.velocity.y = GameConfig.WORLD.MAX_FALL_SPEED;
         }
 
-        // اعمال گرانش
-        this.vy += this.gravity * dt;
-        if (this.vy > 900) this.vy = 900; // محدودیت سرعت سقوط (Terminal Velocity)
-
-        // جابجایی افقی و بررسی برخورد با تایل‌ها
-        this.x += this.vx * dt;
-        level.resolveHorizontalCollisions(this);
-
-        // جابجایی عمودی و بررسی برخورد با تایل‌ها
-        this.y += this.vy * dt;
-        this.isGrounded = false;
-        level.resolveVerticalCollisions(this, audio);
-
-        if (this.isGrounded) {
-            this.isJumping = false;
-        }
-
-        // سقوط در دره‌ها (Fall out of bounds)
-        if (this.y > 550 && !this.isDead) {
-            this.die(audio);
+        // انیمیشن دویدن
+        if (Math.abs(this.velocity.x) > 10 && this.isGrounded) {
+            this.animTimer += dt * (Math.abs(this.velocity.x) / 10);
+            if (this.animTimer > 0.12) {
+                this.animFrame = (this.animFrame + 1) % 2;
+                this.animTimer = 0;
+            }
+        } else {
+            this.animFrame = 0;
         }
     }
 
-    die(audio) {
+    bounce() {
+        this.velocity.y = -GameConfig.MARIO.BOUNCE_FORCE;
+        this.isGrounded = false;
+    }
+
+    die() {
         if (this.isDead) return;
         this.isDead = true;
-        this.vx = 0;
-        this.vy = -450;
-        if (audio) audio.playGameOver();
+        this.velocity.x = 0;
+        this.velocity.y = -260; // پرش کوتاه قبل از افتادن
+        this.audio.playDie();
     }
 
-    render(ctx, cameraX) {
-        const renderX = Math.round(this.x - cameraX);
-        const renderY = Math.round(this.y);
-
-        ctx.save();
-        ctx.translate(renderX, renderY);
-
-        if (!this.facingRight) {
-            ctx.scale(-1, 1);
-            ctx.translate(-this.width, 0);
+    render(ctx, camera) {
+        // در صورت مصونیت چشمک بزند
+        if (this.invulnerableTimer > 0 && Math.floor(performance.now() / 60) % 2 === 0) {
+            return;
         }
 
-        // رندر برداری پیکسلی ماریو (بدون وابستگی به ایمیج خارجی جهت پایداری ۱۰۰٪)
-        // کلاه و پیراهن (قرمز)
-        ctx.fillStyle = this.isDead ? '#64748b' : '#ef4444';
-        ctx.fillRect(4, 0, 20, 8); // کلاه
-        ctx.fillRect(6, 12, 16, 12); // تنه
+        const renderX = Math.floor(this.position.x - camera.x);
+        const renderY = Math.floor(this.position.y - camera.y);
 
-        // چهره (کرم / پوست)
-        ctx.fillStyle = '#fde047';
-        ctx.fillRect(8, 6, 14, 8);
+        let sprite;
+        if (this.isDead) {
+            sprite = this.spriteSheet.getMarioJump();
+        } else if (!this.isGrounded) {
+            sprite = this.spriteSheet.getMarioJump();
+        } else if (Math.abs(this.velocity.x) > 10) {
+            sprite = this.spriteSheet.getMarioRun(this.animFrame);
+        } else {
+            sprite = this.spriteSheet.getMarioIdle();
+        }
 
-        // سبیل و مو (قهوه‌ای)
-        ctx.fillStyle = '#78350f';
-        ctx.fillRect(16, 8, 6, 4);
-
-        // شلوار سرهمی (آبی)
-        ctx.fillStyle = '#2563eb';
-        ctx.fillRect(6, 22, 16, 10);
-        ctx.fillRect(4, 18, 4, 8);
-        ctx.fillRect(20, 18, 4, 8);
-
-        // کفش‌ها (قهوه‌ای تیره)
-        ctx.fillStyle = '#451a03';
-        ctx.fillRect(4, 32, 8, 6);
-        ctx.fillRect(16, 32, 8, 6);
-
+        ctx.save();
+        if (!this.facingRight) {
+            ctx.scale(-1, 1);
+            ctx.drawImage(sprite, -renderX - this.size.x, renderY);
+        } else {
+            ctx.drawImage(sprite, renderX, renderY);
+        }
         ctx.restore();
     }
 }

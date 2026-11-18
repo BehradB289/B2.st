@@ -1,272 +1,155 @@
+/**
+ * سرور اکشن‌های اصلی تراکنش و آزادسازی محتوا در پی‌پاس (PayPass)
+ * استودیو B2.st
+ */
+
 'use server';
 
-import { redirect } from 'next/navigation';
-import { ENV } from '../../../config/env';
-import { decryptSensitiveContent } from '../../lib/crypto';
-import { ZarinPalGateway } from '../../lib/payment/zarinpal';
-import { getSupabaseAdmin } from '../../lib/supabase/server';
-import {
-  CreatePaymentSessionInput,
-  CreatePaymentSessionResult,
-  VerifyPaymentResult,
-} from '../../types/payment';
-import { ItemRecord, OrderRecord } from '../../types/database';
+import crypto from 'crypto';
+import { calculatePlatformSplit } from '../../lib/fee';
+import { decryptSecret } from '../../lib/crypto';
+import { paymentGateway } from '../../lib/gateway';
+import { dbInstance } from '../../lib/supabase';
+import { InitiatePaymentResult, VerifyPaymentResult, PayPassOrder } from '../../types/paypass';
 
 /**
- * سرور اکشن ۱: ایجاد جلسه پرداخت، کسر کارمزد ۵٪ پلتفرم و دریافت آدرس درگاه
+ * سرور اکشن ۱: اعتبارسنجی ورودی، ثبت سفارش اولیه در وضعیت pending و کسر ۵٪ کارمزد پلتفرم
  */
-export async function createPaymentSession(
-  input: CreatePaymentSessionInput
-): Promise<CreatePaymentSessionResult> {
-  const { itemId, buyerEmail, buyerPhone } = input;
-
-  if (!itemId) {
-    return { success: false, error: '⚠️ شناسه آیتم برای ایجاد سفارش الزامی است.' };
-  }
-
-  const supabase = getSupabaseAdmin();
-
-  // ۱. واکشی آیتم و اطمینان از فعال بودن آن
-  const { data: item, error: itemError } = await supabase
-    .from('items')
-    .select('id, title, price, currency, is_active')
-    .eq('id', itemId)
-    .single<Pick<ItemRecord, 'id' | 'title' | 'price' | 'currency' | 'is_active'>>();
-
-  if (itemError || !item) {
-    return {
-      success: false,
-      error: '❌ آیتم مورد نظر یافت نشد یا غیرفعال شده است.',
-    };
-  }
-
-  if (!item.is_active) {
-    return {
-      success: false,
-      error: '⛔ این محتوا در حال حاضر برای فروش در دسترس نمی‌باشد.',
-    };
-  }
-
-  const amount = Number(item.price);
-
-  // ۲. محاسبه محاسبات مالی: ۵٪ کارمزد پلتفرم پی‌پاس و ۹۵٪ سهم خالق اثر
-  const platformFee = Math.round(amount * (ENV.PLATFORM_FEE_PERCENT / 100));
-  const creatorAmount = amount - platformFee;
-
-  // ۳. ایجاد اولیه رکورد در جدول سفارشات (وضعیت: pending)
-  const { data: newOrder, error: orderError } = await supabase
-    .from('orders')
-    .insert({
-      item_id: item.id,
-      amount,
-      platform_fee: platformFee,
-      creator_amount: creatorAmount,
-      currency: item.currency || 'IRT',
-      buyer_email: buyerEmail || null,
-      buyer_phone: buyerPhone || null,
-      status: 'pending',
-    })
-    .select('id')
-    .single<Pick<OrderRecord, 'id'>>();
-
-  if (orderError || !newOrder) {
-    console.error('[PayPass Error] ناتوانی در ثبت رکورد سفارش:', orderError);
-    return {
-      success: false,
-      error: '💥 خطای سیستمی در ایجاد سفارش خرید. لطفاً دقایقی دیگر تلاش فرمایید.',
-    };
-  }
-
-  // ۴. دریافت توکن پرداخت (Authority) از درگاه شاپرک
-  const callbackUrl = `${ENV.APP_URL}/checkout/verify`;
-
-  let gatewayResult;
+export async function createPaymentOrder(
+  itemId: string,
+  buyerEmail: string
+): Promise<InitiatePaymentResult> {
   try {
-    gatewayResult = await ZarinPalGateway.requestPayment({
-      amount,
-      description: `خرید محتوای پی‌پاس: ${item.title}`,
-      callbackUrl,
-      mobile: buyerPhone,
-      email: buyerEmail,
+    // اعتبارسنجی ایمیل خریدار
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!buyerEmail || !emailRegex.test(buyerEmail.trim())) {
+      return { success: false, error: 'آدرس ایمیل وارد شده نامعتبر است.' };
+    }
+
+    // واکشی آیتم از دیتابیس
+    const item = dbInstance.getItem(itemId);
+    if (!item) {
+      return { success: false, error: 'محتوای مورد نظر یافت نشد.' };
+    }
+
+    // محاسبه سهم ۵٪ پلتفرم و ۹۵٪ فروشنده
+    const split = calculatePlatformSplit(item.price);
+
+    const orderId = `ord_${crypto.randomUUID()}`;
+
+    // درخواست توکن از درگاه پرداخت
+    const gatewayRes = await paymentGateway.requestPayment({
+      orderId,
+      amount: item.price,
+      buyerEmail: buyerEmail.trim(),
+      callbackUrl: `https://paypass.b2.st/checkout/verify?order_id=${orderId}`,
     });
-  } catch (err: any) {
-    console.error('[PayPass Error] خطا در دریافت توکن درگاه:', err);
 
-    // به‌روزرسانی سفارش به وضعیت رد شده به دلیل خطای شبکه
-    await supabase.from('orders').update({ status: 'failed' }).eq('id', newOrder.id);
+    if (!gatewayRes.success) {
+      return { success: false, error: gatewayRes.error || 'خطا در ارتباط با درگاه بانکی.' };
+    }
 
-    return {
-      success: false,
-      error: err.message || 'خطا در ارتباط با درگاه شاپرک.',
+    // ثبت سفارش در وضعیت اولیه pending
+    const newOrder: PayPassOrder = {
+      id: orderId,
+      item_id: item.id,
+      buyer_email: buyerEmail.trim().toLowerCase(),
+      total_amount: split.totalAmount,
+      platform_fee: split.platformFee,
+      seller_amount: split.sellerAmount,
+      status: 'pending',
+      gateway_track_id: null,
+      gateway_authority: gatewayRes.authority,
+      created_at: new Date().toISOString(),
     };
+
+    dbInstance.insertOrder(newOrder);
+
+    // توجه امنیتی: محتوای رمزنگاری شده هرگز به کلاینت پس داده نمی‌شود
+    return {
+      success: true,
+      orderId,
+      paymentUrl: gatewayRes.paymentUrl,
+    };
+  } catch (err: any) {
+    return { success: false, error: err.message || 'خطای غیرمنتظره در ثبت سفارش' };
   }
-
-  // ۵. پیوست دادن شناسه پرداخت Authority به سفارش مربوطه
-  await supabase
-    .from('orders')
-    .update({ authority: gatewayResult.authority })
-    .eq('id', newOrder.id);
-
-  return {
-    success: true,
-    paymentUrl: gatewayResult.paymentUrl,
-    authority: gatewayResult.authority,
-    orderId: newOrder.id,
-  };
 }
 
 /**
- * سرور اکشن ۲: وب‌هوک و کالبک تایید تراکنش، کسر کارمزد قطعی، رمزگشایی AES-256 و آنلاک محتوا
+ * سرور اکشن ۲: اعتبارسنجی امضای درگاه، نهایی‌سازی سفارش به completed و آزادسازی محتوای حساس
  */
 export async function verifyPaymentWebhook(
-  authority: string,
-  status: string
+  orderId: string,
+  authority: string
 ): Promise<VerifyPaymentResult> {
-  if (!authority) {
-    return {
-      success: false,
-      message: '⚠️ پارامتر رهگیری درگاه (Authority) یافت نشد.',
-      error: 'AUTHORITY_MISSING',
-    };
-  }
+  try {
+    if (!orderId || !authority) {
+      return { success: false, status: 'failed', error: 'پارامترهای اعتبارسنجی پرداخت ناقص است.' };
+    }
 
-  const supabase = getSupabaseAdmin();
+    const order = dbInstance.getOrder(orderId);
+    if (!order) {
+      return { success: false, status: 'failed', error: 'سفارش یافت نشد.' };
+    }
 
-  // ۱. واکشی سفارش مرتبط با توکن پرداخت
-  const { data: order, error: orderFetchErr } = await supabase
-    .from('orders')
-    .select('id, item_id, amount, status, authority')
-    .eq('authority', authority)
-    .single<Pick<OrderRecord, 'id' | 'item_id' | 'amount' | 'status' | 'authority'>>();
-
-  if (orderFetchErr || !order) {
-    return {
-      success: false,
-      message: '❌ سفارشی با مشخصات این توکن پرداخت یافت نشد.',
-      error: 'ORDER_NOT_FOUND',
-    };
-  }
-
-  // در صورتی که سفارش قبلاً با موفقیت تکمیل و آنلاک شده باشد (Idempotency)
-  if (order.status === 'completed') {
-    const { data: item } = await supabase
-      .from('items')
-      .select('id, title, content_type, encrypted_content')
-      .eq('id', order.item_id)
-      .single<Pick<ItemRecord, 'id' | 'title' | 'content_type' | 'encrypted_content'>>();
-
-    if (item) {
-      const unlockedContent = decryptSensitiveContent(item.encrypted_content);
+    // جلوگیری از پرداخت مجدد / Idempotency check
+    if (order.status === 'completed') {
+      const item = dbInstance.getItem(order.item_id);
+      const unlockedContent = item ? decryptSecret(item.encrypted_content) : '';
       return {
         success: true,
-        message: '⚡ محتوای این سفارش پیش‌تر با موفقیت فعال‌سازی شده است.',
         orderId: order.id,
-        item: {
-          id: item.id,
-          title: item.title,
-          contentType: item.content_type,
-          unlockedContent,
-        },
+        status: 'completed',
+        trackId: order.gateway_track_id || 'ALREADY_COMPLETED',
+        unlockedContent,
       };
     }
-  }
 
-  // ۲. بررسی انصراف یا لغو کاربر در صفحه درگاه
-  if (status !== 'OK') {
-    await supabase
-      .from('orders')
-      .update({
+    // استعلام و وریفای از درگاه
+    const verifyRes = await paymentGateway.verifyPayment(authority, order.total_amount);
+
+    if (!verifyRes.success || verifyRes.status !== 'PAID') {
+      dbInstance.updateOrder(orderId, { status: 'failed' });
+      return {
+        success: false,
         status: 'failed',
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', order.id);
+        orderId,
+        error: verifyRes.error || 'تراکنش ناموفق بود یا توسط کاربر لغو شد.',
+      };
+    }
 
-    return {
-      success: false,
-      message: '🛑 تراکنش بانکی توسط کاربر لغو شد یا ناموفق بود.',
-      error: 'PAYMENT_CANCELLED_OR_FAILED',
-    };
-  }
-
-  // ۳. استعلام و راستی‌آزمایی نهایی از درگاه شاپرک با مبلغ ثبت‌شده
-  const verification = await ZarinPalGateway.verifyPayment({
-    authority,
-    amount: order.amount,
-  });
-
-  if (!verification.isSuccess) {
-    await supabase
-      .from('orders')
-      .update({
-        status: 'failed',
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', order.id);
-
-    return {
-      success: false,
-      message: `⛔ تایید تراکنش در شاپرک رد شد: ${verification.message}`,
-      error: 'VERIFICATION_FAILED',
-      statusCode: verification.code,
-    };
-  }
-
-  // ۴. به‌روزرسانی موفقیت‌آمیز وضعیت سفارش و درج اطلاعات وریفای
-  const now = new Date().toISOString();
-  const { error: updateErr } = await supabase
-    .from('orders')
-    .update({
+    // پرداخت موفقیت‌آمیز: به‌روزرسانی سفارش به completed
+    dbInstance.updateOrder(orderId, {
       status: 'completed',
-      ref_id: verification.refId,
-      card_pan: verification.cardPan || null,
-      verified_at: now,
-      updated_at: now,
-    })
-    .eq('id', order.id);
+      gateway_track_id: verifyRes.trackId,
+    });
 
-  if (updateErr) {
-    console.error('[PayPass Error] خطا در نهایی‌سازی سفارش در دیتابیس:', updateErr);
-  }
+    // بازیابی آیتم و رمزگشایی متقارن سمت سرور
+    const item = dbInstance.getItem(order.item_id);
+    if (!item) {
+      return {
+        success: false,
+        status: 'completed',
+        error: 'خطای سیستمی: آیتم متصل به سفارش پیدا نشد.',
+      };
+    }
 
-  // ۵. واکشی آیتم محرمانه، رمزگشایی سمت سرور با AES-256 و آزادسازی برای خریدار
-  const { data: item, error: itemErr } = await supabase
-    .from('items')
-    .select('id, title, content_type, encrypted_content')
-    .eq('id', order.item_id)
-    .single<Pick<ItemRecord, 'id' | 'title' | 'content_type' | 'encrypted_content'>>();
+    const unlockedContent = decryptSecret(item.encrypted_content);
 
-  if (itemErr || !item) {
     return {
       success: true,
-      message: '✨ پرداخت تایید شد اما در بارگذاری محتوا خطایی رخ داد. با پشتیبانی تماس بگیرید.',
       orderId: order.id,
-      refId: verification.refId,
+      status: 'completed',
+      trackId: verifyRes.trackId,
+      unlockedContent,
     };
-  }
-
-  let decryptedContent: string;
-  try {
-    decryptedContent = decryptSensitiveContent(item.encrypted_content);
-  } catch (decryptionError) {
-    console.error('[PayPass Security] خطای بحرانی در رمزگشایی دیتای آیتم:', decryptionError);
+  } catch (err: any) {
     return {
-      success: true,
-      message: '✨ پرداخت موفق بود اما رمزگشایی محتوا به مشکل امنیتی برخورد.',
-      orderId: order.id,
-      refId: verification.refId,
+      success: false,
+      status: 'failed',
+      orderId,
+      error: err.message || 'خطای رمزگشایی یا تایید درگاه',
     };
   }
-
-  return {
-    success: true,
-    message: '💎 پرداخت شما با موفقیت تایید و محتوای انحصاری آزاد شد 🚀',
-    orderId: order.id,
-    refId: verification.refId,
-    item: {
-      id: item.id,
-      title: item.title,
-      contentType: item.content_type,
-      unlockedContent: decryptedContent,
-    },
-  };
 }

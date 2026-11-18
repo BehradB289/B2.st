@@ -8,10 +8,10 @@
 ## 🗂️ Folder Structure
 ```text
 projects/html-7088/
-├── config/db.config.js
+├── config/game.config.js
 ├── config/game_config.js
 ├── docs/ARCHITECTURE.md
-├── docs/DATABASE_ARCHITECTURE.md
+├── docs/CHANGELOG.md
 ├── docs/DEBUG_SYNTAX.md
 ├── docs/TEST_SPEC.md
 ├── docs/architecture.md
@@ -19,12 +19,10 @@ projects/html-7088/
 ├── package.json
 ├── public/index.html
 ├── public/style.css
+├── public/styles.css
 ├── src/core/error_shield.js
 ├── src/core/memory_guard.js
 ├── src/core/performance_cache.js
-├── src/db/database_layer.js
-├── src/db/migrations.js
-├── src/db/schema.js
 ├── src/engine/AABB.js
 ├── src/engine/Audio.js
 ├── src/engine/AudioEngine.js
@@ -37,23 +35,28 @@ projects/html-7088/
 ├── src/engine/InputHandler.js
 ├── src/engine/Physics.js
 ├── src/engine/PhysicsEngine.js
+├── src/engine/Renderer.js
 ├── src/engine/Vector2D.js
 ├── src/entities/Coin.js
+├── src/entities/Enemies.js
 ├── src/entities/Entity.js
 ├── src/entities/Goomba.js
 ├── src/entities/Mario.js
 ├── src/entities/Particle.js
+├── src/entities/Particles.js
+├── src/entities/PowerUps.js
 ├── src/game.js
+├── src/levels/Level.js
 ├── src/levels/Level1.js
 ├── src/levels/SpriteSheet.js
 ├── src/levels/TileMap.js
 ├── src/levels/World1_1.js
+├── src/levels/world1_1.js
 ├── src/main.js
 ├── src/security/owasp_guard.js
 ├── src/vitest.config.js
 ├── src/world/Level.js
 ├── tests/collision.test.js
-├── tests/db.test.js
 ├── tests/physics.test.js
 ├── tests/physics_cache.test.js
 ```

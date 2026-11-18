@@ -1,20 +1,31 @@
-import { Vector2D } from './Vector2D.js';
+/**
+ * دوربین با دید نرم و جلوگیری از به عقب رفتن ماریو مطابق نسخه اصلی نینتندو
+ */
+'use strict';
 
 export class Camera {
-  constructor(viewportWidth = 256, viewportHeight = 240) {
-    this.viewportWidth = viewportWidth;
-    this.viewportHeight = viewportHeight;
-    this.pos = new Vector2D(0, 0);
-    this.worldWidth = 3200;
-  }
-
-  follow(target) {
-    // Keep Mario in the center-left section of the screen
-    const targetX = target.pos.x - this.viewportWidth * 0.35;
-    if (targetX > this.pos.x) {
-      this.pos.x = targetX;
+    constructor(viewportWidth, viewportHeight) {
+        this.x = 0;
+        this.y = 0;
+        this.viewportWidth = viewportWidth;
+        this.viewportHeight = viewportHeight;
+        this.maxX = 0;
     }
-    // Clamp to level boundary
-    this.pos.x = Math.max(0, Math.min(this.pos.x, this.worldWidth - this.viewportWidth));
-  }
+
+    update(targetX, levelWidth) {
+        // دوربین ماریو را در مرکز افقی دنبال می‌کند اما مانع بازگشت به چپ می‌شود
+        const idealX = targetX - (this.viewportWidth * 0.35);
+        if (idealX > this.x) {
+            this.x = idealX;
+        }
+
+        // محدودسازی کادر بین 0 و حداکثر طول مرحله
+        this.x = Math.max(0, Math.min(this.x, levelWidth - this.viewportWidth));
+        this.y = 0;
+    }
+
+    reset() {
+        this.x = 0;
+        this.y = 0;
+    }
 }

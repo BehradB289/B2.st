@@ -1,39 +1,67 @@
-# مستندات فنی و معماری موتور بازی Super Mario (B2.st Edition)
+# Super Mario NES Engine & Automated Test Suite
+**Studio:** B2.st  
+**Architecture:** 4-Tier Modular Entity-Component-System (Canvas 2D)
 
-این پروژه بر مبنای معماری سبک شی‌گرایی و Entity-Component-System طراحی شده و مستقیماً روی بستر HTML5 Canvas 2D بدون نیاز به فریم‌ورک‌های سنگین خارجی یا کتابخانه‌های واسط اجرا می‌شود.
+---
 
-## ۱. لایه‌های چهارگانه سامانه
-1. **Engine Layer (`src/engine/`):**
-   - `GameLoop.js`: چرخه بازی با گام زمانی ثابت (Fixed Timestep 60Hz) و اکومولاتور برای تضمین فیزیک پایدار در هر سخت‌افزاری.
-   - `Physics.js`: موتور تصادم AABB با تفکیک برداری محورهای افقی و عمودی جهت رفع باگ چسبیدن به دیواره‌ها.
-   - `Camera.js`: دوربین افقی/عمودی با قابلیت Dead-Zone و تعقیب کسر لغزشی (Lerp).
-   - `Audio.js`: پردازشگر صوتی 100% Chiptune به کمک Web Audio API؛ سنتز امواج صوتی Square/Triangle و نویز سفید بدون وابستگی به لود فایل‌های mp3/wav.
-   - `Particles.js`: سیستم ذرات برای ترکش آجرها، پرش سکه، امتیازهای متحرک و جرقه‌های جادویی.
+## 1. Directory Structure
 
-2. **Entities & Sprites (`src/entities/`):**
-   - `SpriteSheet.js`: تولیدکننده پیکسل‌آرت در زمان اجرا (Procedural Pixel Art) که تمام کاراکترها و بافت‌های مراحل را روی بوم‌های حافظه‌ای می‌سازد و مانع بروز خطای ۴۰۴ در عکس‌های خارجی می‌شود.
-   - `Player.js`: مدیریت ۴ کاراکتر با پارامترهای منحصر به فرد:
-     * **ماریو (Mario):** فیزیک استاندارد و شتاب متعادل.
-     * **لوئیجی (Luigi):** پرش بلندتر با ضریب اصطکاک کمتر و لغزندگی بیشتر.
-     * **تود (Toad):** بیشترین سرعت دویدن با پرش کوتاه‌تر.
-     * **پرنسس پیچ (Peach):** دارای قابلیت ویژه شناوری موقت در هوا (Hovering) تا ۱.۲ ثانیه.
-   - `Enemy.js`: هوش مصنوعی گومباها، کوپاها (با قابلیت ورود به لاک و پرتاب چرخشی).
+```text
+├── config/
+│   └── constants.js             # Physics rates, tile definitions, player speeds
+├── src/
+│   ├── engine/
+│   │   ├── Vector2D.js          # 2D Linear Algebra primitive
+│   │   ├── AABB.js              # Axis-Aligned Bounding Box collision geometry
+│   │   ├── Camera.js            # Forward-locked scrolling camera (NES Mario style)
+│   │   ├── InputHandler.js      # Decoupled keyboard state and mock controller
+│   │   ├── PhysicsEngine.js     # Swept collision detection & tile resolution
+│   │   ├── GameLoop.js          # Fixed-timestep physics update loop
+│   │   └── GameEngine.js        # Central game orchestrator
+│   ├── entities/
+│   │   ├── Entity.js            # Base ECS entity abstraction
+│   │   ├── Mario.js             # Player controller, states, animations
+│   │   └── Goomba.js            # Patrol AI, stomp vulnerability, squashing
+│   └── levels/
+│       ├── TileMap.js           # 2D Grid block indexing & tile interaction
+│       └── Level1.js            # World 1-1 layout generation
+├── tests/
+│   ├── testRunner.js            # Zero-dependency async test harness
+│   ├── unit.test.js             # Vector, AABB, and TileMap unit tests
+│   ├── integration.test.js      # Complete physics, jump, collision & stomp tests
+│   └── runAll.js                # Combined test runner script
+├── public/
+│   ├── index.html               # CRT NES cabinet shell and HUD integration
+│   └── styles.css               # Scanline filter and responsive layout
+└── docs/
+    └── ARCHITECTURE.md          # Architecture and technical documentation
+```
 
-3. **مراحل ده‌گانه (`src/levels/LevelData.js`):**
-   - **مرحله ۱-۱:** دشت‌های طلایی (طراحی کلاسیک، پلتفرم‌ها و لوله‌ها)
-   - **مرحله ۱-۲:** غار کریستالی زیرزمینی (سقف صلب، سکوهای معلق و تم تیره)
-   - **مرحله ۱-۳:** بلندی‌های قارچی (دره‌های عمیق با پرش‌های دقیق)
-   - **مرحله ۱-۴:** کویر سوزان و اهرام ماسه‌ای (سکوهای پله‌ای عظیم)
-   - **مرحله ۱-۵:** قلعه آتشین میانی (گودال‌های گدازه و راهروهای باریک صلب)
-   - **مرحله ۲-۱:** قله‌های یخی و لغزنده (سکوهای مرتفع)
-   - **مرحله ۲-۲:** دخمه ارواح (المان‌های شناور و موانع پیاپی)
-   - **مرحله ۲-۳:** آسمان طوفانی و پیچک‌ها (چالش سقوط آزاد)
-   - **مرحله ۲-۴:** ناوگان هوایی نبرد (لوله‌ها و ماشین‌آلات پرنده)
-   - **مرحله نهایی:** قلعه تاریک باوزر (پل نبرد نهایی، تبر طلایی و پرچم نجات)
+---
 
-4. **سیستم رابط کاربری و صحنه‌ها (`src/engine/SceneManager.js`):**
-   - منوی شروع با استایل نوستالژیک آرکید NES
-   - صفحه انتخاب کاراکتر تعاملی با مشخصات فنی
-   - صفحه انتخاب از بین ۱۰ مرحله
-   - رابط کاربری درون بازی (HUD) شامل شمارنده سکه، امتیاز، جهان و زمان
-   - پنل Pause و صفحات پایان بازی و پیروزی
+## 2. Physics & Collision Pipeline
+
+Collision handling is executed using decoupled horizontal and vertical Swept AABB checks:
+1. **Horizontal Move (`vx * dt`):** Test left and right bounding edges against `TileMap.isSolid()`. If a solid tile (Pipe, Brick) is intercepted, the entity's position is clamped to the block edge and velocity is zeroed.
+2. **Vertical Move (`vy * dt`):** Apply gravity (`+980 px/s²`). If moving downwards and intersecting solid ground, `y` is clamped to the top surface, `vy = 0`, and `isGrounded = true`.
+3. **Ceiling Interaction:** If moving upwards and striking question/brick tiles, `vy = 0` and `TileMap.interactTile()` spawns coins and updates block states.
+4. **Entity-to-Entity:**
+   - **Stomp Detection:** If Mario's bounding box intersects Goomba and Mario's velocity is downward (`vy > 0`), the Goomba squashes, Mario rebounds upward (`MARIO_CONFIG.BOUNCE_FORCE`), and scores are awarded.
+   - **Damage:** If Mario collides horizontally or vertically while grounded, damage is sustained and invulnerability frames are activated.
+
+---
+
+## 3. Running Automated Tests
+
+To execute the entire test suite via Node.js without any third-party dependencies:
+
+```bash
+# Run all tests (Unit & Integration)
+npm test
+
+# Run integration tests specifically
+npm run test:integration
+
+# Run unit tests specifically
+npm run test:unit
+```

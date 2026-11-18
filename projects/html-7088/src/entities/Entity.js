@@ -1,23 +1,41 @@
-import { Vector2D } from '../engine/Vector2D.js';
-import { AABB } from '../engine/AABB.js';
+/**
+ * کلاس والد موجودیت‌ها (Bounding Box & Collision Math)
+ */
+'use strict';
 
 export class Entity {
-  constructor(x = 0, y = 0, width = 16, height = 16) {
-    this.pos = new Vector2D(x, y);
-    this.vel = new Vector2D(0, 0);
-    this.width = width;
-    this.height = height;
-    this.isDynamic = true;
-    this.isGrounded = false;
-    this.isAlive = true;
-    this.type = 'entity';
-  }
+    constructor(x, y, width, height) {
+        this.x = Number(x) || 0;
+        this.y = Number(y) || 0;
+        this.width = Number(width) || 32;
+        this.height = Number(height) || 32;
+        this.vx = 0;
+        this.vy = 0;
+        this.isGrounded = false;
+        this.isAlive = true;
+    }
 
-  getAABB() {
-    return new AABB(this.pos.x, this.pos.y, this.width, this.height);
-  }
+    get bounds() {
+        return {
+            left: this.x,
+            right: this.x + this.width,
+            top: this.y,
+            bottom: this.y + this.height
+        };
+    }
 
-  onGroundCollision(tile) {}
-  onCeilingCollision(tile) {}
-  onWallCollision(tile) {}
+    intersects(other) {
+        if (!other || !other.bounds) return false;
+        const a = this.bounds;
+        const b = other.bounds;
+        return a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top;
+    }
+
+    update(_dt) {
+        // برای بازنویسی در فرزندان
+    }
+
+    render(_ctx, _cameraX) {
+        // برای بازنویسی در فرزندان
+    }
 }

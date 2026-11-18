@@ -1,0 +1,25 @@
+# ==============================================================================
+# B2.st Studio - Development Docker Compose Override
+# برای توسعه محلی و اعمال تغییرات آنی بدون نیاز به ریبیلد کامل
+# ==============================================================================
+
+version: '3.8'
+
+services:
+  mario-game:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    image: b2st/mario-html5:dev
+    container_name: b2st-mario-dev
+    restart: always
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./public:/usr/share/nginx/html:ro
+      - ./src:/usr/share/nginx/html/src:ro
+      - ./config/nginx.conf:/etc/nginx/nginx.conf:ro
+    environment:
+      - NODE_ENV=development
+    read_only: false

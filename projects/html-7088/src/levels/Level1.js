@@ -1,78 +1,56 @@
 /**
- * World 1-1 Layout definition matrix & entities spawn metadata
+ * World 1-1 Map Generator
+ * Studio: B2.st
  */
-export function createLevel1() {
-  const ROWS = 15;
-  const COLS = 120;
-  const matrix = Array.from({ length: ROWS }, () => Array(COLS).fill(0));
 
-  // Floor setup (Ground rows 13 and 14)
-  for (let c = 0; c < COLS; c++) {
-    // Ground pit gaps
-    if (c >= 42 && c <= 44) continue;
-    if (c >= 62 && c <= 65) continue;
+import { TileMap } from './TileMap.js';
+import { TILES } from '../../config/constants.js';
+import { Goomba } from '../entities/Goomba.js';
 
-    matrix[13][c] = 1;
-    matrix[14][c] = 1;
-  }
+export function createWorld1_1() {
+  const map = new TileMap(TILES.SIZE, 220, 15);
+  const entities = [];
 
-  // Mystery blocks & Bricks
-  matrix[9][16] = 3; // Coin box
-  matrix[9][20] = 2; // Brick
-  matrix[9][21] = 3; // Coin box
-  matrix[9][22] = 2; // Brick
-  matrix[9][23] = 3; // Coin box
-  matrix[9][24] = 2; // Brick
-  matrix[5][22] = 3; // High coin box
-
-  // Pipes
-  // Pipe 1 (height 2)
-  matrix[11][28] = 5; matrix[11][29] = 6;
-  matrix[12][28] = 7; matrix[12][29] = 8;
-
-  // Pipe 2 (height 3)
-  matrix[10][38] = 5; matrix[10][39] = 6;
-  matrix[11][38] = 7; matrix[11][39] = 8;
-  matrix[12][38] = 7; matrix[12][39] = 8;
-
-  // Pipe 3 (height 4)
-  matrix[9][52] = 5; matrix[9][53] = 6;
-  matrix[10][52] = 7; matrix[10][53] = 8;
-  matrix[11][52] = 7; matrix[11][53] = 8;
-  matrix[12][52] = 7; matrix[12][53] = 8;
-
-  // Elevated brick platform
-  for (let c = 72; c <= 78; c++) {
-    matrix[9][c] = 2;
-  }
-  matrix[9][75] = 3;
-
-  // Pyramid staircase before flagpole
-  for (let step = 1; step <= 5; step++) {
-    const col = 95 + step;
-    for (let r = 13 - step; r < 13; r++) {
-      matrix[r][col] = 1;
+  // 1. Build bottom continuous ground (Rows 13 and 14)
+  for (let c = 0; c < 220; c++) {
+    // Classic pit holes at col 69-71 and 86-89
+    const isPit1 = c >= 69 && c <= 71;
+    const isPit2 = c >= 86 && c <= 89;
+    if (!isPit1 && !isPit2) {
+      map.setTile(c, 13, TILES.GROUND);
+      map.setTile(c, 14, TILES.GROUND);
     }
   }
 
-  // Flagpole at col 110
-  for (let r = 3; r <= 12; r++) {
-    matrix[r][110] = 9;
-  }
-  matrix[2][110] = 10; // Sphere top
+  // 2. Question block and brick formations
+  map.setTile(16, 9, TILES.QUESTION_BLOCK);
+  map.setTile(20, 9, TILES.BRICK);
+  map.setTile(21, 9, TILES.QUESTION_BLOCK);
+  map.setTile(22, 9, TILES.BRICK);
+  map.setTile(23, 9, TILES.QUESTION_BLOCK);
+  map.setTile(24, 9, TILES.BRICK);
+  map.setTile(22, 5, TILES.QUESTION_BLOCK);
 
-  return {
-    matrix,
-    width: COLS * 16,
-    height: ROWS * 16,
-    spawnMario: { x: 40, y: 160 },
-    spawns: [
-      { type: 'goomba', x: 220, y: 190 },
-      { type: 'goomba', x: 420, y: 190 },
-      { type: 'goomba', x: 580, y: 190 },
-      { type: 'coin', x: 260, y: 160 },
-      { type: 'coin', x: 280, y: 160 },
-      { type: 'coin', x: 740, y: 120 }
-    ]
-  };
+  // 3. Green Pipes
+  // Pipe 1 (col 28, height 2)
+  map.setTile(28, 11, TILES.PIPE_TOP_LEFT);
+  map.setTile(29, 11, TILES.PIPE_TOP_RIGHT);
+  map.setTile(28, 12, TILES.PIPE_BODY_LEFT);
+  map.setTile(29, 12, TILES.PIPE_BODY_RIGHT);
+
+  // Pipe 2 (col 38, height 3)
+  map.setTile(38, 10, TILES.PIPE_TOP_LEFT);
+  map.setTile(39, 10, TILES.PIPE_TOP_RIGHT);
+  map.setTile(38, 11, TILES.PIPE_BODY_LEFT);
+  map.setTile(39, 11, TILES.PIPE_BODY_RIGHT);
+  map.setTile(38, 12, TILES.PIPE_BODY_LEFT);
+  map.setTile(39, 12, TILES.PIPE_BODY_RIGHT);
+
+  // 4. Populate Goombas
+  entities.push(new Goomba(22 * 16, 12 * 16));
+  entities.push(new Goomba(34 * 16, 12 * 16));
+  entities.push(new Goomba(45 * 16, 12 * 16));
+  entities.push(new Goomba(52 * 16, 12 * 16));
+
+  return { map, entities };
 }

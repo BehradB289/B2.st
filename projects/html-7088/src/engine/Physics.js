@@ -1,83 +1,71 @@
 /**
- * AABB (Axis-Aligned Bounding Box) Physics & Collision Solver
+ * @file Physics.js
+ * @description AABB Collision Detection and Solid Resolution Physics Engine.
  */
 export class Physics {
+  constructor() {
+    this.gravity = 1800; // px/s^2
+    this.terminalVelocityY = 700;
+  }
+
   /**
-   * Checks overlap between two Axis-Aligned Bounding Boxes
+   * Standard Axis-Aligned Bounding Box (AABB) intersection test.
    */
-  static checkAABB(boxA, boxB) {
+  static checkAABB(a, b) {
     return (
-      boxA.x < boxB.x + boxB.width &&
-      boxA.x + boxA.width > boxB.x &&
-      boxA.y < boxB.y + boxB.height &&
-      boxA.y + boxA.height > boxB.y
+      a.x < b.x + b.width &&
+      a.x + a.width > b.x &&
+      a.y < b.y + b.height &&
+      a.y + a.height > b.y
     );
   }
 
   /**
-   * Resolves tilemap collision for an entity moving within a grid
+   * Resolves entity collisions against a solid obstacle tile with discrete axis separation.
+   * @param {Entity} entity
+   * @param {Object} obstacle {x, y, width, height, type}
    */
-  static resolveTileMapCollisions(entity, tileMap, tileSize = 16) {
-    entity.isGrounded = false;
+  resolveCollision(entity, obstacle) {
+    if (!Physics.checkAABB(entity, obstacle)) {
+      return false;
+    }
 
-    // Horizontal resolution
-    entity.position.x += entity.velocity.x * entity.dt;
-    let bounds = entity.getBounds();
-    let startCol = Math.floor(bounds.x / tileSize);
-    let endCol = Math.floor((bounds.x + bounds.width) / tileSize);
-    let startRow = Math.floor(bounds.y / tileSize);
-    let endRow = Math.floor((bounds.y + bounds.height - 0.1) / tileSize);
+    // Overlap depths
+    const overlapLeft = (entity.x + entity.width) - obstacle.x;
+    const overlapRight = (obstacle.x + obstacle.width) - entity.x;
+    const overlapTop = (entity.y + entity.height) - obstacle.y;
+    const overlapBottom = (obstacle.y + obstacle.height) - entity.y;
 
-    for (let r = startRow; r <= endRow; r++) {
-      for (let c = startCol; c <= endCol; c++) {
-        if (tileMap.isSolid(c, r)) {
-          if (entity.velocity.x > 0) {
-            entity.position.x = c * tileSize - bounds.width - entity.collisionOffset.x;
-            entity.velocity.x = 0;
-            entity.onWallCollision?.(1);
-          } else if (entity.velocity.x < 0) {
-            entity.position.x = (c + 1) * tileSize - entity.collisionOffset.x;
-            entity.velocity.x = 0;
-            entity.onWallCollision?.(-1);
-          }
+    // Minimum overlap axis determines penetration direction
+    const minOverlapX = Math.min(overlapLeft, overlapRight);
+    const minOverlapY = Math.min(overlapTop, overlapBottom);
+
+    if (minOverlapY < minOverlapX) {
+      if (overlapTop < overlapBottom) {
+        // Landing on top of an obstacle
+        entity.y = obstacle.y - entity.height;
+        entity.velocity.y = 0;
+        entity.isGrounded = true;
+      } else {
+        // Hitting head on the ceiling / brick
+        entity.y = obstacle.y + obstacle.height;
+        entity.velocity.y = Math.max(0, entity.velocity.y);
+        if (typeof entity.onHeadBump === 'function') {
+          entity.onHeadBump(obstacle);
         }
       }
-    }
-
-    // Vertical resolution
-    entity.position.y += entity.velocity.y * entity.dt;
-    bounds = entity.getBounds();
-    startCol = Math.floor(bounds.x / tileSize);
-    endCol = Math.floor((bounds.x + bounds.width - 0.1) / tileSize);
-    startRow = Math.floor(bounds.y / tileSize);
-    endRow = Math.floor((bounds.y + bounds.height) / tileSize);
-
-    for (let r = startRow; r <= endRow; r++) {
-      for (let c = startCol; c <= endCol; c++) {
-        if (tileMap.isSolid(c, r)) {
-          if (entity.velocity.y > 0) {
-            entity.position.y = r * tileSize - bounds.height - entity.collisionOffset.y;
-            entity.velocity.y = 0;
-            entity.isGrounded = true;
-          } else if (entity.velocity.y < 0) {
-            entity.position.y = (r + 1) * tileSize - entity.collisionOffset.y;
-            entity.velocity.y = 0;
-            tileMap.onTileHitFromBelow?.(c, r, entity);
-          }
-        }
+    } else {
+      if (overlapLeft < overlapRight) {
+        // Wall on right
+        entity.x = obstacle.x - entity.width;
+        entity.velocity.x = 0;
+      } else {
+        // Wall on left
+        entity.x = obstacle.x + obstacle.width;
+        entity.velocity.x = 0;
       }
     }
-  }
 
-  /**
-   * Applies standard gravitational force to dynamic bodies
-   */
-  static applyGravity(entity, gravity, maxFallSpeed, dt) {
-    if (!entity.isGrounded) {
-      entity.velocity.y += gravity * dt;
-      if (entity.velocity.y > maxFallSpeed) {
-        entity.velocity.y = maxFallSpeed;
-      }
-    }
+    return true;
   }
 }

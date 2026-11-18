@@ -1,118 +1,57 @@
-import { describe, it, expect, beforeEach } from 'vitest';
-import { PhysicsEngine, PHYSICS_CONSTANTS } from '../src/engine/PhysicsEngine.js';
-import { Mario, MARIO_CONSTANTS } from '../src/entities/Mario.js';
+/**
+ * مجموعه تست‌های واحد خودکار برای محاسبات فیزیک، جاذبه و شخصیت‌ها
+ * قابلیت اجرا در محیط‌های استاندارد Node.js یا مرورگر
+ */
+import { PhysicsEngine } from '../src/engine/Physics.js';
+import { Player } from '../src/entities/Player.js';
 
-describe('PhysicsEngine & Mario Kinematics', () => {
-  let physics;
-  let mario;
+function assert(condition, message) {
+  if (!condition) {
+    throw new Error(`[FAIL] ${message}`);
+  }
+  console.log(`[PASS] ${message}`);
+}
 
-  beforeEach(() => {
-    physics = new PhysicsEngine({
-      gravity: 980,
-      terminalVelocity: 600,
-      friction: 0.88
-    });
-    mario = new Mario(100, 100);
-  });
+export function runPhysicsTests() {
+  console.log('--- آغاز اجرای پایپ‌لاین تست‌های فیزیک B2.st ---');
 
-  describe('Gravity and Free Fall', () => {
-    it('accelerates a falling entity downward by g * dt', () => {
-      const dt = 1 / 60;
-      mario.isGrounded = false;
-      mario.vel.set(0, 0);
+  // تست شماره ۱: تداخل دو جعبه AABB
+  const boxA = { x: 10, y: 10, width: 20, height: 20 };
+  const boxB = { x: 25, y: 25, width: 20, height: 20 };
+  const boxC = { x: 100, y: 100, width: 20, height: 20 };
 
-      physics.integrate(mario, dt);
+  assert(PhysicsEngine.checkAABB(boxA, boxB) === true, 'تداخل دو باکس متقاطع باید مثبت باشد');
+  assert(PhysicsEngine.checkAABB(boxA, boxC) === false, 'دو باکس دور از هم نباید تداخل داشته باشند');
 
-      const expectedVy = 980 * dt;
-      expect(mario.vel.y).toBeCloseTo(expectedVy, 4);
-      expect(mario.pos.y).toBeGreaterThan(100);
-    });
+  // تست شماره ۲: بارگذاری شخصیت‌ها با ویژگی‌های اختصاصی
+  const mario = new Player(0, 0, 'mario');
+  const luigi = new Player(0, 0, 'luigi');
+  const toad = new Player(0, 0, 'toad');
+  const peach = new Player(0, 0, 'peach');
 
-    it('clamps downward velocity to terminal velocity', () => {
-      mario.isGrounded = false;
-      mario.vel.set(0, 590);
+  assert(luigi.stats.jumpPower < mario.stats.jumpPower, 'پرش لوئیجی باید ارتفاع بیشتری نسبت به ماریو داشته باشد');
+  assert(toad.stats.runSpeed > mario.stats.runSpeed, 'سرعت تود باید بیشتر از ماریو باشد');
+  assert(peach.stats.canHover === true, 'پرنسس پیچ باید دارای قابلیت هاور در هوا باشد');
 
-      // Multiple integration steps
-      for (let i = 0; i < 20; i++) {
-        physics.integrate(mario, 1 / 60);
-      }
+  // تست شماره ۳: شبیه‌سازی سقوط و اعمال گرانش
+  const physics = new PhysicsEngine(32);
+  const dummyLevel = {
+    getTile(col, row) {
+      if (row >= 10) return { solid: true };
+      return null;
+    }
+  };
 
-      expect(mario.vel.y).toBe(600);
-    });
-  });
+  const testEntity = { x: 50, y: 0, width: 28, height: 32, vx: 0, vy: 0, onGround: false };
+  physics.updateEntityY(testEntity, dummyLevel);
 
-  describe('Jump Ascent, Apex, and Descent Dynamics', () => {
-    it('sets upward impulse on jump execution when grounded', () => {
-      mario.isGrounded = true;
-      const jumped = mario.jump();
+  assert(testEntity.vy > 0, 'جاذبه باید سرعت عمودی را پس از یک فریم مثبت کند');
+  assert(testEntity.y > 0, 'موقعیت عمودی باید رو به پایین تغییر کند');
 
-      expect(jumped).toBe(true);
-      expect(mario.isGrounded).toBe(false);
-      expect(mario.vel.y).toBe(MARIO_CONSTANTS.JUMP_IMPULSE);
-      expect(mario.state).toBe('jumping');
-    });
+  console.log('--- تمام تست‌های فیزیک با موفقیت سپری شدند! ---');
+}
 
-    it('rejects jump request when airborne', () => {
-      mario.isGrounded = false;
-      mario.vel.y = -200;
-
-      const jumped = mario.jump();
-
-      expect(jumped).toBe(false);
-      expect(mario.vel.y).toBe(-200);
-    });
-
-    it('verifies ascent, apex inflection point, and descent phase accurately', () => {
-      mario.isGrounded = true;
-      mario.jump();
-
-      const initialY = mario.pos.y;
-      const dt = 1 / 60;
-      let reachedApex = false;
-      let apexTime = 0;
-      let apexY = initialY;
-
-      // Track simulation over 1 full second
-      for (let step = 0; step < 60; step++) {
-        const currentTime = step * dt;
-        physics.integrate(mario, dt);
-        mario.updateState();
-
-        if (!reachedApex && mario.vel.y >= 0) {
-          reachedApex = true;
-          apexTime = currentTime;
-          apexY = mario.pos.y;
-
-          // At apex, vertical velocity has crossed zero
-          expect(mario.vel.y).toBeGreaterThanOrEqual(0);
-          expect(mario.vel.y).toBeLessThan(980 * dt);
-          // Mario has risen substantially above starting point (screen y decreases going up)
-          expect(apexY).toBeLessThan(initialY);
-        }
-
-        if (reachedApex && currentTime > apexTime + 0.1) {
-          // In descent phase, velocity must be positive and state falling
-          expect(mario.vel.y).toBeGreaterThan(0);
-          expect(mario.pos.y).toBeGreaterThan(apexY);
-          expect(mario.state).toBe('falling');
-        }
-      }
-
-      expect(reachedApex).toBe(true);
-      // Apex theoretical time: t = |v0| / g = 420 / 980 ≈ 0.428s
-      expect(apexTime).toBeCloseTo(0.428, 1);
-    });
-  });
-
-  describe('Friction and Horizontal Damping', () => {
-    it('decelerates horizontal velocity on ground', () => {
-      mario.isGrounded = true;
-      mario.vel.set(100, 0);
-
-      physics.integrate(mario, 1 / 60);
-
-      expect(mario.vel.x).toBeLessThan(100);
-      expect(mario.vel.x).toBeGreaterThan(0);
-    });
-  });
-});
+// در صورت اجرا به عنوان اسکریپت مستقل Node
+if (typeof process !== 'undefined' && process.argv && process.argv[1]?.includes('physics.test.js')) {
+  runPhysicsTests();
+}

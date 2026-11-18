@@ -1,39 +1,76 @@
 /**
- * استودیو B2.st - سیستم دوربین اسکرول متحرک NES
+ * دوربین ۲ بعدی با پشتیبانی از اسکرول افقی تک‌جهته NES و Viewport Culling
  */
-import { Vector2D } from './Vector2D.js';
-
 export class Camera {
-    constructor(viewportWidth, viewportHeight) {
-        this.pos = new Vector2D(0, 0);
-        this.viewportWidth = viewportWidth;
-        this.viewportHeight = viewportHeight;
-        this.deadzoneX = viewportWidth * 0.35; // نقطه فعال‌سازی اسکرول دوربین
-        this.worldBounds = { minX: 0, maxX: 3392, minY: 0, maxY: 240 };
+  constructor(width, height) {
+    this.x = 0;
+    this.y = 0;
+    this.width = width;
+    this.height = height;
+    this.minX = 0;
+    this.maxX = 0;
+    // در استاندارد NES ماریو نمی‌تواند به سمت چپ دوربین بازگردد
+    this.forwardOnly = true;
+  }
+
+  /**
+   * تنظیم محدوده‌های مجاز نقشه
+   */
+  setBounds(minX, maxX) {
+    this.minX = minX;
+    this.maxX = maxX;
+  }
+
+  /**
+   * دنبال کردن موقعیت ماریو
+   * @param {Object} target موقعیت کاراکتر
+   */
+  follow(target) {
+    // افست برای قرار گرفتن ماریو در حدود ۳۵ درصدی از سمت چپ کادر
+    const targetScreenX = this.width * 0.35;
+    const desiredX = target.pos.x - targetScreenX;
+
+    if (this.forwardOnly) {
+      if (desiredX > this.x) {
+        this.x = desiredX;
+      }
+    } else {
+      this.x = desiredX;
     }
 
-    update(target) {
-        if (!target) return;
-        
-        // در سبک کلاسیک NES دوربین فقط به جلو حرکت می‌کند
-        const targetScreenX = target.pos.x - this.pos.x;
-        if (targetScreenX > this.deadzoneX) {
-            this.pos.x = target.pos.x - this.deadzoneX;
-        }
+    // مهار دوربین در محدوده مرحله
+    if (this.x < this.minX) this.x = this.minX;
+    if (this.x > this.maxX - this.width) this.x = this.maxX - this.width;
+  }
 
-        // محدودسازی موقعیت دوربین در مرزهای دنیا
-        if (this.pos.x < this.worldBounds.minX) this.pos.x = this.worldBounds.minX;
-        if (this.pos.x > this.worldBounds.maxX - this.viewportWidth) {
-            this.pos.x = this.worldBounds.maxX - this.viewportWidth;
-        }
-    }
+  /**
+   * بررسی قرار داشتن مستطیل در میدان دید جهت Viewport Culling
+   */
+  isVisible(boxX, boxY, boxWidth, boxHeight) {
+    return (
+      boxX + boxWidth >= this.x &&
+      boxX <= this.x + this.width &&
+      boxY + boxHeight >= this.y &&
+      boxY <= this.y + this.height
+    );
+  }
 
-    apply(ctx) {
-        ctx.save();
-        ctx.translate(-Math.floor(this.pos.x), -Math.floor(this.pos.y));
-    }
+  /**
+   * دریافت محدوده ستون‌ها و ردیف‌های نمایان برای بهینه‌سازی رندر
+   */
+  getVisibleTileRange(tileSize) {
+    const startCol = Math.max(0, Math.floor(this.x / tileSize));
+    const endCol = Math.ceil((this.x + this.width) / tileSize);
+    const startRow = Math.max(0, Math.floor(this.y / tileSize));
+    const endRow = Math.ceil((this.y + this.height) / tileSize);
 
-    restore(ctx) {
-        ctx.restore();
-    }
+    return { startCol, endCol, startRow, endRow };
+  }
+
+  /**
+   * اعمال ترنسلیت به کانتکست نقاشی
+   */
+  apply(ctx) {
+    ctx.translate(-Math.floor(this.x), -Math.floor(this.y));
+  }
 }

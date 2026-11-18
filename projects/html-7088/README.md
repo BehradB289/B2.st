@@ -8,13 +8,23 @@
 ## 🗂️ Folder Structure
 ```text
 projects/html-7088/
+├── docs/ARCHITECTURE.md
 ├── docs/architecture.md
 ├── package.json
 ├── public/index.html
+├── public/style.css
+├── src/engine/Audio.js
+├── src/engine/Camera.js
 ├── src/engine/EventEmitter.js
 ├── src/engine/GameLoop.js
 ├── src/engine/InputHandler.js
 ├── src/engine/Physics.js
 ├── src/engine/Vector2D.js
+├── src/entities/Entity.js
+├── src/entities/Goomba.js
+├── src/entities/Mario.js
+├── src/game.js
+├── src/levels/Level1.js
+├── src/levels/TileMap.js
 ├── tests/physics.test.js
 ```

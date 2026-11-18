@@ -1,84 +1,81 @@
-import { Entity } from './Entity.js';
-
 /**
- * Classic Goomba Enemy Entity with Patrol & Stomp mechanics
+ * Goomba Enemy Entity
+ * Studio: B2.st
  */
+
+import { Entity } from './Entity.js';
+import { GOOMBA_CONFIG } from '../../config/constants.js';
+
 export class Goomba extends Entity {
-  constructor(x, y) {
-    super(x, y, 16, 16, 'enemy');
-    this.velocity.x = -35;
+  constructor(x = 100, y = 160) {
+    super(x, y, GOOMBA_CONFIG.WIDTH, GOOMBA_CONFIG.HEIGHT, 'goomba');
+    this.vx = -GOOMBA_CONFIG.PATROL_SPEED;
     this.isSquashed = false;
-    this.squashTimer = 0.4;
+    this.squashTimer = 0;
     this.animTimer = 0;
     this.animFrame = 0;
   }
 
-  update(dt, soundEngine) {
-    super.update(dt);
-
+  update(dt) {
     if (this.isSquashed) {
-      this.squashTimer -= dt;
-      if (this.squashTimer <= 0) {
+      this.squashTimer += dt;
+      if (this.squashTimer >= GOOMBA_CONFIG.SQUASH_DURATION) {
         this.markedForRemoval = true;
       }
       return;
     }
 
-    this.animTimer += dt * 6;
-    this.animFrame = Math.floor(this.animTimer) % 2;
+    this.animTimer += dt;
+    if (this.animTimer >= 0.15) {
+      this.animTimer = 0;
+      this.animFrame = (this.animFrame + 1) % 2;
+    }
   }
 
-  onWallCollision(dir) {
-    this.velocity.x = -dir * 35;
-  }
-
-  stomp(soundEngine) {
+  squash() {
     this.isSquashed = true;
-    this.velocity.set(0, 0);
-    this.size.y = 8;
+    this.isAlive = false;
+    this.isSolid = false;
+    this.vx = 0;
+    this.vy = 0;
+    this.height = 8;
     this.position.y += 8;
-    soundEngine?.playStomp();
+  }
+
+  reverseDirection() {
+    this.vx = -this.vx;
   }
 
   render(ctx, camera) {
-    const s = camera.worldToScreen(this.position.x, this.position.y);
-    if (s.x < -20 || s.x > camera.width + 20) return;
+    if (!ctx) return;
+    const sx = camera ? camera.worldToScreenX(this.x) : this.x;
+    const sy = camera ? camera.worldToScreenY(this.y) : this.y;
 
+    ctx.save();
     if (this.isSquashed) {
-      // Flattened Goomba
-      ctx.fillStyle = '#a84400';
-      ctx.fillRect(s.x, s.y + 4, 16, 4);
-      ctx.fillStyle = '#000000';
-      ctx.fillRect(s.x + 2, s.y + 5, 4, 1);
-      ctx.fillRect(s.x + 10, s.y + 5, 4, 1);
-      return;
-    }
-
-    // Goomba Body (Brown Mushroom dome)
-    ctx.fillStyle = '#a84400';
-    ctx.fillRect(s.x + 2, s.y, 12, 10);
-    ctx.fillRect(s.x + 4, s.y - 2, 8, 2);
-
-    // Stem / Face
-    ctx.fillStyle = '#fce4a6';
-    ctx.fillRect(s.x + 4, s.y + 10, 8, 3);
-
-    // Eyes
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(s.x + 3, s.y + 4, 3, 5);
-    ctx.fillRect(s.x + 10, s.y + 4, 3, 5);
-    ctx.fillStyle = '#000000';
-    ctx.fillRect(s.x + 4, s.y + 5, 2, 3);
-    ctx.fillRect(s.x + 10, s.y + 5, 2, 3);
-
-    // Feet
-    ctx.fillStyle = '#000000';
-    if (this.animFrame === 0) {
-      ctx.fillRect(s.x, s.y + 13, 6, 3);
-      ctx.fillRect(s.x + 9, s.y + 14, 6, 2);
+      ctx.fillStyle = '#b84418';
+      ctx.fillRect(sx, sy, this.width, this.height);
     } else {
-      ctx.fillRect(s.x + 1, s.y + 14, 6, 2);
-      ctx.fillRect(s.x + 10, s.y + 13, 6, 3);
+      // Goomba Brown Body
+      ctx.fillStyle = '#b84418';
+      ctx.fillRect(sx, sy, this.width, this.height - 4);
+      // Feet
+      ctx.fillStyle = '#000000';
+      if (this.animFrame === 0) {
+        ctx.fillRect(sx, sy + 12, 6, 4);
+        ctx.fillRect(sx + 10, sy + 12, 6, 4);
+      } else {
+        ctx.fillRect(sx + 2, sy + 12, 6, 4);
+        ctx.fillRect(sx + 8, sy + 12, 6, 4);
+      }
+      // Eyes
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(sx + 3, sy + 5, 3, 4);
+      ctx.fillRect(sx + 10, sy + 5, 3, 4);
+      ctx.fillStyle = '#000000';
+      ctx.fillRect(sx + 4, sy + 6, 2, 2);
+      ctx.fillRect(sx + 10, sy + 6, 2, 2);
     }
+    ctx.restore();
   }
 }

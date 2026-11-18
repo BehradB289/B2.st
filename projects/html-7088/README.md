@@ -8,6 +8,7 @@
 ## 🗂️ Folder Structure
 ```text
 projects/html-7088/
+├── config/constants.js
 ├── config/database.config.js
 ├── config/game.config.js
 ├── config/game_config.js
@@ -19,8 +20,10 @@ projects/html-7088/
 ├── docs/openapi.json
 ├── index.html
 ├── package.json
+├── public/game.js
 ├── public/index.html
 ├── public/style.css
+├── public/styles.css
 ├── public/swagger.html
 ├── src/core/error_shield.js
 ├── src/core/memory_guard.js
@@ -40,6 +43,7 @@ projects/html-7088/
 ├── src/engine/Camera.js
 ├── src/engine/EventEmitter.js
 ├── src/engine/Game.js
+├── src/engine/GameEngine.js
 ├── src/engine/GameLoop.js
 ├── src/engine/Input.js
 ├── src/engine/InputHandler.js
@@ -69,6 +73,10 @@ projects/html-7088/
 ├── src/world/Level.js
 ├── tests/collision.test.js
 ├── tests/database_layer.test.js
+├── tests/integration.test.js
 ├── tests/physics.test.js
 ├── tests/physics_cache.test.js
+├── tests/runAll.js
+├── tests/testRunner.js
+├── tests/unit.test.js
 ```

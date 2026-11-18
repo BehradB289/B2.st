@@ -1,31 +1,35 @@
 /**
- * دوربین با دید نرم و جلوگیری از به عقب رفتن ماریو مطابق نسخه اصلی نینتندو
+ * دوربین اسکرولر افقی متحرک جهت دنبال کردن ماریو به سبک بازی کلاسیک NES
  */
-'use strict';
-
 export class Camera {
-    constructor(viewportWidth, viewportHeight) {
+    /**
+     * @param {number} width عرض دید دوربین
+     * @param {number} height ارتفاع دید دوربین
+     */
+    constructor(width, height) {
         this.x = 0;
         this.y = 0;
-        this.viewportWidth = viewportWidth;
-        this.viewportHeight = viewportHeight;
+        this.width = width;
+        this.height = height;
         this.maxX = 0;
     }
 
-    update(targetX, levelWidth) {
-        // دوربین ماریو را در مرکز افقی دنبال می‌کند اما مانع بازگشت به چپ می‌شود
-        const idealX = targetX - (this.viewportWidth * 0.35);
-        if (idealX > this.x) {
-            this.x = idealX;
+    /**
+     * دنبال کردن هدف (ماریو) بدون امکان برگشت به عقب در صورت نیاز
+     * @param {import('../entities/Entity.js').Entity} target 
+     * @param {number} levelPixelWidth عرض کل مرحله به پیکسل
+     */
+    update(target, levelPixelWidth) {
+        // دوربین ماریو را در مرکز افقی یا کمی متمایل به چپ حفظ می‌کند
+        const targetX = target.position.x - this.width * 0.38;
+
+        if (targetX > this.x) {
+            this.x = targetX;
         }
 
-        // محدودسازی کادر بین 0 و حداکثر طول مرحله
-        this.x = Math.max(0, Math.min(this.x, levelWidth - this.viewportWidth));
-        this.y = 0;
-    }
-
-    reset() {
-        this.x = 0;
-        this.y = 0;
+        // قفل کردن دوربین در محدوده مرحله
+        if (this.x < 0) this.x = 0;
+        const maxScroll = levelPixelWidth - this.width;
+        if (this.x > maxScroll) this.x = maxScroll;
     }
 }

@@ -1,104 +1,71 @@
 import { Entity } from './Entity.js';
+import { GameConfig } from '../../config/game_config.js';
 
-'use strict';
-
+/**
+ * موجودیت دشمن پایه گومبا (قارچ قهوه‌ای رنگ متخاصم)
+ */
 export class Goomba extends Entity {
-    constructor(x, y) {
-        super(x, y, 30, 30);
-        this.speed = 50;
-        this.vx = -this.speed;
-        this.vy = 0;
-        this.gravity = 1400;
+    /**
+     * @param {number} x 
+     * @param {number} y 
+     * @param {import('../levels/SpriteSheet.js').SpriteSheet} spriteSheet 
+     */
+    constructor(x, y, spriteSheet) {
+        super(x, y, 16, 16);
+        this.spriteSheet = spriteSheet;
+        this.tag = 'enemy';
+        this.velocity.x = -GameConfig.GOOMBA.SPEED;
+
+        this.animTimer = 0;
+        this.animFrame = 0;
         this.isSquished = false;
         this.squishTimer = 0;
-        this.toRemove = false;
     }
 
-    squish(audio) {
-        this.isSquished = true;
-        this.isAlive = false;
-        this.vx = 0;
-        this.vy = 0;
-        this.height = 12;
-        this.y += 18;
-        if (audio) audio.playStomp();
-    }
-
-    update(dt, level, cameraX) {
-        if (this.toRemove) return;
-
+    update(dt) {
         if (this.isSquished) {
             this.squishTimer += dt;
-            if (this.squishTimer > 0.4) {
-                this.toRemove = true;
+            if (this.squishTimer > GameConfig.GOOMBA.SQUISH_TIME) {
+                this.isDead = true;
             }
             return;
         }
 
-        // فعال‌سازی هوش مصنوعی تنها زمانی که دشمن وارد صفحه شود
-        if (this.x > cameraX + 850) {
-            return;
+        this.velocity.y += GameConfig.WORLD.GRAVITY * dt;
+        if (this.velocity.y > GameConfig.WORLD.MAX_FALL_SPEED) {
+            this.velocity.y = GameConfig.WORLD.MAX_FALL_SPEED;
         }
 
-        this.vy += this.gravity * dt;
-        if (this.vy > 800) this.vy = 800;
-
-        // حرکت افقی و وارونگی در صورت برخورد به موانع
-        this.x += this.vx * dt;
-        const collidedH = level.checkHorizontalWall(this);
-        if (collidedH) {
-            this.vx = -this.vx;
-        }
-
-        // حرکت عمودی
-        this.y += this.vy * dt;
-        level.resolveVerticalCollisions(this);
-
-        // سقوط
-        if (this.y > 550) {
-            this.toRemove = true;
+        // به‌روزرسانی فریم انیمیشن راه رفتن
+        this.animTimer += dt;
+        if (this.animTimer > 0.18) {
+            this.animFrame = (this.animFrame + 1) % 2;
+            this.animTimer = 0;
         }
     }
 
-    render(ctx, cameraX) {
-        if (this.toRemove) return;
+    onCollideHorizontal(direction) {
+        // تغییر جهت حرکت پس از برخورد با موانع
+        this.velocity.x = -this.velocity.x;
+    }
 
-        const renderX = Math.round(this.x - cameraX);
-        const renderY = Math.round(this.y);
+    squish() {
+        this.isSquished = true;
+        this.velocity.x = 0;
+        this.velocity.y = 0;
+    }
 
-        ctx.save();
-        ctx.translate(renderX, renderY);
+    render(ctx, camera) {
+        const renderX = Math.floor(this.position.x - camera.x);
+        const renderY = Math.floor(this.position.y - camera.y);
 
+        let sprite;
         if (this.isSquished) {
-            ctx.fillStyle = '#78350f';
-            ctx.fillRect(0, 0, 30, 12);
-            ctx.fillStyle = '#000';
-            ctx.fillRect(6, 4, 18, 4);
+            sprite = this.spriteSheet.getGoombaSquished();
         } else {
-            // سر گومبا (قارچ قهوه‌ای)
-            ctx.fillStyle = '#9a3412';
-            ctx.beginPath();
-            ctx.ellipse(15, 12, 14, 12, 0, 0, Math.PI * 2);
-            ctx.fill();
-
-            // بدنه زیرین (کرم)
-            ctx.fillStyle = '#fed7aa';
-            ctx.fillRect(8, 16, 14, 8);
-
-            // چشم‌ها
-            ctx.fillStyle = '#fff';
-            ctx.fillRect(6, 8, 4, 8);
-            ctx.fillRect(20, 8, 4, 8);
-            ctx.fillStyle = '#000';
-            ctx.fillRect(8, 10, 2, 6);
-            ctx.fillRect(20, 10, 2, 6);
-
-            // پاها
-            ctx.fillStyle = '#1c1917';
-            ctx.fillRect(2, 24, 8, 6);
-            ctx.fillRect(20, 24, 8, 6);
+            sprite = this.spriteSheet.getGoomba(this.animFrame);
         }
 
-        ctx.restore();
+        ctx.drawImage(sprite, renderX, renderY);
     }
 }

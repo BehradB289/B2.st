@@ -1,71 +1,58 @@
-import crypto from 'node:crypto';
-import { ENV } from '../../config/env';
+import crypto from "crypto";
 
-const ALGORITHM = 'aes-256-gcm';
-const IV_LENGTH = 12; // ۱۲ بایت برای استاندارد GCM
-const AUTH_TAG_LENGTH = 16;
+const ALGORITHM = "aes-256-gcm";
+const DEFAULT_FALLBACK_SECRET = "b2st_paypass_master_aes256_super_key_32bytes!!";
 
-/**
- * دریافت کلید ۳۲ بایتی نرمالایز شده از متغیر محیطی
- */
-function getCipherKey(): Buffer {
-  const hexKey = ENV.ENCRYPTION_SECRET_KEY;
-  if (hexKey.length === 64) {
-    return Buffer.from(hexKey, 'hex');
-  }
-  // در صورت عبور رشته متنی، تولید هش ۳۲ بایتی SHA-256
-  return crypto.createHash('sha256').update(hexKey).digest();
+function getMasterKey(): Buffer {
+  const secret = process.env.PAYPASS_AES_KEY || DEFAULT_FALLBACK_SECRET;
+  // Derive a reliable 32-byte key
+  return crypto.scryptSync(secret, "b2st-paypass-salt-v1", 32);
 }
 
 /**
- * رمزنگاری محتوای حساس با الگوریتم AES-256-GCM
- * فرمت خروجی: iv:authTag:encryptedPayload
+ * Encrypt sensitive content with AES-256-GCM
+ * Output format: [ivHex]:[authTagHex]:[ciphertextHex]
  */
-export function encryptSensitiveContent(plainText: string): string {
+export function encryptContent(plainText: string): string {
   if (!plainText) {
-    throw new Error('محتوای ورودی جهت رمزنگاری نمی‌تواند خالی باشد.');
+    throw new Error("Plain text cannot be empty for encryption");
   }
 
-  const iv = crypto.randomBytes(IV_LENGTH);
-  const key = getCipherKey();
-  const cipher = crypto.createCipheriv(ALGORITHM, key, iv, {
-    authTagLength: AUTH_TAG_LENGTH,
-  });
+  const iv = crypto.randomBytes(16);
+  const key = getMasterKey();
+  const cipher = crypto.createCipheriv(ALGORITHM, key, iv);
 
-  let encrypted = cipher.update(plainText, 'utf8', 'hex');
-  encrypted += cipher.final('hex');
+  let encrypted = cipher.update(plainText, "utf8", "hex");
+  encrypted += cipher.final("hex");
 
-  const authTag = cipher.getAuthTag().toString('hex');
-
-  return `${iv.toString('hex')}:${authTag}:${encrypted}`;
+  const authTag = cipher.getAuthTag().toString("hex");
+  return `${iv.toString("hex")}:${authTag}:${encrypted}`;
 }
 
 /**
- * رمزگشایی محتوای حساس و تایید صحت امضای احراز هویت (Auth Tag)
+ * Decrypt content using AES-256-GCM.
+ * Validates integrity via AuthTag to prevent tampering.
  */
-export function decryptSensitiveContent(cipherPayload: string): string {
-  if (!cipherPayload || !cipherPayload.includes(':')) {
-    throw new Error('قالب دیتای رمزنگاری شده نامعتبر است.');
+export function decryptContent(encryptedPayload: string): string {
+  if (!encryptedPayload) {
+    throw new Error("Encrypted payload is missing");
   }
 
-  const [ivHex, authTagHex, encryptedHex] = cipherPayload.split(':');
-
-  if (!ivHex || !authTagHex || !encryptedHex) {
-    throw new Error('اجزای بلاک رمزنگاری شده ناقص است.');
+  const parts = encryptedPayload.split(":");
+  if (parts.length !== 3) {
+    throw new Error("Invalid encrypted payload format");
   }
 
-  const iv = Buffer.from(ivHex, 'hex');
-  const authTag = Buffer.from(authTagHex, 'hex');
-  const key = getCipherKey();
+  const [ivHex, authTagHex, encryptedText] = parts;
+  const iv = Buffer.from(ivHex, "hex");
+  const authTag = Buffer.from(authTagHex, "hex");
+  const key = getMasterKey();
 
-  const decipher = crypto.createDecipheriv(ALGORITHM, key, iv, {
-    authTagLength: AUTH_TAG_LENGTH,
-  });
-
+  const decipher = crypto.createDecipheriv(ALGORITHM, key, iv);
   decipher.setAuthTag(authTag);
 
-  let decrypted = decipher.update(encryptedHex, 'hex', 'utf8');
-  decrypted += decipher.final('utf8');
+  let decrypted = decipher.update(encryptedText, "hex", "utf8");
+  decrypted += decipher.final("utf8");
 
   return decrypted;
 }

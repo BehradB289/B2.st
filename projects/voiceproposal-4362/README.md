@@ -10,11 +10,29 @@
 projects/voiceproposal-4362/
 ├── .env.example
 ├── config/supabase-schema.sql
+├── docs/ARCHITECTURE.md
 ├── docs/architecture-pipeline.md
+├── package.json
+├── public/index.html
 ├── src/app/actions/generate-proposal.ts
+├── src/app/api/transcribe/route.ts
+├── src/app/globals.css
+├── src/app/layout.tsx
+├── src/app/page.tsx
+├── src/components/AudioRecorder.tsx
+├── src/components/AudioVisualizer.tsx
+├── src/components/GlassCard.tsx
+├── src/components/Header.tsx
+├── src/hooks/useAudioRecorder.ts
 ├── src/lib/groq.ts
 ├── src/lib/schemas/proposal.ts
 ├── src/lib/supabase.ts
+├── src/next.config.mjs
+├── src/postcss.config.mjs
+├── src/tailwind.config.ts
+├── src/tsconfig.json
+├── src/types/audio.ts
 ├── src/types/database.ts
+├── tests/AudioRecorder.test.tsx
 ├── tests/proposal-pipeline.test.ts
 ```

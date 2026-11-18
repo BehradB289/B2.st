@@ -1,71 +1,757 @@
+```html
 <!DOCTYPE html>
-<html lang="en">
+<html lang="fa" dir="rtl">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Super Mario NES - B2.st Studio</title>
-  <link rel="stylesheet" href="styles.css">
+  <title>🎮 B2.st Mario</title>
+  <style>
+    /* ── NES Retro Style ── */
+    @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      background: #000;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      font-family: 'Press Start 2P', monospace;
+      color: #fff;
+      overflow: hidden;
+      image-rendering: pixelated;
+    }
+
+    #game-wrapper {
+      position: relative;
+      border: 4px solid #444;
+      border-radius: 2px;
+      box-shadow: 0 0 30px rgba(107, 140, 255, 0.3);
+    }
+
+    canvas {
+      display: block;
+      background: #6B8CFF;
+    }
+
+    /* ── HUD Overlay ── */
+    #hud {
+      position: absolute;
+      top: 8px;
+      left: 8px;
+      right: 8px;
+      display: flex;
+      justify-content: space-between;
+      font-size: 8px;
+      color: #fff;
+      text-shadow: 1px 1px 0 #000;
+      pointer-events: none;
+      z-index: 10;
+    }
+
+    .hud-item { text-align: center; }
+    .hud-label { color: #ccc; margin-bottom: 4px; }
+    .hud-value { font-size: 10px; }
+
+    /* ── Health Badge ── */
+    #health-badge {
+      position: fixed;
+      bottom: 12px;
+      right: 12px;
+      padding: 6px 12px;
+      border-radius: 4px;
+      font-size: 7px;
+      font-family: 'Press Start 2P', monospace;
+      cursor: pointer;
+      z-index: 100;
+      transition: all 0.3s;
+    }
+
+    #health-badge.healthy { background: #2d5a1b; color: #7fff00; border: 1px solid #7fff00; }
+    #health-badge.degraded { background: #5a4a1b; color: #ffd700; border: 1px solid #ffd700; }
+    #health-badge.critical { background: #5a1b1b; color: #ff4444; border: 1px solid #ff4444; }
+
+    /* ── Start Screen ── */
+    #start-screen {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: #6B8CFF;
+      z-index: 20;
+    }
+
+    #start-screen h1 {
+      font-size: 24px;
+      color: #e44;
+      text-shadow: 2px 2px 0 #800, 4px 4px 0 #400;
+      margin-bottom: 40px;
+    }
+
+    #start-screen .blink {
+      font-size: 10px;
+      animation: blink 1s step-end infinite;
+    }
+
+    @keyframes blink {
+      50% { opacity: 0; }
+    }
+
+    /* ── Responsive ── */
+    @media (max-width: 800px) {
+      canvas { width: 100vw !important; height: auto !important; }
+    }
+  </style>
 </head>
 <body>
 
-  <div class="arcade-cabinet">
-    <div class="hud-panel">
+  <div id="game-wrapper">
+    <canvas id="game-canvas" width="768" height="720"></canvas>
+
+    <!-- HUD -->
+    <div id="hud">
       <div class="hud-item">
-        <span>MARIO</span>
-        <span id="hud-score">000000</span>
+        <div class="hud-label">MARIO</div>
+        <div class="hud-value" id="hud-score">000000</div>
       </div>
       <div class="hud-item">
-        <span>COINS</span>
-        <span id="hud-coins">🪙 x00</span>
+        <div class="hud-label">COINS</div>
+        <div class="hud-value" id="hud-coins">×00</div>
       </div>
       <div class="hud-item">
-        <span>WORLD</span>
-        <span>1-1</span>
+        <div class="hud-label">WORLD</div>
+        <div class="hud-value" id="hud-world">1-1</div>
       </div>
       <div class="hud-item">
-        <span>TIME</span>
-        <span id="hud-time">400</span>
+        <div class="hud-label">TIME</div>
+        <div class="hud-value" id="hud-time">400</div>
       </div>
       <div class="hud-item">
-        <span>LIVES</span>
-        <span id="hud-lives">x3</span>
+        <div class="hud-label">LIVES</div>
+        <div class="hud-value" id="hud-lives">×03</div>
       </div>
     </div>
 
-    <div class="screen-container">
-      <canvas id="gameCanvas" width="256" height="240"></canvas>
-    </div>
-
-    <div class="instructions-bar">
-      Controls: <kbd>◀</kbd> <kbd>▶</kbd> Walk &bull; <kbd>Z</kbd> / <kbd>Space</kbd> Jump &bull; <kbd>X</kbd> / <kbd>Shift</kbd> Run
+    <!-- Start Screen -->
+    <div id="start-screen">
+      <h1>SUPER MARIO</h1>
+      <p style="font-size: 8px; margin-bottom: 20px;">© B2.st STUDIO</p>
+      <p class="blink">PRESS ENTER TO START</p>
     </div>
   </div>
 
-  <script type="module">
-    import { GameEngine } from '../src/engine/GameEngine.js';
+  <!-- Health Badge -->
+  <div id="health-badge" class="healthy" title="کلیک برای جزئیات سلامت">● HEALTHY</div>
 
-    window.addEventListener('DOMContentLoaded', () => {
-      const canvas = document.getElementById('gameCanvas');
-      const engine = new GameEngine(canvas);
+  <script>
+    /**
+     * ═══════════════════════════════════════════════════════════════
+     *  🎮 B2.st Mario — Client-Side Game + Health Monitor
+     * ═══════════════════════════════════════════════════════════════
+     */
 
-      // HUD Element Bindings
-      const scoreEl = document.getElementById('hud-score');
-      const coinsEl = document.getElementById('hud-coins');
-      const timeEl = document.getElementById('hud-time');
-      const livesEl = document.getElementById('hud-lives');
+    // ── Health Monitor (Browser Version) ──
+    class HealthMonitor {
+      constructor(config = {}) {
+        this.config = {
+          checkIntervalMs:        config.checkIntervalMs        ?? 5000,
+          memoryThresholdMB:      config.memoryThresholdMB      ?? 512,
+          fpsThreshold:           config.fpsThreshold           ?? 30,
+          maxEntityCount:         config.maxEntityCount         ?? 1000,
+          physicsStepThresholdMs: config.physicsStepThresholdMs ?? 16,
+          renderStepThresholdMs:  config.renderStepThresholdMs  ?? 16,
+          historySize:            config.historySize            ?? 100,
+        };
+        this.metrics = {
+          uptime: 0, fps: 60, memoryUsageMB: 0, entityCount: 0,
+          physicsStepMs: 0, renderStepMs: 0, collisionChecks: 0,
+        };
+        this.status = 'healthy';
+        this.history = [];
+        this._frameCount = 0;
+        this._fpsTimer = 0;
+        this._startTime = performance.now();
+      }
 
-      const originalRender = engine.render.bind(engine);
-      engine.render = () => {
-        originalRender();
-        // Sync HUD with Player State
-        scoreEl.textContent = String(engine.mario.score).padStart(6, '0');
-        coinsEl.textContent = `🪙 x${String(engine.mario.coins).padStart(2, '0')}`;
-        timeEl.textContent = String(engine.timeRemaining).padStart(3, '0');
-        livesEl.textContent = `x${Math.max(0, engine.mario.lives)}`;
-      };
+      tick(dt) {
+        this._frameCount++;
+        this._fpsTimer += dt;
+        this.metrics.uptime = (performance.now() - this._startTime) / 1000;
+        if (this._fpsTimer >= 1.0) {
+          this.metrics.fps = Math.round(this._frameCount / this._fpsTimer);
+          this._frameCount = 0;
+          this._fpsTimer = 0;
+        }
+      }
 
-      engine.start();
+      updateMetrics(partial) {
+        if (!partial || typeof partial !== 'object') return;
+        Object.keys(partial).forEach(k => { if (k in this.metrics) this.metrics[k] = partial[k]; });
+      }
+
+      evaluate() {
+        const checks = [];
+        let failCount = 0;
+
+        const check = (name, value, threshold, comp) => {
+          let status = 'pass';
+          if (comp === 'gte' && value < threshold) status = value < threshold * 0.5 ? 'critical' : 'fail';
+          if (comp === 'lte' && value > threshold) status = value > threshold * 2 ? 'critical' : 'fail';
+          if (status !== 'pass') failCount++;
+          checks.push({ name, status, value, threshold });
+        };
+
+        check('fps', this.metrics.fps, this.config.fpsThreshold, 'gte');
+        check('memory', this.metrics.memoryUsageMB, this.config.memoryThresholdMB, 'lte');
+        check('entityCount', this.metrics.entityCount, this.config.maxEntityCount, 'lte');
+
+        this.status = failCount >= 3 ? 'critical' : failCount > 0 ? 'degraded' : 'healthy';
+
+        const report = { timestamp: Date.now(), status: this.status, checks, metrics: { ...this.metrics } };
+        this.history.push(report);
+        if (this.history.length > this.config.historySize) this.history.shift();
+        return report;
+      }
+
+      getReport() { return this.evaluate(); }
+    }
+
+    // ── Game Engine ──
+    const canvas = document.getElementById('game-canvas');
+    const ctx = canvas.getContext('2d');
+    const startScreen = document.getElementById('start-screen');
+    const healthBadge = document.getElementById('health-badge');
+
+    const TILE = 16;
+    const SCALE = 3;
+    const GRAVITY = 0.7;
+    const FRICTION = 0.85;
+
+    // Game state
+    const game = {
+      running: false,
+      score: 0,
+      coins: 0,
+      lives: 3,
+      time: 400,
+      world: '1-1',
+      lastTime: 0,
+      timeAccum: 0,
+    };
+
+    // Camera
+    const camera = { x: 0, y: 0, width: canvas.width, height: canvas.height };
+
+    // Mario
+    const mario = {
+      x: 50, y: 400, width: 16, height: 16,
+      vx: 0, vy: 0,
+      speed: 3, jumpForce: -10,
+      grounded: false,
+      facing: 1,
+      frame: 0, frameTimer: 0,
+      state: 'small', // small | big | fire
+      alive: true,
+    };
+
+    // Input
+    const keys = {};
+    window.addEventListener('keydown', e => {
+      keys[e.code] = true;
+      if (e.code === 'Enter' && !game.running) startGame();
     });
+    window.addEventListener('keyup', e => { keys[e.code] = false; });
+
+    // Level data (simplified World 1-1 layout)
+    const levelData = {
+      width: 220,
+      height: 15,
+      tiles: [],
+    };
+
+    function generateLevel() {
+      const w = levelData.width;
+      const h = levelData.height;
+      levelData.tiles = [];
+
+      for (let x = 0; x < w; x++) {
+        for (let y = 0; y < h; y++) {
+          // Ground
+          if (y >= 13) {
+            // Gaps
+            if ((x >= 69 && x <= 70) || (x >= 86 && x <= 88)) continue;
+            levelData.tiles.push({ x: x * TILE, y: y * TILE, w: TILE, h: TILE, type: 'ground' });
+          }
+          // Pipes
+          if (x === 28 && y >= 11 && y <= 12) levelData.tiles.push({ x: x * TILE, y: y * TILE, w: TILE, h: TILE, type: 'pipe' });
+          if (x === 29 && y >= 11 && y <= 12) levelData.tiles.push({ x: x * TILE, y: y * TILE, w: TILE, h: TILE, type: 'pipe' });
+          if (x === 38 && y >= 10 && y <= 12) levelData.tiles.push({ x: x * TILE, y: y * TILE, w: TILE, h: TILE, type: 'pipe' });
+          if (x === 39 && y >= 10 && y <= 12) levelData.tiles.push({ x: x * TILE, y: y * TILE, w: TILE, h: TILE, type: 'pipe' });
+          if (x === 46 && y >= 9 && y <= 12) levelData.tiles.push({ x: x * TILE, y: y * TILE, w: TILE, h: TILE, type: 'pipe' });
+          if (x === 47 && y >= 9 && y <= 12) levelData.tiles.push({ x: x * TILE, y: y * TILE, w: TILE, h: TILE, type: 'pipe' });
+          // Question blocks
+          if (y === 9 && (x === 16 || x === 21 || x === 22 || x === 23)) {
+            levelData.tiles.push({ x: x * TILE, y: y * TILE, w: TILE, h: TILE, type: 'question' });
+          }
+          if (y === 5 && x === 22) {
+            levelData.tiles.push({ x: x * TILE, y: y * TILE, w: TILE, h: TILE, type: 'question' });
+          }
+          // Brick blocks
+          if (y === 9 && (x === 20 || x === 24)) {
+            levelData.tiles.push({ x: x * TILE, y: y * TILE, w: TILE, h: TILE, type: 'brick' });
+          }
+          // Stairs (end of level)
+          if (x >= 134 && x <= 142) {
+            const stairHeight = x - 134 + 1;
+            if (y >= 13 - stairHeight && y <= 12) {
+              levelData.tiles.push({ x: x * TILE, y: y * TILE, w: TILE, h: TILE, type: 'ground' });
+            }
+          }
+          // Flag pole
+          if (x === 198 && y >= 2 && y <= 12) {
+            levelData.tiles.push({ x: x * TILE, y: y * TILE, w: 2, h: TILE, type: 'flagpole' });
+          }
+        }
+      }
+    }
+
+    // Enemies
+    let enemies = [];
+    function spawnEnemies() {
+      enemies = [
+        { x: 352, y: 192, width: 16, height: 16, vx: -0.5, type: 'goomba', alive: true, frame: 0 },
+        { x: 640, y: 192, width: 16, height: 16, vx: -0.5, type: 'goomba', alive: true, frame: 0 },
+        { x: 816, y: 192, width: 16, height: 16, vx: -0.5, type: 'goomba', alive: true, frame: 0 },
+        { x: 1280, y: 192, width: 16, height: 16, vx: -0.5, type: 'goomba', alive: true, frame: 0 },
+        { x: 1632, y: 192, width: 16, height: 16, vx: -0.5, type: 'goomba', alive: true, frame: 0 },
+      ];
+    }
+
+    // Coins collected particles
+    let particles = [];
+
+    // Health Monitor instance
+    const healthMonitor = new HealthMonitor({ fpsThreshold: 30, maxEntityCount: 500 });
+
+    // ── AABB Collision ──
+    function aabb(a, b) {
+      return a.x < b.x + b.w && a.x + a.width > b.x &&
+             a.y < b.y + b.h && a.y + a.height > b.y;
+    }
+
+    // ── Physics Update ──
+    function updatePhysics() {
+      const physStart = performance.now();
+
+      // Mario input
+      if (mario.alive) {
+        if (keys['ArrowRight'] || keys['KeyD']) {
+          mario.vx = mario.speed;
+          mario.facing = 1;
+        } else if (keys['ArrowLeft'] || keys['KeyA']) {
+          mario.vx = -mario.speed;
+          mario.facing = -1;
+        } else {
+          mario.vx *= FRICTION;
+          if (Math.abs(mario.vx) < 0.1) mario.vx = 0;
+        }
+
+        if ((keys['ArrowUp'] || keys['KeyW'] || keys['Space']) && mario.grounded) {
+          mario.vy = mario.jumpForce;
+          mario.grounded = false;
+        }
+      }
+
+      // Gravity
+      mario.vy += GRAVITY;
+      if (mario.vy > 12) mario.vy = 12;
+
+      // Move X
+      mario.x += mario.vx;
+      let collisions = 0;
+
+      // Tile collision X
+      for (const tile of levelData.tiles) {
+        if (tile.type === 'flagpole') continue;
+        collisions++;
+        if (aabb(mario, tile)) {
+          if (mario.vx > 0) {
+            mario.x = tile.x - mario.width;
+          } else if (mario.vx < 0) {
+            mario.x = tile.x + tile.w;
+          }
+          mario.vx = 0;
+        }
+      }
+
+      // Move Y
+      mario.y += mario.vy;
+      mario.grounded = false;
+
+      for (const tile of levelData.tiles) {
+        if (tile.type === 'flagpole') continue;
+        collisions++;
+        if (aabb(mario, tile)) {
+          if (mario.vy > 0) {
+            mario.y = tile.y - mario.height;
+            mario.vy = 0;
+            mario.grounded = true;
+          } else if (mario.vy < 0) {
+            mario.y = tile.y + tile.h;
+            mario.vy = 0;
+            // Hit question block
+            if (tile.type === 'question') {
+              tile.type = 'used';
+              game.coins++;
+              game.score += 200;
+              particles.push({
+                x: tile.x + 4, y: tile.y - 16,
+                vy: -3, life: 30, text: '🪙',
+              });
+            }
+          }
+        }
+      }
+
+      // Boundaries
+      if (mario.x < 0) mario.x = 0;
+      if (mario.y > canvas.height / SCALE + 32) {
+        mario.alive = false;
+        game.lives--;
+        if (game.lives > 0) {
+          setTimeout(() => {
+            mario.x = 50; mario.y = 400;
+            mario.vx = 0; mario.vy = 0;
+            mario.alive = true;
+          }, 1500);
+        }
+      }
+
+      // Enemy update
+      for (const enemy of enemies) {
+        if (!enemy.alive) continue;
+        enemy.x += enemy.vx;
+        enemy.frame += 0.05;
+
+        // Enemy-Mario collision
+        collisions++;
+        if (mario.alive && aabb(mario, { x: enemy.x, y: enemy.y, w: enemy.width, h: enemy.height })) {
+          if (mario.vy > 0 && mario.y + mario.height - 4 < enemy.y + enemy.height) {
+            // Stomp
+            enemy.alive = false;
+            mario.vy = -6;
+            game.score += 100;
+            particles.push({
+              x: enemy.x, y: enemy.y,
+              vy: -2, life: 20, text: '100',
+            });
+          } else {
+            // Mario hit
+            mario.alive = false;
+            mario.vy = -8;
+            game.lives--;
+            if (game.lives > 0) {
+              setTimeout(() => {
+                mario.x = 50; mario.y = 400;
+                mario.vx = 0; mario.vy = 0;
+                mario.alive = true;
+                camera.x = 0;
+              }, 1500);
+            }
+          }
+        }
+      }
+
+      // Particles
+      particles = particles.filter(p => {
+        p.y += p.vy;
+        p.life--;
+        return p.life > 0;
+      });
+
+      // Camera follow
+      const targetCamX = mario.x - canvas.width / SCALE / 3;
+      camera.x += (targetCamX - camera.x) * 0.1;
+      if (camera.x < 0) camera.x = 0;
+
+      // Timer
+      game.timeAccum++;
+      if (game.timeAccum >= 24) {
+        game.timeAccum = 0;
+        game.time--;
+        if (game.time <= 0) {
+          mario.alive = false;
+          game.lives--;
+        }
+      }
+
+      // Animation
+      if (Math.abs(mario.vx) > 0.5) {
+        mario.frameTimer += 0.15;
+        mario.frame = Math.floor(mario.frameTimer) % 3;
+      } else {
+        mario.frame = 0;
+      }
+
+      healthMonitor.updateMetrics({
+        collisionChecks: collisions,
+        entityCount: enemies.filter(e => e.alive).length + 1 + particles.length,
+        physicsStepMs: performance.now() - physStart,
+      });
+    }
+
+    // ── Render ──
+    function render() {
+      const renderStart = performance.now();
+
+      ctx.save();
+      ctx.scale(SCALE, SCALE);
+
+      const viewW = canvas.width / SCALE;
+      const viewH = canvas.height / SCALE;
+
+      // Sky
+      ctx.fillStyle = '#6B8CFF';
+      ctx.fillRect(0, 0, viewW, viewH);
+
+      // Clouds (decorative)
+      ctx.fillStyle = '#fff';
+      for (let i = 0; i < 8; i++) {
+        const cx = (i * 300 + 50 - camera.x * 0.3) % (viewW + 200) - 50;
+        const cy = 20 + (i % 3) * 15;
+        drawCloud(cx, cy);
+      }
+
+      // Hills (decorative)
+      ctx.fillStyle = '#5A9B2E';
+      for (let i = 0; i < 6; i++) {
+        const hx = (i * 400 - camera.x * 0.5) % (viewW + 300) - 100;
+        drawHill(hx, viewH - 48, 60 + (i % 2) * 30);
+      }
+
+      ctx.translate(-camera.x, 0);
+
+      // Tiles
+      for (const tile of levelData.tiles) {
+        if (tile.x + tile.w < camera.x - 16 || tile.x > camera.x + viewW + 16) continue;
+
+        switch (tile.type) {
+          case 'ground':
+            ctx.fillStyle = '#C84C0C';
+            ctx.fillRect(tile.x, tile.y, tile.w, tile.h);
+            ctx.fillStyle = '#E09050';
+            ctx.fillRect(tile.x + 1, tile.y + 1, tile.w - 2, 3);
+            break;
+          case 'brick':
+            ctx.fillStyle = '#C84C0C';
+            ctx.fillRect(tile.x, tile.y, tile.w, tile.h);
+            ctx.strokeStyle = '#8B3000';
+            ctx.strokeRect(tile.x + 0.5, tile.y + 0.5, tile.w - 1, tile.h - 1);
+            ctx.fillStyle = '#8B3000';
+            ctx.fillRect(tile.x + 7, tile.y, 2, tile.h);
+            ctx.fillRect(tile.x, tile.y + 7, tile.w, 2);
+            break;
+          case 'question':
+            ctx.fillStyle = '#E09050';
+            ctx.fillRect(tile.x, tile.y, tile.w, tile.h);
+            ctx.fillStyle = '#FFD700';
+            ctx.fillRect(tile.x + 2, tile.y + 2, tile.w - 4, tile.h - 4);
+            ctx.fillStyle = '#C84C0C';
+            ctx.font = '10px monospace';
+            ctx.fillText('?', tile.x + 4, tile.y + 12);
+            break;
+          case 'used':
+            ctx.fillStyle = '#8B7355';
+            ctx.fillRect(tile.x, tile.y, tile.w, tile.h);
+            break;
+          case 'pipe':
+            ctx.fillStyle = '#00A800';
+            ctx.fillRect(tile.x, tile.y, tile.w, tile.h);
+            ctx.fillStyle = '#00D800';
+            ctx.fillRect(tile.x + 2, tile.y, 4, tile.h);
+            break;
+          case 'flagpole':
+            ctx.fillStyle = '#888';
+            ctx.fillRect(tile.x, tile.y, tile.w, tile.h);
+            break;
+        }
+      }
+
+      // Enemies
+      for (const enemy of enemies) {
+        if (!enemy.alive) continue;
+        if (enemy.x + enemy.width < camera.x - 16 || enemy.x > camera.x + viewW + 16) continue;
+
+        ctx.fillStyle = '#C84C0C';
+        ctx.fillRect(enemy.x, enemy.y, enemy.width, enemy.height);
+        // Eyes
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(enemy.x + 3, enemy.y + 3, 3, 3);
+        ctx.fillRect(enemy.x + 10, enemy.y + 3, 3, 3);
+        ctx.fillStyle = '#000';
+        ctx.fillRect(enemy.x + 4, enemy.y + 4, 2, 2);
+        ctx.fillRect(enemy.x + 11, enemy.y + 4, 2, 2);
+        // Feet
+        const footOffset = Math.floor(enemy.frame) % 2 === 0 ? 0 : 2;
+        ctx.fillStyle = '#8B5A2B';
+        ctx.fillRect(enemy.x + 1 + footOffset, enemy.y + 13, 5, 3);
+        ctx.fillRect(enemy.x + 9 - footOffset, enemy.y + 13, 5, 3);
+      }
+
+      // Mario
+      if (mario.alive) {
+        ctx.save();
+        const mx = mario.facing === -1 ? mario.x + mario.width : mario.x;
+        ctx.translate(mx, mario.y);
+        ctx.scale(mario.facing, 1);
+
+        // Body
+        ctx.fillStyle = '#E44';
+        ctx.fillRect(3, 0, 10, 6); // Hat
+        ctx.fillStyle = '#FDB';
+        ctx.fillRect(1, 4, 12, 6); // Face
+        ctx.fillStyle = '#E44';
+        ctx.fillRect(2, 8, 12, 5); // Shirt
+        ctx.fillStyle = '#00A';
+        ctx.fillRect(2, 13, 5, 3); // Left leg
+        ctx.fillRect(9, 13, 5, 3); // Right leg
+
+        // Running animation
+        if (Math.abs(mario.vx) > 0.5 && mario.grounded) {
+          if (mario.frame === 1) {
+            ctx.fillStyle = '#00A';
+            ctx.fillRect(0, 13, 5, 3);
+            ctx.fillRect(11, 13, 5, 3);
+          }
+        }
+
+        // Jumping
+        if (!mario.grounded) {
+          ctx.fillStyle = '#FDB';
+          ctx.fillRect(0, 6, 3, 3); // Arm up
+        }
+
+        ctx.restore();
+      } else {
+        // Dead Mario
+        ctx.fillStyle = '#E44';
+        ctx.fillRect(mario.x + 3, mario.y, 10, 6);
+        ctx.fillStyle = '#FDB';
+        ctx.fillRect(mario.x + 1, mario.y + 4, 12, 6);
+      }
+
+      // Particles
+      for (const p of particles) {
+        ctx.fillStyle = '#FFD700';
+        ctx.font = '8px monospace';
+        ctx.globalAlpha = p.life / 30;
+        ctx.fillText(p.text, p.x, p.y);
+        ctx.globalAlpha = 1;
+      }
+
+      ctx.restore();
+
+      // Update HUD
+      document.getElementById('hud-score').textContent = String(game.score).padStart(6, '0');
+      document.getElementById('hud-coins').textContent = `×${String(game.coins).padStart(2, '0')}`;
+      document.getElementById('hud-world').textContent = game.world;
+      document.getElementById('hud-time').textContent = String(Math.max(0, game.time));
+      document.getElementById('hud-lives').textContent = `×${String(Math.max(0, game.lives)).padStart(2, '0')}`;
+
+      healthMonitor.updateMetrics({
+        renderStepMs: performance.now() - renderStart,
+      });
+    }
+
+    function drawCloud(x, y) {
+      ctx.beginPath();
+      ctx.arc(x, y, 8, 0, Math.PI * 2);
+      ctx.arc(x + 10, y - 3, 10, 0, Math.PI * 2);
+      ctx.arc(x + 22, y, 8, 0, Math.PI * 2);
+      ctx.arc(x + 11, y + 3, 12, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    function drawHill(x, y, size) {
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.quadraticCurveTo(x + size / 2, y - size * 0.6, x + size, y);
+      ctx.fill();
+    }
+
+    // ── Game Loop ──
+    let lastTimestamp = 0;
+
+    function gameLoop(timestamp) {
+      if (!game.running) return;
+
+      const dt = Math.min((timestamp - lastTimestamp) / 1000, 0.05);
+      lastTimestamp = timestamp;
+
+      healthMonitor.tick(dt);
+      updatePhysics();
+      render();
+
+      // Periodic health check (every 5 seconds)
+      if (Math.floor(timestamp / 5000) !== Math.floor((timestamp - dt * 1000) / 5000)) {
+        if (performance.memory) {
+          healthMonitor.updateMetrics({
+            memoryUsageMB: Math.round(performance.memory.usedJSHeapSize / 1024 / 1024),
+          });
+        }
+        const report = healthMonitor.getReport();
+        updateHealthBadge(report);
+      }
+
+      requestAnimationFrame(gameLoop);
+    }
+
+    function updateHealthBadge(report) {
+      healthBadge.className = report.status;
+      const icons = { healthy: '●', degraded: '▲', critical: '■' };
+      healthBadge.textContent = `${icons[report.status] || '●'} ${report.status.toUpperCase()} | FPS: ${report.metrics.fps}`;
+    }
+
+    function startGame() {
+      startScreen.style.display = 'none';
+      game.running = true;
+      game.score = 0;
+      game.coins = 0;
+      game.lives = 3;
+      game.time = 400;
+      mario.x = 50;
+      mario.y = 160;
+      mario.vx = 0;
+      mario.vy = 0;
+      mario.alive = true;
+      camera.x = 0;
+      generateLevel();
+      spawnEnemies();
+      lastTimestamp = performance.now();
+      requestAnimationFrame(gameLoop);
+    }
+
+    // Health badge click
+    healthBadge.addEventListener('click', async () => {
+      try {
+        const resp = await fetch('/health');
+        const data = await resp.json();
+        console.table(data.checks);
+        console.log('Health Report:', data);
+        alert(`وضعیت: ${data.status}\nFPS: ${data.metrics.fps}\nMemory: ${data.metrics.memoryUsageMB}MB\nEntities: ${data.metrics.entityCount}`);
+      } catch {
+        const report = healthMonitor.getReport();
+        alert(`وضعیت (محلی): ${report.status}\nFPS: ${report.metrics.fps}\nEntities: ${report.metrics.entityCount}`);
+      }
+    });
+
+    // Generate level on load
+    generateLevel();
   </script>
 </body>
 </html>
+```

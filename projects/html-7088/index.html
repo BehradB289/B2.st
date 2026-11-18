@@ -1,422 +1,1493 @@
+```html
 <!DOCTYPE html>
 <html lang="fa" dir="rtl">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Super Mario - B2.st Secure Edition</title>
-    <!-- Layer 0: Fire-Up RASP Engine before anything else -->
-    <script src="src/security/owasp_guard.js"></script>
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:;">
+    <title>Super Mario Bros - B2.st Studio</title>
     <style>
-        * {
+        /* ===== RESET & BASE ===== */
+        *, *::before, *::after {
+            margin: 0;
+            padding: 0;
             box-sizing: border-box;
+        }
+
+        body {
+            background: #000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            font-family: 'Courier New', monospace;
+            overflow: hidden;
             user-select: none;
         }
-        body {
-            margin: 0;
-            padding: 20px;
-            background: #11141c;
-            color: #f1f1f1;
-            font-family: system-ui, -apple-system, sans-serif;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            min-height: 100vh;
-            overflow-x: hidden;
-        }
-        .header-panel {
-            text-align: center;
-            margin-bottom: 12px;
-        }
-        .header-panel h1 {
-            margin: 0 0 6px 0;
-            color: #ff3e3e;
-            font-size: 24px;
-            letter-spacing: 1px;
-            text-shadow: 2px 2px #000;
-        }
-        .shield-status {
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            padding: 4px 12px;
-            background: #0d2618;
-            color: #27c960;
-            border: 1px solid #27c960;
-            border-radius: 12px;
-            font-size: 11px;
-            font-weight: bold;
-        }
-        .game-wrapper {
+
+        #game-wrapper {
             position: relative;
-            background: #5c94fc;
-            border: 4px solid #33394d;
+            border: 4px solid #c84c09;
             border-radius: 8px;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.7);
-            overflow: hidden;
+            box-shadow: 0 0 30px rgba(200, 76, 9, 0.5);
         }
+
         canvas {
             display: block;
-            background: #5c94fc;
+            background: #6b88fe;
+            image-rendering: pixelated;
+            image-rendering: crisp-edges;
         }
-        .hud {
+
+        /* ===== HUD OVERLAY ===== */
+        #hud {
             position: absolute;
-            top: 10px;
-            left: 10px;
-            right: 10px;
+            top: 0;
+            left: 0;
+            right: 0;
+            padding: 8px 16px;
             display: flex;
             justify-content: space-between;
-            font-size: 16px;
-            font-weight: 800;
             color: #fff;
-            text-shadow: 2px 2px #000;
+            font-size: 14px;
+            font-weight: bold;
+            text-shadow: 2px 2px 0 #000;
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        /* ===== START SCREEN ===== */
+        #start-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.85);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 20;
+            color: #fff;
+        }
+
+        #start-screen h1 {
+            font-size: 36px;
+            color: #e7a526;
+            text-shadow: 3px 3px 0 #c84c09;
+            margin-bottom: 10px;
+        }
+
+        #start-screen .subtitle {
+            font-size: 12px;
+            color: #aaa;
+            margin-bottom: 30px;
+        }
+
+        #start-screen .prompt {
+            font-size: 18px;
+            color: #fff;
+            animation: blink 1s infinite;
+        }
+
+        #start-screen .controls-info {
+            margin-top: 30px;
+            font-size: 12px;
+            color: #888;
+            text-align: center;
+            line-height: 1.8;
+        }
+
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+
+        /* ===== GAME OVER ===== */
+        #game-over-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.9);
+            display: none;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 20;
+            color: #fff;
+        }
+
+        #game-over-screen h2 {
+            font-size: 32px;
+            color: #e74c3c;
+            margin-bottom: 15px;
+        }
+
+        #game-over-screen .final-score {
+            font-size: 20px;
+            color: #e7a526;
+            margin-bottom: 25px;
+        }
+
+        #game-over-screen .prompt {
+            font-size: 16px;
+            animation: blink 1s infinite;
+        }
+
+        /* ===== DEBUG OVERLAY ===== */
+        #debug-overlay {
+            position: absolute;
+            bottom: 5px;
+            left: 5px;
+            font-size: 10px;
+            color: #0f0;
+            background: rgba(0,0,0,0.7);
+            padding: 4px 8px;
+            border-radius: 4px;
+            display: none;
+            z-index: 15;
             pointer-events: none;
         }
-        .control-panel {
-            margin-top: 15px;
-            display: flex;
-            gap: 12px;
-            width: 640px;
-            max-width: 100%;
-        }
-        input[type="text"] {
-            flex: 1;
-            padding: 10px 14px;
-            background: #1b202e;
-            border: 1px solid #3d4663;
-            border-radius: 6px;
-            color: #fff;
-            font-size: 13px;
-            outline: none;
-            transition: 0.2s border;
-        }
-        input[type="text"]:focus {
-            border-color: #27c960;
-        }
-        button {
-            padding: 10px 18px;
-            background: #ff3e3e;
-            border: none;
-            border-radius: 6px;
-            color: #fff;
-            font-weight: bold;
-            font-size: 13px;
-            cursor: pointer;
-            transition: 0.2s background;
-        }
-        button:hover {
-            background: #e02a2a;
-        }
-        .leaderboard-panel {
-            margin-top: 15px;
-            width: 640px;
-            max-width: 100%;
-            background: #171b26;
-            border: 1px solid #2c3347;
-            border-radius: 6px;
-            padding: 12px;
-        }
-        .leaderboard-panel h3 {
-            margin: 0 0 8px 0;
-            font-size: 14px;
-            color: #ffaa00;
-        }
-        .leaderboard-list {
-            list-style: none;
-            padding: 0;
-            margin: 0;
-            font-size: 13px;
-        }
-        .leaderboard-list li {
-            display: flex;
+
+        /* ===== MOBILE CONTROLS ===== */
+        #mobile-controls {
+            display: none;
+            position: absolute;
+            bottom: 10px;
+            left: 0;
+            right: 0;
+            padding: 0 15px;
             justify-content: space-between;
-            padding: 6px 0;
-            border-bottom: 1px solid #222838;
+            z-index: 25;
         }
-        .logs-panel {
-            margin-top: 10px;
-            width: 640px;
-            max-width: 100%;
-            background: #0d0f14;
-            border: 1px solid #1a2030;
-            border-radius: 6px;
-            padding: 8px;
-            font-family: monospace;
-            font-size: 11px;
-            color: #a0aec0;
-            max-height: 80px;
-            overflow-y: auto;
+
+        .mobile-btn {
+            width: 55px;
+            height: 55px;
+            border-radius: 50%;
+            border: 3px solid rgba(255,255,255,0.5);
+            background: rgba(255,255,255,0.15);
+            color: #fff;
+            font-size: 22px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            touch-action: manipulation;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .mobile-btn:active {
+            background: rgba(255,255,255,0.4);
+        }
+
+        .mobile-btn-group {
+            display: flex;
+            gap: 10px;
+        }
+
+        @media (pointer: coarse) {
+            #mobile-controls {
+                display: flex !important;
+            }
         }
     </style>
 </head>
 <body>
 
-    <div class="header-panel">
-        <h1>MARIO BROWSER PLATFORMER</h1>
-        <div class="shield-status">
-            <span>🛡️ فایروال نرم‌افزاری OWASP فعال است (B2.st Hardened RASP)</span>
+<div id="game-wrapper">
+    <canvas id="gameCanvas" width="800" height="600"></canvas>
+
+    <div id="hud">
+        <div>MARIO <br><span id="hud-score">000000</span></div>
+        <div>COINS <br>×<span id="hud-coins">00</span></div>
+        <div>WORLD <br><span id="hud-world">1-1</span></div>
+        <div>TIME <br><span id="hud-time">400</span></div>
+        <div>LIVES <br>×<span id="hud-lives">3</span></div>
+    </div>
+
+    <div id="start-screen">
+        <h1>SUPER MARIO BROS</h1>
+        <div class="subtitle">B2.st Studio Edition v1.0.0</div>
+        <div class="prompt">PRESS ENTER OR TAP TO START</div>
+        <div class="controls-info">
+            ← → : Move &nbsp;|&nbsp; SPACE / ↑ : Jump<br>
+            SHIFT : Run &nbsp;|&nbsp; P : Pause &nbsp;|&nbsp; M : Mute
         </div>
     </div>
 
-    <div class="game-wrapper">
-        <canvas id="gameCanvas" width="640" height="360"></canvas>
-        <div class="hud">
-            <div>سکه: <span id="coinDisplay">0</span></div>
-            <div>امتیاز: <span id="scoreDisplay">0</span></div>
-            <div>جان: <span id="livesDisplay">3</span></div>
+    <div id="game-over-screen">
+        <h2>GAME OVER</h2>
+        <div class="final-score">SCORE: <span id="final-score-value">0</span></div>
+        <div class="prompt">PRESS ENTER TO RESTART</div>
+    </div>
+
+    <div id="debug-overlay">
+        <span id="debug-fps">FPS: 0</span> |
+        <span id="debug-pos">X:0 Y:0</span> |
+        <span id="debug-vel">VX:0 VY:0</span> |
+        <span id="debug-state">idle</span>
+    </div>
+
+    <div id="mobile-controls">
+        <div class="mobile-btn-group">
+            <button class="mobile-btn" id="btn-left">◀</button>
+            <button class="mobile-btn" id="btn-right">▶</button>
+        </div>
+        <div class="mobile-btn-group">
+            <button class="mobile-btn" id="btn-run">B</button>
+            <button class="mobile-btn" id="btn-jump">A</button>
         </div>
     </div>
+</div>
 
-    <div class="control-panel">
-        <input type="text" id="playerNameInput" placeholder="نام بازیکن را وارد کنید (فیلتر آنتی XSS/SQLi)...">
-        <button id="saveScoreBtn">ثبت رکورد</button>
-    </div>
+<!-- Environment Config (browser-safe) -->
+<script>
+    // Browser-side config defaults (env_config.js sets window.GAME_CONFIG if loaded via server)
+    window.GAME_CONFIG = window.GAME_CONFIG || Object.freeze({
+        title: 'Super Mario Bros',
+        version: '1.0.0',
+        debugMode: false,
+        fps: 60,
+        canvasWidth: 800,
+        canvasHeight: 600,
+        audioEnabled: true,
+        audioVolume: 0.7
+    });
+</script>
 
-    <div class="leaderboard-panel">
-        <h3>🏆 برترین بازیکنان (رندرسازی ایمن با Context Encoding)</h3>
-        <ul class="leaderboard-list" id="leaderboardList">
-            <li><span>Mario_Hero</span> <span>1250</span></li>
-            <li><span>Luigi_B2</span> <span>980</span></li>
-        </ul>
-    </div>
+<script>
+(function() {
+    'use strict';
 
-    <div class="logs-panel" id="telemetryBox">
-        [OWASP_FIREWALL_LOGS] سیستم مانیتورینگ امنیتی لایو آماده است...
-    </div>
+    // ============================================
+    // CONFIGURATION
+    // ============================================
+    const CONFIG = window.GAME_CONFIG;
+    const CANVAS = document.getElementById('gameCanvas');
+    const CTX = CANVAS.getContext('2d');
 
-    <script>
-        // ==========================================
-        // Safe Architecture Integration with OWASPGuard
-        // ==========================================
-        const Guard = window.OWASPGuard;
-        const memoryVault = Guard.GameMemory;
+    CANVAS.width = CONFIG.canvasWidth;
+    CANVAS.height = CONFIG.canvasHeight;
 
-        // Visual Logger for Telemetry
-        function updateTelemetryUI() {
-            const logs = Guard.getTelemetry();
-            const logBox = document.getElementById('telemetryBox');
-            if (logs.length > 0) {
-                const latest = logs[0];
-                logBox.textContent = `[${latest.timestamp.split('T')[1].split('.')[0]}] [${latest.severity}] ${latest.type}: ${latest.detail}`;
+    const GRAVITY = 0.6;
+    const FRICTION = 0.8;
+    const TILE_SIZE = 32;
+    const COLS = Math.ceil(CANVAS.width / TILE_SIZE);
+    const ROWS = Math.ceil(CANVAS.height / TILE_SIZE);
+
+    // ============================================
+    // GAME STATE
+    // ============================================
+    const GameState = {
+        START: 'start',
+        PLAYING: 'playing',
+        PAUSED: 'paused',
+        GAME_OVER: 'gameover',
+        WIN: 'win'
+    };
+
+    let state = GameState.START;
+    let score = 0;
+    let coins = 0;
+    let lives = 3;
+    let timeLeft = 400;
+    let timeCounter = 0;
+    let cameraX = 0;
+    let animFrame = 0;
+    let frameCount = 0;
+    let lastTime = 0;
+    let deltaTime = 0;
+    let currentFPS = 0;
+    let fpsAccumulator = 0;
+    let fpsFrames = 0;
+    let audioMuted = false;
+
+    // ============================================
+    // INPUT HANDLER
+    // ============================================
+    const keys = {};
+
+    document.addEventListener('keydown', (e) => {
+        keys[e.code] = true;
+
+        if (e.code === 'Enter') {
+            if (state === GameState.START) startGame();
+            else if (state === GameState.GAME_OVER) resetGame();
+        }
+        if (e.code === 'KeyP' && state === GameState.PLAYING) {
+            state = GameState.PAUSED;
+        } else if (e.code === 'KeyP' && state === GameState.PAUSED) {
+            state = GameState.PLAYING;
+        }
+        if (e.code === 'KeyM') {
+            audioMuted = !audioMuted;
+        }
+
+        if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) {
+            e.preventDefault();
+        }
+    });
+
+    document.addEventListener('keyup', (e) => {
+        keys[e.code] = false;
+    });
+
+    // Mobile controls
+    function setupMobileButton(id, keyCode) {
+        const btn = document.getElementById(id);
+        if (!btn) return;
+        btn.addEventListener('touchstart', (e) => { e.preventDefault(); keys[keyCode] = true; }, { passive: false });
+        btn.addEventListener('touchend', (e) => { e.preventDefault(); keys[keyCode] = false; }, { passive: false });
+        btn.addEventListener('touchcancel', (e) => { keys[keyCode] = false; });
+    }
+
+    setupMobileButton('btn-left', 'ArrowLeft');
+    setupMobileButton('btn-right', 'ArrowRight');
+    setupMobileButton('btn-jump', 'Space');
+    setupMobileButton('btn-run', 'ShiftLeft');
+
+    // Start screen tap
+    document.getElementById('start-screen').addEventListener('click', () => {
+        if (state === GameState.START) startGame();
+    });
+    document.getElementById('game-over-screen').addEventListener('click', () => {
+        if (state === GameState.GAME_OVER) resetGame();
+    });
+
+    // ============================================
+    // AUDIO ENGINE (Procedural - no external files)
+    // ============================================
+    const AudioEngine = {
+        ctx: null,
+
+        init() {
+            try {
+                this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+            } catch (e) {
+                console.warn('[AUDIO] Web Audio API not supported');
+            }
+        },
+
+        play(frequency, duration, type, volume) {
+            if (!this.ctx || audioMuted || !CONFIG.audioEnabled) return;
+            try {
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = type || 'square';
+                osc.frequency.value = frequency;
+                gain.gain.value = (volume || 0.1) * CONFIG.audioVolume;
+                gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + (duration || 0.1));
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start(this.ctx.currentTime);
+                osc.stop(this.ctx.currentTime + (duration || 0.1));
+            } catch (e) { /* silent fail */ }
+        },
+
+        jump() { this.play(600, 0.15, 'square', 0.08); setTimeout(() => this.play(800, 0.1, 'square', 0.06), 80); },
+        coin() { this.play(988, 0.08, 'square', 0.08); setTimeout(() => this.play(1319, 0.3, 'square', 0.06), 80); },
+        stomp() { this.play(200, 0.15, 'triangle', 0.1); },
+        die() { this.play(400, 0.15, 'square', 0.1); setTimeout(() => this.play(300, 0.15, 'square', 0.08), 150); setTimeout(() => this.play(200, 0.4, 'square', 0.06), 300); },
+        powerup() { for(let i=0;i<6;i++) setTimeout(()=>this.play(500+i*100,0.08,'square',0.06), i*60); },
+        bump() { this.play(150, 0.08, 'triangle', 0.1); },
+        flagpole() { for(let i=0;i<10;i++) setTimeout(()=>this.play(400+i*80,0.1,'square',0.05), i*80); }
+    };
+
+    // ============================================
+    // LEVEL DATA (World 1-1 inspired)
+    // ============================================
+    // 0=empty, 1=ground, 2=brick, 3=question, 4=pipe_top, 5=pipe_body, 6=flag, 7=hard_block, 8=cloud(bg)
+    const LEVEL_WIDTH = 220;
+
+    function generateLevel() {
+        const map = [];
+        for (let y = 0; y < ROWS; y++) {
+            map[y] = [];
+            for (let x = 0; x < LEVEL_WIDTH; x++) {
+                map[y][x] = 0;
             }
         }
 
-        // ==========================================
-        // Mini Mario Engine
-        // ==========================================
-        const canvas = document.getElementById('gameCanvas');
-        const ctx = canvas.getContext('2d');
-
-        const gravity = 0.5;
-        const keys = { right: false, left: false, up: false };
-
-        const player = {
-            x: 50,
-            y: 280,
-            width: 24,
-            height: 32,
-            vx: 0,
-            vy: 0,
-            speed: 4,
-            jumpStrength: -11,
-            grounded: false
-        };
-
-        const platforms = [
-            { x: 0, y: 320, width: 640, height: 40 }, // Ground
-            { x: 180, y: 240, width: 100, height: 20 },
-            { x: 340, y: 180, width: 120, height: 20 },
-            { x: 520, y: 230, width: 80, height: 20 }
-        ];
-
-        const coins = [
-            { x: 220, y: 200, radius: 8, collected: false },
-            { x: 390, y: 140, radius: 8, collected: false },
-            { x: 550, y: 190, radius: 8, collected: false }
-        ];
-
-        window.addEventListener('keydown', (e) => {
-            if (e.code === 'ArrowRight' || e.code === 'KeyD') keys.right = true;
-            if (e.code === 'ArrowLeft' || e.code === 'KeyA') keys.left = true;
-            if ((e.code === 'ArrowUp' || e.code === 'KeyW' || e.code === 'Space') && player.grounded) {
-                player.vy = player.jumpStrength;
-                player.grounded = false;
+        // Ground (bottom 2 rows)
+        for (let x = 0; x < LEVEL_WIDTH; x++) {
+            // Gaps
+            if ((x >= 69 && x <= 71) || (x >= 86 && x <= 89) || (x >= 153 && x <= 155)) {
+                continue;
             }
-        });
+            map[ROWS - 1][x] = 1;
+            map[ROWS - 2][x] = 1;
+        }
 
-        window.addEventListener('keyup', (e) => {
-            if (e.code === 'ArrowRight' || e.code === 'KeyD') keys.right = false;
-            if (e.code === 'ArrowLeft' || e.code === 'KeyA') keys.left = false;
-        });
+        // Question blocks
+        const questions = [16, 21, 23, 22, 78, 94, 106, 109, 112, 129, 130, 170];
+        questions.forEach(x => { if (x < LEVEL_WIDTH) map[ROWS - 6][x] = 3; });
 
-        function updatePhysics() {
-            // Horizontal motion
-            if (keys.right) player.vx = player.speed;
-            else if (keys.left) player.vx = -player.speed;
-            else player.vx = 0;
+        // Brick blocks
+        const bricks = [20, 24, 77, 79, 80, 81, 91, 92, 93, 94, 100, 101, 118, 119, 120, 121, 128, 131, 132, 168, 169, 171];
+        bricks.forEach(x => { if (x < LEVEL_WIDTH) map[ROWS - 6][x] = 2; });
 
-            player.x += player.vx;
+        // High bricks/questions
+        const highQ = [{ x: 22, y: ROWS - 10 }];
+        highQ.forEach(b => { if (b.x < LEVEL_WIDTH) map[b.y][b.x] = 3; });
 
-            // Horizontal bounds
-            if (player.x < 0) player.x = 0;
-            if (player.x + player.width > canvas.width) player.x = canvas.width - player.width;
-
-            // Vertical motion & gravity
-            player.vy += gravity;
-            player.y += player.vy;
-            player.grounded = false;
-
-            // Platform Collisions
-            for (let plat of platforms) {
-                if (
-                    player.x < plat.x + plat.width &&
-                    player.x + player.width > plat.x &&
-                    player.y + player.height <= plat.y + player.vy + 1 &&
-                    player.y + player.height + player.vy >= plat.y
-                ) {
-                    player.y = plat.y - player.height;
-                    player.vy = 0;
-                    player.grounded = true;
+        // Pipes
+        const pipes = [
+            { x: 28, h: 2 }, { x: 38, h: 3 }, { x: 46, h: 4 }, { x: 57, h: 4 },
+            { x: 163, h: 2 }, { x: 179, h: 2 }
+        ];
+        pipes.forEach(p => {
+            for (let h = 0; h < p.h; h++) {
+                const py = ROWS - 3 - h;
+                if (py >= 0 && p.x < LEVEL_WIDTH) {
+                    map[py][p.x] = h === p.h - 1 ? 4 : 5;
+                    map[py][p.x + 1] = h === p.h - 1 ? 4 : 5;
                 }
             }
+        });
 
-            // Coin Collect with In-Memory Integrity Shield
-            for (let coin of coins) {
-                if (!coin.collected) {
-                    const dx = (player.x + player.width / 2) - coin.x;
-                    const dy = (player.y + player.height / 2) - coin.y;
-                    if (Math.hypot(dx, dy) < player.width / 2 + coin.radius) {
-                        coin.collected = true;
-                        // Tamper-proof update through Guard
-                        memoryVault.update(state => {
-                            state.coins += 1;
-                            state.score += 100;
+        // Stairs near end
+        for (let s = 0; s < 8; s++) {
+            for (let h = 0; h <= s; h++) {
+                const sx = 134 + s;
+                const sy = ROWS - 3 - h;
+                if (sy >= 0 && sx < LEVEL_WIDTH) map[sy][sx] = 7;
+            }
+        }
+        for (let s = 0; s < 8; s++) {
+            for (let h = 0; h < 8 - s; h++) {
+                const sx = 145 + s;
+                const sy = ROWS - 3 - h;
+                if (sy >= 0 && sx < LEVEL_WIDTH) map[sy][sx] = 7;
+            }
+        }
+
+        // Staircase to flag
+        for (let s = 0; s < 9; s++) {
+            for (let h = 0; h <= s; h++) {
+                const sx = 190 + s;
+                const sy = ROWS - 3 - h;
+                if (sy >= 0 && sx < LEVEL_WIDTH) map[sy][sx] = 7;
+            }
+        }
+
+        // Flag
+        const flagX = 198;
+        if (flagX < LEVEL_WIDTH) {
+            for (let fy = 3; fy < ROWS - 2; fy++) {
+                map[fy][flagX] = 6;
+            }
+        }
+
+        // Clouds (decorative)
+        const clouds = [8, 19, 36, 55, 67, 87, 105, 125, 148, 170, 190];
+        clouds.forEach(cx => {
+            if (cx < LEVEL_WIDTH && cx + 2 < LEVEL_WIDTH) {
+                map[3][cx] = 8;
+                map[2][cx + 1] = 8;
+                map[3][cx + 1] = 8;
+                map[3][cx + 2] = 8;
+            }
+        });
+
+        return map;
+    }
+
+    let levelMap = generateLevel();
+
+    // ============================================
+    // ENTITIES
+    // ============================================
+
+    // Mario
+    const mario = {
+        x: 3 * TILE_SIZE,
+        y: (ROWS - 4) * TILE_SIZE,
+        width: 24,
+        height: 32,
+        vx: 0,
+        vy: 0,
+        speed: 3.5,
+        runSpeed: 5.5,
+        jumpForce: -11,
+        onGround: false,
+        facing: 1,
+        animTimer: 0,
+        animFrame: 0,
+        big: false,
+        invincible: 0,
+        dead: false,
+        deathTimer: 0,
+        winAnimation: false
+    };
+
+    // Enemies
+    let enemies = [];
+    let particles = [];
+    let floatingTexts = [];
+    let questionBlockHits = [];
+
+    function spawnEnemies() {
+        enemies = [];
+        const goombaPositions = [22, 40, 51, 52, 80, 82, 97, 98, 114, 115, 124, 125, 128, 129, 174, 175];
+        goombaPositions.forEach(x => {
+            enemies.push({
+                type: 'goomba',
+                x: x * TILE_SIZE,
+                y: (ROWS - 4) * TILE_SIZE,
+                width: 28,
+                height: 28,
+                vx: -1,
+                vy: 0,
+                alive: true,
+                squished: false,
+                squishTimer: 0,
+                animTimer: 0,
+                animFrame: 0
+            });
+        });
+
+        const koopaPositions = [60, 107, 160];
+        koopaPositions.forEach(x => {
+            enemies.push({
+                type: 'koopa',
+                x: x * TILE_SIZE,
+                y: (ROWS - 4) * TILE_SIZE - 8,
+                width: 26,
+                height: 38,
+                vx: -1.2,
+                vy: 0,
+                alive: true,
+                squished: false,
+                squishTimer: 0,
+                shell: false,
+                shellSpeed: 0,
+                animTimer: 0,
+                animFrame: 0
+            });
+        });
+    }
+
+    // Coins in question blocks
+    let questionCoins = {};
+
+    function initQuestionBlocks() {
+        questionCoins = {};
+        for (let y = 0; y < ROWS; y++) {
+            for (let x = 0; x < LEVEL_WIDTH; x++) {
+                if (levelMap[y][x] === 3) {
+                    questionCoins[`${x},${y}`] = true;
+                }
+            }
+        }
+    }
+
+    // ============================================
+    // COLLISION DETECTION
+    // ============================================
+    function getTile(px, py) {
+        const tx = Math.floor(px / TILE_SIZE);
+        const ty = Math.floor(py / TILE_SIZE);
+        if (tx < 0 || tx >= LEVEL_WIDTH || ty < 0 || ty >= ROWS) return 0;
+        return levelMap[ty][tx];
+    }
+
+    function isSolid(tile) {
+        return tile === 1 || tile === 2 || tile === 3 || tile === 4 || tile === 5 || tile === 7;
+    }
+
+    function resolveCollisions(entity) {
+        entity.onGround = false;
+
+        // Horizontal
+        entity.x += entity.vx;
+        const left = entity.x;
+        const right = entity.x + entity.width;
+        const top = entity.y;
+        const bottom = entity.y + entity.height;
+
+        // Check horizontal tiles
+        for (let ty = Math.floor(top / TILE_SIZE); ty <= Math.floor((bottom - 1) / TILE_SIZE); ty++) {
+            // Right collision
+            if (entity.vx > 0) {
+                const tx = Math.floor(right / TILE_SIZE);
+                if (isSolid(getTile(right, ty * TILE_SIZE + 1))) {
+                    entity.x = tx * TILE_SIZE - entity.width;
+                    entity.vx = entity === mario ? 0 : -entity.vx;
+                    break;
+                }
+            }
+            // Left collision
+            if (entity.vx < 0) {
+                const tx = Math.floor(left / TILE_SIZE);
+                if (isSolid(getTile(left, ty * TILE_SIZE + 1))) {
+                    entity.x = (tx + 1) * TILE_SIZE;
+                    entity.vx = entity === mario ? 0 : -entity.vx;
+                    break;
+                }
+            }
+        }
+
+        // Vertical
+        entity.y += entity.vy;
+
+        const left2 = entity.x;
+        const right2 = entity.x + entity.width;
+        const top2 = entity.y;
+        const bottom2 = entity.y + entity.height;
+
+        for (let tx = Math.floor(left2 / TILE_SIZE); tx <= Math.floor((right2 - 1) / TILE_SIZE); tx++) {
+            // Bottom collision (landing)
+            if (entity.vy >= 0) {
+                const ty = Math.floor(bottom2 / TILE_SIZE);
+                if (isSolid(getTile(tx * TILE_SIZE + 1, bottom2))) {
+                    entity.y = ty * TILE_SIZE - entity.height;
+                    entity.vy = 0;
+                    entity.onGround = true;
+                }
+            }
+            // Top collision (hitting block)
+            if (entity.vy < 0 && entity === mario) {
+                const ty = Math.floor(top2 / TILE_SIZE);
+                if (isSolid(getTile(tx * TILE_SIZE + 1, top2))) {
+                    entity.y = (ty + 1) * TILE_SIZE;
+                    entity.vy = 0;
+
+                    // Hit question block
+                    const tileType = levelMap[ty][tx];
+                    if (tileType === 3 && questionCoins[`${tx},${ty}`]) {
+                        delete questionCoins[`${tx},${ty}`];
+                        levelMap[ty][tx] = 7; // Turn to used block
+                        coins++;
+                        score += 200;
+                        AudioEngine.coin();
+                        floatingTexts.push({
+                            x: tx * TILE_SIZE,
+                            y: ty * TILE_SIZE - 10,
+                            text: '200',
+                            timer: 40
                         });
-                        syncHUD();
+                        particles.push({
+                            x: tx * TILE_SIZE + TILE_SIZE / 2,
+                            y: ty * TILE_SIZE - 10,
+                            vy: -6,
+                            type: 'coin',
+                            timer: 30
+                        });
+                    } else if (tileType === 2) {
+                        // Break brick
+                        levelMap[ty][tx] = 0;
+                        AudioEngine.bump();
+                        for (let p = 0; p < 4; p++) {
+                            particles.push({
+                                x: tx * TILE_SIZE + (p % 2) * 16,
+                                y: ty * TILE_SIZE + Math.floor(p / 2) * 16,
+                                vx: (p % 2 === 0 ? -2 : 2) + Math.random() * 2,
+                                vy: -5 - Math.random() * 3,
+                                type: 'brick',
+                                timer: 60
+                            });
+                        }
+                    } else {
+                        AudioEngine.bump();
                     }
                 }
             }
-
-            // Fall of Map Protection
-            if (player.y > canvas.height) {
-                memoryVault.update(state => {
-                    state.lives -= 1;
-                });
-                player.x = 50;
-                player.y = 200;
-                player.vy = 0;
-                syncHUD();
-            }
         }
 
-        function syncHUD() {
-            const data = memoryVault.read();
-            document.getElementById('coinDisplay').textContent = data.coins;
-            document.getElementById('scoreDisplay').textContent = data.score;
-            document.getElementById('livesDisplay').textContent = data.lives;
-        }
-
-        function drawGame() {
-            // Clear sky
-            ctx.fillStyle = '#5c94fc';
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-            // Draw Platforms
-            ctx.fillStyle = '#a04000';
-            for (let plat of platforms) {
-                ctx.fillRect(plat.x, plat.y, plat.width, plat.height);
-                ctx.fillStyle = '#1e8449';
-                ctx.fillRect(plat.x, plat.y, plat.width, 6); // Green top
-                ctx.fillStyle = '#a04000';
+        // Fall into pit
+        if (entity.y > CANVAS.height + 50) {
+            if (entity === mario) {
+                mariodie();
+            } else {
+                entity.alive = false;
             }
+        }
+    }
 
-            // Draw Coins
-            for (let coin of coins) {
-                if (!coin.collected) {
-                    ctx.beginPath();
-                    ctx.arc(coin.x, coin.y, coin.radius, 0, Math.PI * 2);
-                    ctx.fillStyle = '#f1c40f';
-                    ctx.fill();
-                    ctx.strokeStyle = '#b7950b';
-                    ctx.stroke();
+    // ============================================
+    // MARIO LOGIC
+    // ============================================
+    function updateMario() {
+        if (mario.dead) {
+            mario.deathTimer++;
+            if (mario.deathTimer < 20) {
+                mario.vy = -8;
+            }
+            mario.vy += GRAVITY;
+            mario.y += mario.vy;
+            if (mario.deathTimer > 120) {
+                lives--;
+                if (lives <= 0) {
+                    state = GameState.GAME_OVER;
+                    document.getElementById('final-score-value').textContent = score;
+                    document.getElementById('game-over-screen').style.display = 'flex';
+                } else {
+                    respawnMario();
                 }
             }
-
-            // Draw Mario Character
-            ctx.fillStyle = '#e74c3c'; // Mario Red Overalls
-            ctx.fillRect(player.x, player.y, player.width, player.height);
-            ctx.fillStyle = '#2980b9'; // Blue shirt
-            ctx.fillRect(player.x + 4, player.y + 12, player.width - 8, 12);
-            ctx.fillStyle = '#fad7a0'; // Face
-            ctx.fillRect(player.x + 4, player.y + 4, player.width - 8, 8);
+            return;
         }
 
-        function gameLoop() {
-            updatePhysics();
-            drawGame();
-            requestAnimationFrame(gameLoop);
+        if (mario.winAnimation) {
+            mario.y += 2;
+            if (mario.y >= (ROWS - 4) * TILE_SIZE) {
+                mario.y = (ROWS - 4) * TILE_SIZE;
+                mario.x += 2;
+                if (mario.x > (LEVEL_WIDTH - 5) * TILE_SIZE) {
+                    state = GameState.WIN;
+                    score += timeLeft * 50;
+                }
+            }
+            return;
         }
 
-        // ==========================================
-        // Safe UI Form & Scoreboard Submissions
-        // ==========================================
-        const nameInput = document.getElementById('playerNameInput');
-        const submitBtn = document.getElementById('saveScoreBtn');
-        const leaderboardList = document.getElementById('leaderboardList');
+        // Movement
+        const runMod = keys['ShiftLeft'] || keys['ShiftRight'] ? mario.runSpeed : mario.speed;
 
-        // Bind with OWASP Input Defense
-        Guard.attachSafeInputBinder(nameInput, processScoreRecord);
+        if (keys['ArrowLeft']) {
+            mario.vx = -runMod;
+            mario.facing = -1;
+        } else if (keys['ArrowRight']) {
+            mario.vx = runMod;
+            mario.facing = 1;
+        } else {
+            mario.vx *= FRICTION;
+            if (Math.abs(mario.vx) < 0.2) mario.vx = 0;
+        }
 
-        submitBtn.addEventListener('click', () => {
-            processScoreRecord(nameInput.value);
-        });
+        // Jump
+        if ((keys['Space'] || keys['ArrowUp']) && mario.onGround) {
+            mario.vy = mario.jumpForce;
+            mario.onGround = false;
+            AudioEngine.jump();
+        }
 
-        function processScoreRecord(rawName) {
-            // 1. Hardened Anti-SQLi Check
-            if (Guard.SQLiShield.isMalicious(rawName)) {
-                alert('خطای امنیتی OWASP: عبارت وارد شده شامل الگوهای غیرمجاز پایگاه داده است!');
-                updateTelemetryUI();
+        // Variable jump height
+        if (!(keys['Space'] || keys['ArrowUp']) && mario.vy < -3) {
+            mario.vy = -3;
+        }
+
+        // Gravity
+        mario.vy += GRAVITY;
+        if (mario.vy > 12) mario.vy = 12;
+
+        // Resolve collisions
+        resolveCollisions(mario);
+
+        // Clamp to left edge
+        if (mario.x < cameraX) mario.x = cameraX;
+
+        // Animation
+        mario.animTimer++;
+        if (mario.animTimer > 6) {
+            mario.animTimer = 0;
+            mario.animFrame = (mario.animFrame + 1) % 3;
+        }
+
+        // Invincibility timer
+        if (mario.invincible > 0) mario.invincible--;
+
+        // Check flag
+        const marioTileX = Math.floor((mario.x + mario.width / 2) / TILE_SIZE);
+        const marioTileY = Math.floor((mario.y + mario.height / 2) / TILE_SIZE);
+        if (levelMap[marioTileY] && levelMap[marioTileY][marioTileX] === 6) {
+            mario.winAnimation = true;
+            AudioEngine.flagpole();
+        }
+    }
+
+    function mariodie() {
+        if (mario.dead) return;
+        mario.dead = true;
+        mario.deathTimer = 0;
+        mario.vy = 0;
+        mario.vx = 0;
+        AudioEngine.die();
+    }
+
+    function respawnMario() {
+        mario.x = 3 * TILE_SIZE;
+        mario.y = (ROWS - 4) * TILE_SIZE;
+        mario.vx = 0;
+        mario.vy = 0;
+        mario.dead = false;
+        mario.deathTimer = 0;
+        mario.invincible = 120;
+        mario.winAnimation = false;
+        cameraX = 0;
+        timeLeft = 400;
+    }
+
+    // ============================================
+    // ENEMY LOGIC
+    // ============================================
+    function updateEnemies() {
+        enemies.forEach(enemy => {
+            if (!enemy.alive) return;
+
+            // Only update if near camera
+            if (enemy.x < cameraX - 100 || enemy.x > cameraX + CANVAS.width + 200) return;
+
+            if (enemy.squished) {
+                enemy.squishTimer++;
+                if (enemy.squishTimer > 30) enemy.alive = false;
                 return;
             }
 
-            // 2. Anti-XSS Sanitization & Contextual Encoding
-            const safeName = Guard.Sanitizer.validateSafeText(rawName || 'بازیکن_ناشناس');
-            const currentScore = memoryVault.read().score;
+            // Gravity
+            enemy.vy += GRAVITY;
+            if (enemy.vy > 10) enemy.vy = 10;
 
-            // 3. Safe Dynamic DOM Construction (Zero innerHTML vulnerability)
-            const li = document.createElement('li');
-            const nameSpan = document.createElement('span');
-            nameSpan.textContent = safeName; // Secure TextNode assignment prevents execution
+            // Move
+            resolveCollisions(enemy);
 
-            const scoreSpan = document.createElement('span');
-            scoreSpan.textContent = currentScore.toString();
+            // Animation
+            enemy.animTimer++;
+            if (enemy.animTimer > 10) {
+                enemy.animTimer = 0;
+                enemy.animFrame = (enemy.animFrame + 1) % 2;
+            }
 
-            li.appendChild(nameSpan);
-            li.appendChild(scoreSpan);
-            leaderboardList.prepend(li);
+            // Mario collision
+            if (!mario.dead && !mario.winAnimation && mario.invincible <= 0) {
+                if (checkOverlap(mario, enemy)) {
+                    // Stomp from above
+                    if (mario.vy > 0 && mario.y + mario.height - enemy.y < 20) {
+                        enemy.squished = true;
+                        enemy.squishTimer = 0;
+                        enemy.height = 14;
+                        mario.vy = -8;
+                        score += 100;
+                        AudioEngine.stomp();
+                        floatingTexts.push({
+                            x: enemy.x,
+                            y: enemy.y - 10,
+                            text: '100',
+                            timer: 40
+                        });
+                    } else {
+                        // Mario gets hit
+                        mariodie();
+                    }
+                }
+            }
+        });
+    }
 
-            nameInput.value = '';
-            updateTelemetryUI();
+    function checkOverlap(a, b) {
+        return a.x < b.x + b.width &&
+               a.x + a.width > b.x &&
+               a.y < b.y + b.height &&
+               a.y + a.height > b.y;
+    }
 
-            // 4. Secure Simulated Network Transmission (Demonstrating Token Protection)
-            Guard.TokenVault.setSecureToken('SESSION_USER', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.dummy_token');
-            
-            fetch('/api/submit_score', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': 'Bearer ' + Guard.TokenVault.getSecureToken('SESSION_USER')
-                },
-                body: JSON.stringify({ player: safeName, score: currentScore })
-            }).catch(e => {
-                // Network mock will reject or pass cleanly through firewall inspection
-                updateTelemetryUI();
-            });
+    // ============================================
+    // PARTICLES & EFFECTS
+    // ============================================
+    function updateParticles() {
+        particles = particles.filter(p => {
+            p.timer--;
+            if (p.type === 'coin') {
+                p.vy += 0.3;
+                p.y += p.vy;
+            } else if (p.type === 'brick') {
+                p.vy += GRAVITY;
+                p.x += p.vx;
+                p.y += p.vy;
+            }
+            return p.timer > 0;
+        });
+
+        floatingTexts = floatingTexts.filter(ft => {
+            ft.timer--;
+            ft.y -= 1;
+            return ft.timer > 0;
+        });
+    }
+
+    // ============================================
+    // CAMERA
+    // ============================================
+    function updateCamera() {
+        const targetX = mario.x - CANVAS.width / 3;
+        cameraX += (targetX - cameraX) * 0.1;
+        if (cameraX < 0) cameraX = 0;
+        const maxCam = (LEVEL_WIDTH * TILE_SIZE) - CANVAS.width;
+        if (cameraX > maxCam) cameraX = maxCam;
+    }
+
+    // ============================================
+    // RENDERING
+    // ============================================
+    const COLORS = {
+        sky: '#6b88fe',
+        ground: '#c84c09',
+        groundDark: '#9c3800',
+        brick: '#c84c09',
+        brickLine: '#e7a526',
+        question: '#e7a526',
+        questionDark: '#c84c09',
+        pipe: '#00a800',
+        pipeDark: '#007800',
+        pipeHighlight: '#48d848',
+        hardBlock: '#8c8c8c',
+        hardBlockLight: '#bcbcbc',
+        flag: '#00a800',
+        flagPole: '#aaa',
+        cloud: '#fff',
+        cloudShadow: '#d0d8ff',
+        mario: '#e74c3c',
+        marioSkin: '#ffb88c',
+        marioOveralls: '#2980b9',
+        marioHat: '#e74c3c',
+        goomba: '#c84c09',
+        goombaDark: '#8b3000',
+        koopa: '#00a800',
+        koopaDark: '#007800',
+        coinColor: '#e7a526'
+    };
+
+    function drawTile(tileType, sx, sy) {
+        switch (tileType) {
+            case 1: // Ground
+                CTX.fillStyle = COLORS.ground;
+                CTX.fillRect(sx, sy, TILE_SIZE, TILE_SIZE);
+                CTX.fillStyle = COLORS.groundDark;
+                CTX.fillRect(sx, sy, TILE_SIZE, 4);
+                // Brick pattern
+                CTX.strokeStyle = '#000';
+                CTX.lineWidth = 1;
+                CTX.strokeRect(sx + 0.5, sy + 0.5, TILE_SIZE - 1, TILE_SIZE - 1);
+                CTX.beginPath();
+                CTX.moveTo(sx, sy + TILE_SIZE / 2);
+                CTX.lineTo(sx + TILE_SIZE, sy + TILE_SIZE / 2);
+                CTX.stroke();
+                CTX.beginPath();
+                CTX.moveTo(sx + TILE_SIZE / 2, sy);
+                CTX.lineTo(sx + TILE_SIZE / 2, sy + TILE_SIZE / 2);
+                CTX.stroke();
+                break;
+
+            case 2: // Brick
+                CTX.fillStyle = COLORS.brick;
+                CTX.fillRect(sx, sy, TILE_SIZE, TILE_SIZE);
+                CTX.strokeStyle = '#000';
+                CTX.lineWidth = 1;
+                CTX.strokeRect(sx + 0.5, sy + 0.5, TILE_SIZE - 1, TILE_SIZE - 1);
+                CTX.fillStyle = COLORS.brickLine;
+                CTX.fillRect(sx + 1, sy + 1, TILE_SIZE - 2, 2);
+                CTX.fillRect(sx + 1, sy + 1, 2, TILE_SIZE - 2);
+                // Brick lines
+                CTX.strokeStyle = '#8b3000';
+                CTX.beginPath();
+                CTX.moveTo(sx, sy + 10);
+                CTX.lineTo(sx + TILE_SIZE, sy + 10);
+                CTX.moveTo(sx, sy + 21);
+                CTX.lineTo(sx + TILE_SIZE, sy + 21);
+                CTX.moveTo(sx + 16, sy);
+                CTX.lineTo(sx + 16, sy + 10);
+                CTX.moveTo(sx + 8, sy + 10);
+                CTX.lineTo(sx + 8, sy + 21);
+                CTX.moveTo(sx + 24, sy + 10);
+                CTX.lineTo(sx + 24, sy + 21);
+                CTX.moveTo(sx + 16, sy + 21);
+                CTX.lineTo(sx + 16, sy + 32);
+                CTX.stroke();
+                break;
+
+            case 3: // Question block
+                CTX.fillStyle = COLORS.question;
+                CTX.fillRect(sx, sy, TILE_SIZE, TILE_SIZE);
+                CTX.strokeStyle = COLORS.questionDark;
+                CTX.lineWidth = 2;
+                CTX.strokeRect(sx + 1, sy + 1, TILE_SIZE - 2, TILE_SIZE - 2);
+                // Question mark
+                CTX.fillStyle = '#fff';
+                CTX.font = 'bold 18px monospace';
+                CTX.textAlign = 'center';
+                CTX.textBaseline = 'middle';
+                CTX.fillText('?', sx + TILE_SIZE / 2, sy + TILE_SIZE / 2 + 1);
+                CTX.textAlign = 'left';
+                CTX.textBaseline = 'alphabetic';
+                break;
+
+            case 4: // Pipe top
+                CTX.fillStyle = COLORS.pipe;
+                CTX.fillRect(sx - 4, sy, TILE_SIZE + 8, TILE_SIZE);
+                CTX.fillStyle = COLORS.pipeHighlight;
+                CTX.fillRect(sx - 2, sy + 2, 6, TILE_SIZE - 4);
+                CTX.fillStyle = COLORS.pipeDark;
+                CTX.fillRect(sx + TILE_SIZE - 2, sy, 6, TILE_SIZE);
+                CTX.strokeStyle = '#005800';
+                CTX.lineWidth = 1;
+                CTX.strokeRect(sx - 4, sy, TILE_SIZE + 8, TILE_SIZE);
+                break;
+
+            case 5: // Pipe body
+                CTX.fillStyle = COLORS.pipe;
+                CTX.fillRect(sx, sy, TILE_SIZE, TILE_SIZE);
+                CTX.fillStyle = COLORS.pipeHighlight;
+                CTX.fillRect(sx + 2, sy, 4, TILE_SIZE);
+                CTX.fillStyle = COLORS.pipeDark;
+                CTX.fillRect(sx + TILE_SIZE - 4, sy, 4, TILE_SIZE);
+                break;
+
+            case 6: // Flag pole
+                CTX.fillStyle = COLORS.flagPole;
+                CTX.fillRect(sx + TILE_SIZE / 2 - 2, sy, 4, TILE_SIZE);
+                // Flag at top
+                if (sy < 5 * TILE_SIZE) {
+                    CTX.fillStyle = COLORS.flag;
+                    CTX.beginPath();
+                    CTX.moveTo(sx + TILE_SIZE / 2 - 2, sy);
+                    CTX.lineTo(sx + TILE_SIZE / 2 - 20, sy + 10);
+                    CTX.lineTo(sx + TILE_SIZE / 2 - 2, sy + 20);
+                    CTX.fill();
+                }
+                break;
+
+            case 7: // Hard block (used question / stair)
+                CTX.fillStyle = COLORS.hardBlock;
+                CTX.fillRect(sx, sy, TILE_SIZE, TILE_SIZE);
+                CTX.fillStyle = COLORS.hardBlockLight;
+                CTX.fillRect(sx + 1, sy + 1, TILE_SIZE - 2, 2);
+                CTX.fillRect(sx + 1, sy + 1, 2, TILE_SIZE - 2);
+                CTX.strokeStyle = '#666';
+                CTX.lineWidth = 1;
+                CTX.strokeRect(sx + 0.5, sy + 0.5, TILE_SIZE - 1, TILE_SIZE - 1);
+                break;
+
+            case 8: // Cloud
+                CTX.fillStyle = COLORS.cloud;
+                CTX.beginPath();
+                CTX.arc(sx + 16, sy + 20, 14, 0, Math.PI * 2);
+                CTX.arc(sx + 8, sy + 24, 10, 0, Math.PI * 2);
+                CTX.arc(sx + 24, sy + 24, 10, 0, Math.PI * 2);
+                CTX.fill();
+                CTX.fillStyle = COLORS.cloudShadow;
+                CTX.beginPath();
+                CTX.arc(sx + 16, sy + 24, 10, 0, Math.PI);
+                CTX.fill();
+                break;
+        }
+    }
+
+    function drawMario() {
+        if (mario.dead) {
+            // Death animation - simple X
+            if (mario.deathTimer % 4 < 2) return;
         }
 
-        // Boot
-        syncHUD();
-        gameLoop();
-    </script>
+        if (mario.invincible > 0 && mario.invincible % 4 < 2) return;
+
+        const mx = Math.round(mario.x - cameraX);
+        const my = Math.round(mario.y);
+        const f = mario.facing;
+
+        CTX.save();
+        if (f === -1) {
+            CTX.translate(mx + mario.width, my);
+            CTX.scale(-1, 1);
+        } else {
+            CTX.translate(mx, my);
+        }
+
+        // Hat
+        CTX.fillStyle = COLORS.marioHat;
+        CTX.fillRect(4, 0, 16, 8);
+        CTX.fillRect(0, 4, 22, 4);
+
+        // Face
+        CTX.fillStyle = COLORS.marioSkin;
+        CTX.fillRect(2, 8, 20, 8);
+
+        // Eyes
+        CTX.fillStyle = '#000';
+        CTX.fillRect(14, 9, 3, 3);
+
+        // Mustache
+        CTX.fillStyle = '#4a2800';
+        CTX.fillRect(10, 13, 10, 2);
+
+        // Body/Overalls
+        CTX.fillStyle = COLORS.marioOveralls;
+        CTX.fillRect(2, 16, 20, 10);
+
+        // Shirt
+        CTX.fillStyle = COLORS.mario;
+        CTX.fillRect(0, 16, 4, 8);
+        CTX.fillRect(20, 16, 4, 8);
+
+        // Legs
+        if (!mario.onGround) {
+            // Jumping pose
+            CTX.fillStyle = COLORS.marioOveralls;
+            CTX.fillRect(2, 26, 8, 6);
+            CTX.fillRect(14, 22, 8, 6);
+        } else if (Math.abs(mario.vx) > 0.5) {
+            // Walking animation
+            if (mario.animFrame === 0) {
+                CTX.fillStyle = COLORS.marioOveralls;
+                CTX.fillRect(2, 26, 8, 6);
+                CTX.fillRect(14, 26, 8, 6);
+            } else if (mario.animFrame === 1) {
+                CTX.fillStyle = COLORS.marioOveralls;
+                CTX.fillRect(0, 26, 8, 6);
+                CTX.fillRect(16, 26, 8, 6);
+            } else {
+                CTX.fillStyle = COLORS.marioOveralls;
+                CTX.fillRect(4, 26, 8, 6);
+                CTX.fillRect(12, 26, 8, 6);
+            }
+        } else {
+            // Standing
+            CTX.fillStyle = COLORS.marioOveralls;
+            CTX.fillRect(2, 26, 8, 6);
+            CTX.fillRect(14, 26, 8, 6);
+        }
+
+        // Shoes
+        CTX.fillStyle = '#8b3000';
+        if (!mario.onGround) {
+            CTX.fillRect(2, 30, 8, 2);
+            CTX.fillRect(14, 26, 8, 2);
+        } else {
+            CTX.fillRect(0, 30, 10, 2);
+            CTX.fillRect(14, 30, 10, 2);
+        }
+
+        CTX.restore();
+    }
+
+    function drawEnemy(enemy) {
+        if (!enemy.alive) return;
+        const ex = Math.round(enemy.x - cameraX);
+        const ey = Math.round(enemy.y);
+
+        if (ex < -50 || ex > CANVAS.width + 50) return;
+
+        if (enemy.type === 'goomba') {
+            if (enemy.squished) {
+                CTX.fillStyle = COLORS.goomba;
+                CTX.fillRect(ex, ey + enemy.height - 8, enemy.width, 8);
+                CTX.fillStyle = COLORS.goombaDark;
+                CTX.fillRect(ex + 4, ey + enemy.height - 6, 4, 2);
+                CTX.fillRect(ex + enemy.width - 8, ey + enemy.height - 6, 4, 2);
+                return;
+            }
+
+            // Body
+            CTX.fillStyle = COLORS.goomba;
+            CTX.beginPath();
+            CTX.arc(ex + 14, ey + 10, 14, Math.PI, 0);
+            CTX.fill();
+            CTX.fillRect(ex, ey + 10, 28, 12);
+
+            // Eyes
+            CTX.fillStyle = '#fff';
+            CTX.fillRect(ex + 6, ey + 6, 6, 6);
+            CTX.fillRect(ex + 16, ey + 6, 6, 6);
+            CTX.fillStyle = '#000';
+            CTX.fillRect(ex + 8, ey + 8, 3, 4);
+            CTX.fillRect(ex + 18, ey + 8, 3, 4);
+
+            // Feet
+            CTX.fillStyle = COLORS.goombaDark;
+            if (enemy.animFrame === 0) {
+                CTX.fillRect(ex, ey + 22, 10, 6);
+                CTX.fillRect(ex + 18, ey + 22, 10, 6);
+            } else {
+                CTX.fillRect(ex + 2, ey + 22, 10, 6);
+                CTX.fillRect(ex + 16, ey + 22, 10, 6);
+            }
+        } else if (enemy.type === 'koopa') {
+            if (enemy.squished) {
+                // Shell
+                CTX.fillStyle = COLORS.koopa;
+                CTX.beginPath();
+                CTX.arc(ex + 13, ey + 20, 13, 0, Math.PI * 2);
+                CTX.fill();
+                CTX.fillStyle = COLORS.koopaDark;
+                CTX.beginPath();
+                CTX.arc(ex + 13, ey + 20, 8, 0, Math.PI * 2);
+                CTX.fill();
+                return;
+            }
+
+            // Shell body
+            CTX.fillStyle = COLORS.koopa;
+            CTX.beginPath();
+            CTX.arc(ex + 13, ey + 22, 13, 0, Math.PI * 2);
+            CTX.fill();
+            CTX.fillStyle = COLORS.koopaDark;
+            CTX.beginPath();
+            CTX.arc(ex + 13, ey + 22, 8, 0, Math.PI * 2);
+            CTX.fill();
+
+            // Head
+            CTX.fillStyle = '#e7c526';
+            CTX.beginPath();
+            CTX.arc(ex + 13, ey + 8, 8, 0, Math.PI * 2);
+            CTX.fill();
+
+            // Eyes
+            CTX.fillStyle = '#fff';
+            CTX.fillRect(ex + 10, ey + 4, 4, 5);
+            CTX.fillStyle = '#000';
+            CTX.fillRect(ex + 11, ey + 5, 2, 3);
+
+            // Feet
+            CTX.fillStyle = '#e7a526';
+            if (enemy.animFrame === 0) {
+                CTX.fillRect(ex + 2, ey + 32, 8, 6);
+                CTX.fillRect(ex + 16, ey + 32, 8, 6);
+            } else {
+                CTX.fillRect(ex + 4, ey + 32, 8, 6);
+                CTX.fillRect(ex + 14, ey + 32, 8, 6);
+            }
+        }
+    }
+
+    function drawParticles() {
+        particles.forEach(p => {
+            if (p.type === 'coin') {
+                CTX.fillStyle = COLORS.coinColor;
+                const cx = p.x - cameraX;
+                CTX.fillRect(cx - 4, p.y - 4, 8, 8);
+                CTX.fillStyle = '#fff';
+                CTX.fillRect(cx - 1, p.y - 2, 2, 4);
+            } else if (p.type === 'brick') {
+                CTX.fillStyle = COLORS.brick;
+                const bx = p.x - cameraX;
+                CTX.save();
+                CTX.translate(bx + 8, p.y + 8);
+                CTX.rotate(p.timer * 0.2);
+                CTX.fillRect(-6, -6, 12, 12);
+                CTX.restore();
+            }
+        });
+
+        floatingTexts.forEach(ft => {
+            CTX.fillStyle = '#fff';
+            CTX.font = 'bold 12px monospace';
+            CTX.textAlign = 'center';
+            CTX.fillText(ft.text, ft.x - cameraX + 16, ft.y);
+            CTX.textAlign = 'left';
+        });
+    }
+
+    function drawBackground() {
+        // Sky gradient
+        const grad = CTX.createLinearGradient(0, 0, 0, CANVAS.height);
+        grad.addColorStop(0, '#5c94fc');
+        grad.addColorStop(0.6, '#6b88fe');
+        grad.addColorStop(1, '#88a8ff');
+        CTX.fillStyle = grad;
+        CTX.fillRect(0, 0, CANVAS.width, CANVAS.height);
+
+        // Background hills
+        CTX.fillStyle = '#4aa52e';
+        for (let h = 0; h < 5; h++) {
+            const hx = (h * 350 - cameraX * 0.3) % (CANVAS.width + 400) - 100;
+            const hw = 120 + h * 30;
+            CTX.beginPath();
+            CTX.arc(hx + hw / 2, CANVAS.height - 64, hw / 2, Math.PI, 0);
+            CTX.fill();
+        }
+
+        // Background bushes
+        CTX.fillStyle = '#2d8b2d';
+        for (let b = 0; b < 8; b++) {
+            const bx = (b * 250 + 80 - cameraX * 0.4) % (CANVAS.width + 500) - 100;
+            CTX.beginPath();
+            CTX.arc(bx, CANVAS.height - 64, 20, Math.PI, 0);
+            CTX.arc(bx + 25, CANVAS.height - 64, 25, Math.PI, 0);
+            CTX.arc(bx + 50, CANVAS.height - 64, 20, Math.PI, 0);
+            CTX.fill();
+        }
+    }
+
+    function render() {
+        CTX.clearRect(0, 0, CANVAS.width, CANVAS.height);
+
+        drawBackground();
+
+        // Draw tiles
+        const startCol = Math.floor(cameraX / TILE_SIZE);
+        const endCol = startCol + COLS + 2;
+
+        for (let y = 0; y < ROWS; y++) {
+            for (let x = startCol; x < endCol && x < LEVEL_WIDTH; x++) {
+                const tile = levelMap[y][x];
+                if (tile !== 0) {
+                    const sx = x * TILE_SIZE - cameraX;
+                    const sy = y * TILE_SIZE;
+                    drawTile(tile, sx, sy);
+                }
+            }
+        }
+
+        // Draw enemies
+        enemies.forEach(drawEnemy);
+
+        // Draw particles
+        drawParticles();
+
+        // Draw Mario
+        drawMario();
+
+        // Pause overlay
+        if (state === GameState.PAUSED) {
+            CTX.fillStyle = 'rgba(0,0,0,0.5)';
+            CTX.fillRect(0, 0, CANVAS.width, CANVAS.height);
+            CTX.fillStyle = '#fff';
+            CTX.font = 'bold 32px monospace';
+            CTX.textAlign = 'center';
+            CTX.fillText('PAUSED', CANVAS.width / 2, CANVAS.height / 2);
+            CTX.font = '16px monospace';
+            CTX.fillText('Press P to resume', CANVAS.width / 2, CANVAS.height / 2 + 30);
+            CTX.textAlign = 'left';
+        }
+
+        // Win overlay
+        if (state === GameState.WIN) {
+            CTX.fillStyle = 'rgba(0,0,0,0.7)';
+            CTX.fillRect(0, 0, CANVAS.width, CANVAS.height);
+            CTX.fillStyle = '#e7a526';
+            CTX.font = 'bold 36px monospace';
+            CTX.textAlign = 'center';
+            CTX.fillText('COURSE CLEAR!', CANVAS.width / 2, CANVAS.height / 2 - 30);
+            CTX.fillStyle = '#fff';
+            CTX.font = '20px monospace';
+            CTX.fillText(`SCORE: ${score}`, CANVAS.width / 2, CANVAS.height / 2 + 10);
+            CTX.font = '14px monospace';
+            CTX.fillText('Press ENTER to play again', CANVAS.width / 2, CANVAS.height / 2 + 50);
+            CTX.textAlign = 'left';
+
+            // Allow restart on win
+            if (keys['Enter']) {
+                resetGame();
+            }
+        }
+    }
+
+    // ============================================
+    // HUD UPDATE
+    // ============================================
+    function updateHUD() {
+        document.getElementById('hud-score').textContent = String(score).padStart(6, '0');
+        document.getElementById('hud-coins').textContent = String(coins).padStart(2, '0');
+        document.getElementById('hud-time').textContent = String(Math.max(0, timeLeft));
+        document.getElementById('hud-lives').textContent = lives;
+    }
+
+    // ============================================
+    // DEBUG OVERLAY
+    // ============================================
+    function updateDebug() {
+        if (!CONFIG.debugMode) return;
+        document.getElementById('debug-overlay').style.display = 'block';
+        document.getElementById('debug-fps').textContent = `FPS: ${currentFPS}`;
+        document.getElementById('debug-pos').textContent = `X:${Math.round(mario.x)} Y:${Math.round(mario.y)}`;
+        document.getElementById('debug-vel').textContent = `VX:${mario.vx.toFixed(1)} VY:${mario.vy.toFixed(1)}`;
+        document.getElementById('debug-state').textContent = mario.onGround ? 'ground' : 'air';
+    }
+
+    // ============================================
+    // GAME LOOP
+    // ============================================
+    function gameLoop(timestamp) {
+        requestAnimationFrame(gameLoop);
+
+        // FPS calculation
+        deltaTime = timestamp - lastTime;
+        lastTime = timestamp;
+        fpsAccumulator += deltaTime;
+        fpsFrames++;
+        if (fpsAccumulator >= 1000) {
+            currentFPS = fpsFrames;
+            fpsFrames = 0;
+            fpsAccumulator = 0;
+        }
+
+        // Frame rate limiting
+        const targetInterval = 1000 / CONFIG.fps;
+        if (deltaTime < targetInterval * 0.8) return;
+
+        frameCount++;
+
+        if (state === GameState.PLAYING) {
+            updateMario();
+            updateEnemies();
+            updateParticles();
+            updateCamera();
+
+            // Timer
+            timeCounter++;
+            if (timeCounter >= 24) {
+                timeCounter = 0;
+                timeLeft--;
+                if (timeLeft <= 0) {
+                    mariodie();
+                }
+            }
+        }
+
+        render();
+        updateHUD();
+        updateDebug();
+    }
+
+    // ============================================
+    // GAME CONTROL
+    // ============================================
+    function startGame() {
+        state = GameState.PLAYING;
+        document.getElementById('start-screen').style.display = 'none';
+        AudioEngine.init();
+    }
+
+    function resetGame() {
+        score = 0;
+        coins = 0;
+        lives = 3;
+        timeLeft = 400;
+        timeCounter = 0;
+        cameraX = 0;
+        levelMap = generateLevel();
+        initQuestionBlocks();
+        spawnEnemies();
+        particles = [];
+        floatingTexts = [];
+        respawnMario();
+        mario.invincible = 0;
+        state = GameState.PLAYING;
+        document.getElementById('start-screen').style.display = 'none';
+        document.getElementById('game-over-screen').style.display = 'none';
+    }
+
+    // ============================================
+    // INITIALIZATION
+    // ============================================
+    initQuestionBlocks();
+    spawnEnemies();
+    document.title = CONFIG.title + ' v' + CONFIG.version;
+
+    // Start the loop
+    requestAnimationFrame(gameLoop);
+
+    console.log(`%c${CONFIG.title} v${CONFIG.version}%c - B2.st Studio`, 
+        'color: #e74c3c; font-size: 20px; font-weight: bold;',
+        'color: #e7a526; font-size: 14px;');
+    console.log('🎮 Controls: ← → Move | SPACE Jump | SHIFT Run | P Pause | M Mute');
+
+})();
+</script>
+
 </body>
 </html>
+```

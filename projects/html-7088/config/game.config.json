@@ -1,0 +1,38 @@
+```json
+{
+  "gameName": "B2.st Mario",
+  "version": "1.0.0",
+  "canvas": {
+    "width": 768,
+    "height": 720,
+    "scale": "auto",
+    "backgroundColor": "#6B8CFF"
+  },
+  "physics": {
+    "gravity": 0.7,
+    "friction": 0.85,
+    "maxVelocity": 12,
+    "tileSize": 16
+  },
+  "server": {
+    "port": 3000,
+    "host": "localhost"
+  },
+  "health": {
+    "checkIntervalMs": 5000,
+    "memoryThresholdMB": 512,
+    "fpsThreshold": 30,
+    "maxEntityCount": 1000,
+    "physicsStepThresholdMs": 16,
+    "renderStepThresholdMs": 16,
+    "historySize": 100
+  },
+  "levels": ["1-1", "1-2", "1-3", "1-4"],
+  "audio": {
+    "enabled": true,
+    "musicVolume": 0.5,
+    "sfxVolume": 0.7
+  },
+  "debug": false
+}
+```

@@ -1,0 +1,14 @@
+```json
+{
+  "port": 3000,
+  "jwtSecret": "linkbox-dev-secret-change-in-production",
+  "tokenExpiry": "7d",
+  "dbPath": "./data/linkbox.db",
+  "bcryptRounds": 10,
+  "rateLimit": {
+    "windowMs": 60000,
+    "max": 60
+  },
+  "shortCodeLength": 7
+}
+```

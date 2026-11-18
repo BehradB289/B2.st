@@ -1,19 +1,23 @@
 {
-  "name": "mario-engine-b2",
+  "name": "super-mario-js",
   "version": "1.0.0",
-  "description": "Modular 2D Mario Platformer Engine built with ES6+ Canvas and lightweight ECS architecture for B2.st studio",
+  "description": "Modular NES-style Super Mario in HTML5 Canvas and ES6+ with unit tests",
   "type": "module",
   "scripts": {
-    "test": "node tests/physics.test.js",
-    "start": "npx serve ."
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage"
+  },
+  "devDependencies": {
+    "vitest": "^1.6.0"
   },
   "keywords": [
     "mario",
     "game-engine",
-    "physics",
-    "aabb",
     "canvas-2d",
-    "b2-studio"
+    "physics",
+    "vitest",
+    "nes"
   ],
   "author": "B2.st Studio",
   "license": "MIT"

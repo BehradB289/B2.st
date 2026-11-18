@@ -1,81 +1,63 @@
 import React from "react";
-import { CreateLinkForm } from "@/components/create/CreateLinkForm";
-import { GlassCard } from "@/components/ui/GlassCard";
-import { Shield, Zap, Sparkles, Lock, ArrowUpRight, CheckCircle2 } from "lucide-react";
-import Link from "next/link";
+import { ItemCreatorForm } from "@/components/ItemCreatorForm";
+import { Sparkles, ShieldAlert, Cpu, DollarSign } from "lucide-react";
 
 export default function HomePage() {
   return (
-    <div className="w-full max-w-4xl mx-auto px-4 py-8 sm:py-12 space-y-12">
-      
+    <div className="space-y-16">
       {/* Hero Section */}
-      <div className="text-center space-y-4 max-w-2xl mx-auto">
-        <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-brand-cyan/10 border border-brand-cyan/20 text-brand-cyan text-xs font-semibold backdrop-blur-md">
+      <section className="text-center space-y-6 pt-6 sm:pt-12">
+        <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/[0.03] border border-white/10 text-xs text-paypass-cyan font-medium">
           <Sparkles className="w-3.5 h-3.5" />
-          <span>پلتفرم مینیمال میکرومانتایز تک‌محتوایی</span>
+          <span>نسل جدید فروش محتوا با یک پیوند و ۵٪ کارمزد خودکار</span>
         </div>
 
-        <h1 className="text-3xl sm:text-5xl font-black text-white tracking-tight leading-tight">
-          فروش هر محتوا، <br />
-          <span className="bg-gradient-to-r from-brand-cyan via-brand-teal to-brand-violet bg-clip-text text-transparent">
-            فقط با یک لینک شیشه‌ای
+        <h1 className="text-4xl sm:text-6xl font-black text-white tracking-tight leading-tight max-w-4xl mx-auto">
+          محتوای باارزشت را قفل کن،{" "}
+          <span className="bg-clip-text text-transparent bg-gradient-to-r from-paypass-cyan via-white to-paypass-violet">
+            لینک بگیر و آنی نقد کن.
           </span>
         </h1>
 
-        <p className="text-sm sm:text-base text-zinc-400 leading-relaxed">
-          پرامپت‌های هوش مصنوعی، لینک‌های اختصاصی، دوره‌های میکرو یا لایسنس‌های خود را بدون درگیر شدن با طراحی سایت و سامانه‌های پیچیده، در ۳۰ ثانیه تبدیل به پول نقد کنید.
+        <p className="text-sm sm:text-base text-white/60 max-w-2xl mx-auto leading-relaxed">
+          بدون نیاز به راه‌اندازی سایت یا احراز هویت‌های پیچیده؛ محتوا، لینک دانلود یا کلید اختصاصی خود را با امنیت AES-256 قفل کنید و لینک مستقیم فروش بگیرید.
         </p>
-      </div>
 
-      {/* Main Generator Form */}
-      <CreateLinkForm />
-
-      {/* Feature Pillars (Luxury Glass Cards) */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4">
-        
-        <GlassCard className="p-6 space-y-3" interactive>
-          <div className="w-10 h-10 rounded-xl bg-brand-cyan/10 border border-brand-cyan/30 flex items-center justify-center text-brand-cyan">
-            <Lock className="w-5 h-5" />
+        {/* Feature Badges */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 max-w-3xl mx-auto pt-4 text-right">
+          <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/[0.06]">
+            <div className="flex items-center gap-2 text-paypass-cyan mb-1 font-bold text-xs">
+              <Cpu className="w-4 h-4" /> رمزنگاری پیشرفته AES-256
+            </div>
+            <p className="text-[11px] text-white/50">
+              محتوای اصلی تا لحظه تایید ۱۰۰٪ امضای درگاه بانکی حتی برای مدیران دیتابیس غیرقابل مشاهده است.
+            </p>
           </div>
-          <h3 className="text-base font-bold text-white">رمزنگاری AES-256</h3>
-          <p className="text-xs text-zinc-400 leading-relaxed">
-            محتوای شما قبل از ذخیره‌سازی رمزنگاری شده و کلید آزادسازی تنها به خریدار موفق بعد از تایید وب‌هوک بانکی اعطا می‌شود.
-          </p>
-        </GlassCard>
 
-        <GlassCard className="p-6 space-y-3" interactive>
-          <div className="w-10 h-10 rounded-xl bg-purple-500/10 border border-purple-500/30 flex items-center justify-center text-purple-400">
-            <Zap className="w-5 h-5" />
+          <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/[0.06]">
+            <div className="flex items-center gap-2 text-paypass-violet mb-1 font-bold text-xs">
+              <DollarSign className="w-4 h-4" /> تسویه خودکار ۹۵٪
+            </div>
+            <p className="text-[11px] text-white/50">
+              ۵٪ سهم پلتفرم و ۹۵٪ سهم پدیدآورنده مستقیماً به شبا یا کیف‌پول واریز می‌شود.
+            </p>
           </div>
-          <h3 className="text-base font-bold text-white">تسویه آنی با ۵٪ کارمزد</h3>
-          <p className="text-xs text-zinc-400 leading-relaxed">
-            بدون هزینه اشتراک ماهانه یا پنهان. ۹۵٪ مبلغ هر فروش مستقیماً به شماره شبای بانکی شما واریز خواهد شد.
-          </p>
-        </GlassCard>
 
-        <GlassCard className="p-6 space-y-3" interactive>
-          <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
-            <Shield className="w-5 h-5" />
+          <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/[0.06]">
+            <div className="flex items-center gap-2 text-emerald-400 mb-1 font-bold text-xs">
+              <ShieldAlert className="w-4 h-4" /> بدون نیاز به ثبت‌نام
+            </div>
+            <p className="text-[11px] text-white/50">
+              فقط فرم زیر را پر کنید و بلافاصله لینک اختصاصی فروش تحویل بگیرید.
+            </p>
           </div>
-          <h3 className="text-base font-bold text-white">تجربه آنلاک لوکس</h3>
-          <p className="text-xs text-zinc-400 leading-relaxed">
-            کارت‌های مات شیشه‌ای مجهز به انیمیشن‌های روان Framer Motion و افکت شکستن قفل، اعتماد و نرخ تبدیل خریدار را به اوج می‌رسانند.
-          </p>
-        </GlassCard>
+        </div>
+      </section>
 
-      </div>
-
-      {/* Quick Live Demo Link */}
-      <div className="text-center pt-2">
-        <Link
-          href="/demo-vip"
-          className="inline-flex items-center gap-2 text-xs font-semibold text-zinc-400 hover:text-brand-cyan transition-colors"
-        >
-          <span>می‌خواهید بدانید خریدار محتوای شما را چگونه می‌بیند؟ تست لایو نمونه</span>
-          <ArrowUpRight className="w-4 h-4" />
-        </Link>
-      </div>
-
+      {/* Main Interactive Form Component */}
+      <section id="create" className="pt-4">
+        <ItemCreatorForm />
+      </section>
     </div>
   );
 }

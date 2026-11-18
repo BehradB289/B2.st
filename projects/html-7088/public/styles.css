@@ -1,0 +1,149 @@
+/* Studio B2.st - Retro NES Arcade Theme & CRT Shaders */
+@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+
+:root {
+  --nes-bg: #121216;
+  --nes-accent: #fcbc38;
+  --nes-border: #444;
+}
+
+* {
+  box-sizing: border-box;
+  user-select: none;
+  -webkit-user-select: none;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background-color: var(--nes-bg);
+  color: #fff;
+  font-family: 'Press Start 2P', monospace, sans-serif;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  overflow: hidden;
+}
+
+#arcade-cabinet {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+  width: 100vw;
+  max-width: 900px;
+  padding: 12px;
+}
+
+#screen-container {
+  position: relative;
+  border: 12px solid #222;
+  border-radius: 12px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.9), inset 0 0 20px rgba(0, 0, 0, 0.8);
+  background-color: #000;
+  line-height: 0;
+}
+
+#game-canvas {
+  width: 100%;
+  max-width: 768px;
+  height: auto;
+  aspect-ratio: 256 / 240;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  display: block;
+}
+
+/* CRT Scanline Shader Effect */
+body.crt-mode #screen-container::after {
+  content: " ";
+  position: absolute;
+  top: 0; left: 0; bottom: 0; right: 0;
+  background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.4) 50%),
+              linear-gradient(90deg, rgba(255, 0, 0, 0.05), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.05));
+  background-size: 100% 4px, 6px 100%;
+  pointer-events: none;
+  border-radius: 4px;
+}
+
+/* Top Toolbar Controls */
+#arcade-toolbar {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+  max-width: 768px;
+  margin-bottom: 8px;
+  padding: 4px 8px;
+  font-size: 10px;
+}
+
+.hud-btn {
+  background: #333;
+  color: #fff;
+  border: 2px solid #666;
+  padding: 6px 10px;
+  font-family: inherit;
+  font-size: 10px;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: background 0.1s;
+}
+
+.hud-btn:hover {
+  background: #555;
+}
+
+/* Virtual Mobile Touchpad Controls */
+#mobile-controls {
+  display: none;
+  width: 100%;
+  max-width: 768px;
+  margin-top: 16px;
+  justify-content: space-between;
+  padding: 0 16px;
+}
+
+@media (max-width: 820px), (hover: none) and (pointer: coarse) {
+  #mobile-controls {
+    display: flex;
+  }
+}
+
+.touch-dpad {
+  display: grid;
+  grid-template-columns: repeat(3, 56px);
+  grid-template-rows: repeat(2, 56px);
+  gap: 6px;
+}
+
+.touch-btn {
+  background: rgba(255, 255, 255, 0.15);
+  border: 2px solid rgba(255, 255, 255, 0.4);
+  color: #fff;
+  border-radius: 50%;
+  font-size: 18px;
+  font-family: inherit;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  touch-action: manipulation;
+}
+
+.touch-btn:active {
+  background: var(--nes-accent);
+  color: #000;
+}
+
+.touch-actions {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+}
+
+.action-btn {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  font-size: 14px;
+}

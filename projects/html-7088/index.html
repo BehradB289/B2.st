@@ -2,22 +2,20 @@
 <html lang="fa" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <!-- سخت‌گیرانه‌ترین سیاست امنیتی برای بازی تک‌صفحه‌ای جهت جلوگیری از XSS و Injection -->
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' data:; connect-src 'self';">
-    <title>B2.st Studio - Super Mario Engine</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>بازی ماریو | B2.st Anti-Crash Shield Engine</title>
     <style>
         * {
             box-sizing: border-box;
+            user-select: none;
             margin: 0;
             padding: 0;
-            user-select: none;
-            -webkit-user-select: none;
         }
+
         body {
-            background-color: #0f172a;
-            color: #f8fafc;
-            font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #0f141c;
+            color: #eceff4;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
             display: flex;
             flex-direction: column;
             align-items: center;
@@ -25,121 +23,300 @@
             min-height: 100vh;
             overflow: hidden;
         }
+
         #game-container {
             position: relative;
-            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7);
-            border: 4px solid #334155;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.8), 0 0 20px rgba(0, 255, 128, 0.2);
+            border: 2px solid #2e3440;
             border-radius: 12px;
             overflow: hidden;
             background: #5c94fc;
         }
+
         canvas {
             display: block;
-            image-rendering: -moz-crisp-edges;
-            image-rendering: -webkit-crisp-edges;
             image-rendering: pixelated;
-            image-rendering: crisp-edges;
         }
-        #ui-overlay {
+
+        #shield-hud {
             position: absolute;
-            top: 10px;
-            left: 20px;
-            right: 20px;
-            display: flex;
-            justify-content: space-between;
-            font-size: 16px;
-            font-weight: 800;
-            text-shadow: 2px 2px 0 #000;
-            pointer-events: none;
-            font-family: 'Courier New', Courier, monospace;
-            direction: ltr;
-        }
-        .hud-item {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-        }
-        #screen-overlay {
-            position: absolute;
-            inset: 0;
-            background: rgba(15, 23, 42, 0.85);
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            z-index: 20;
-            backdrop-filter: blur(4px);
-        }
-        #screen-overlay.hidden {
-            display: none;
-        }
-        .btn-action {
-            background: #ef4444;
-            color: #fff;
-            border: 2px solid #fff;
-            padding: 12px 28px;
-            font-size: 18px;
-            font-weight: 700;
+            top: 12px;
+            left: 12px;
+            background: rgba(15, 20, 28, 0.85);
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(0, 255, 128, 0.3);
             border-radius: 8px;
+            padding: 8px 14px;
+            font-family: monospace;
+            font-size: 11px;
+            color: #a3be8c;
+            line-height: 1.5;
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        .hud-val {
+            color: #88c0d0;
+            font-weight: bold;
+        }
+
+        .hud-alert {
+            color: #bf616a;
+            font-weight: bold;
+        }
+
+        #controls {
+            margin-top: 15px;
+            display: flex;
+            gap: 10px;
+        }
+
+        button {
+            background: #2e3440;
+            color: #d8dee9;
+            border: 1px solid #4c566a;
+            padding: 8px 16px;
+            border-radius: 6px;
             cursor: pointer;
-            box-shadow: 0 4px 0 #991b1b;
-            transition: all 0.1s ease;
-            margin-top: 15px;
+            font-size: 12px;
+            font-weight: 600;
+            transition: all 0.2s;
         }
-        .btn-action:hover {
-            background: #dc2626;
-            transform: translateY(2px);
-            box-shadow: 0 2px 0 #991b1b;
+
+        button:hover {
+            background: #434c5e;
+            border-color: #88c0d0;
+            color: #fff;
         }
-        .instructions {
-            margin-top: 15px;
-            font-size: 13px;
-            color: #cbd5e1;
-            text-align: center;
-            line-height: 1.6;
-            direction: rtl;
+
+        .btn-chaos {
+            border-color: #bf616a;
+            color: #bf616a;
+        }
+
+        .btn-chaos:hover {
+            background: #bf616a;
+            color: #fff;
+        }
+
+        #telemetry-log {
+            margin-top: 10px;
+            width: 800px;
+            max-width: 95vw;
+            height: 60px;
+            background: #090c10;
+            border: 1px solid #21262d;
+            border-radius: 6px;
+            font-family: monospace;
+            font-size: 11px;
+            padding: 6px 10px;
+            color: #7ee787;
+            overflow-y: auto;
         }
     </style>
 </head>
 <body>
 
     <div id="game-container">
-        <canvas id="gameCanvas" width="800" height="450"></canvas>
-        
-        <div id="ui-overlay">
-            <div class="hud-item">
-                <span>MARIO</span>
-                <span id="score-display">000000</span>
-            </div>
-            <div class="hud-item">
-                <span>COINS</span>
-                <span id="coins-display">x00</span>
-            </div>
-            <div class="hud-item">
-                <span>WORLD</span>
-                <span>1-1</span>
-            </div>
-            <div class="hud-item">
-                <span>TIME</span>
-                <span id="time-display">400</span>
-            </div>
-            <div class="hud-item">
-                <span>LIVES</span>
-                <span id="lives-display">x3</span>
-            </div>
-        </div>
-
-        <div id="screen-overlay">
-            <h1 id="overlay-title" style="font-size: 36px; margin-bottom: 10px; color: #fbbf24;">SUPER MARIO</h1>
-            <p id="overlay-subtitle" style="font-size: 16px; color: #94a3b8;">استودیو امنیتی و بازی‌سازی B2.st</p>
-            <button id="start-btn" class="btn-action">شروع بازی (Press ENTER)</button>
-            <div class="instructions">
-                کلیدهای جهت‌نما یا A/D: حرکت افقی | کلید W، Space یا فلش بالا: پرش<br>
-                کلید Shift: دویدن سریع | نابودی قارچ‌ها: پرش روی سر دشمن
-            </div>
+        <canvas id="marioCanvas" width="800" height="400"></canvas>
+        <div id="shield-hud">
+            <div>سپر حفاظتی B2.st: <span class="hud-val" id="hud-status">فعال (Layer 1-10)</span></div>
+            <div>خطاهای مهار شده: <span class="hud-val" id="hud-intercepted">0</span></div>
+            <div>Unhandled Rejections خنثی شده: <span class="hud-val" id="hud-rejections">0</span></div>
+            <div>بازیابی فریم لوپ: <span class="hud-val" id="hud-loop">0</span></div>
         </div>
     </div>
 
-    <script type="module" src="./src/main.js"></script>
+    <div id="controls">
+        <span>کلیدها: چپ/راست جهت دویدن | فضا یا فلش بالا جهت پرش</span>
+        <button class="btn-chaos" id="btn-chaos-async">تزریق خطای Async (Promise Crash)</button>
+        <button class="btn-chaos" id="btn-chaos-loop">تزریق خطای رندرر (Render Loop Throw)</button>
+        <button class="btn-chaos" id="btn-chaos-audio">تزریق نقص صدا (Audio Unhandled)</button>
+    </div>
+
+    <div id="telemetry-log">سیستم مانیتورینگ امنیتی استودیو B2.st آنلاین است. منتظر تحلیل رویدادها...</div>
+
+    <!-- بارگذاری ماژول سپر حفاظتی -->
+    <script type="module">
+        import shield from "./src/core/error_shield.js";
+
+        const logBox = document.getElementById("telemetry-log");
+        window.__B2ST_ON_ERROR__ = (err) => {
+            const row = document.createElement("div");
+            row.textContent = `[${err.timestamp.split("T")[1].slice(0, 8)}] [مهار شد - ${err.context}]: ${err.message}`;
+            logBox.prepend(row);
+        };
+
+        // راه‌اندازی شبیه‌ساز بازی ماریو جهت تست انعطاف‌پذیری لوپ و پرامیس‌ها
+        const canvas = document.getElementById("marioCanvas");
+        const ctx = canvas.getContext("2d");
+
+        class MarioSimulation {
+            constructor() {
+                this.mario = {
+                    x: 60,
+                    y: 280,
+                    vx: 0,
+                    vy: 0,
+                    width: 24,
+                    height: 32,
+                    isGrounded: true
+                };
+
+                this.gravity = 0.55;
+                this.keys = {};
+                this.obstacles = [
+                    { x: 260, y: 310, w: 32, h: 32, type: "pipe" },
+                    { x: 420, y: 260, w: 60, h: 20, type: "brick" },
+                    { x: 620, y: 310, w: 32, h: 32, type: "pipe" }
+                ];
+                
+                this.bindInputs();
+                this.start();
+            }
+
+            bindInputs() {
+                window.addEventListener("keydown", (e) => {
+                    this.keys[e.code] = true;
+                });
+                window.addEventListener("keyup", (e) => {
+                    this.keys[e.code] = false;
+                });
+            }
+
+            async simulateAsyncAssetFetch() {
+                // شبیه‌سازی یک واکشی دارایی بازی با گارد امنیتی
+                return shield.safeAsync(async () => {
+                    return new Promise((resolve, reject) => {
+                        const random = Math.random();
+                        if (random > 0.4) {
+                            resolve({ status: "OK", frame: 1 });
+                        } else {
+                            reject(new Error("Network timeout during SpriteSheet chunk decode"));
+                        }
+                    });
+                }, { status: "FALLBACK_TEXTURE" }, "AssetLoader");
+            }
+
+            update() {
+                // ورودی‌های ماریو
+                if (this.keys["ArrowRight"] || this.keys["KeyD"]) {
+                    this.mario.vx = 3.5;
+                } else if (this.keys["ArrowLeft"] || this.keys["KeyA"]) {
+                    this.mario.vx = -3.5;
+                } else {
+                    this.mario.vx *= 0.8;
+                }
+
+                if ((this.keys["Space"] || this.keys["ArrowUp"] || this.keys["KeyW"]) && this.mario.isGrounded) {
+                    this.mario.vy = -12;
+                    this.mario.isGrounded = false;
+                    this.simulateAsyncAssetFetch(); // تست فراخوانی غیرهمگام در حرکت
+                }
+
+                // اعمال فیزیک
+                this.mario.vy += this.gravity;
+                this.mario.x += this.mario.vx;
+                this.mario.y += this.mario.vy;
+
+                // برخورد با زمین
+                if (this.mario.y >= 310) {
+                    this.mario.y = 310;
+                    this.mario.vy = 0;
+                    this.mario.isGrounded = true;
+                }
+
+                // مهار مرزها
+                if (this.mario.x < 0) this.mario.x = 0;
+                if (this.mario.x > canvas.width - this.mario.width) this.mario.x = canvas.width - this.mario.width;
+            }
+
+            render() {
+                // پس‌زمینه
+                ctx.fillStyle = "#5c94fc";
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                // زمین
+                ctx.fillStyle = "#c84c0c";
+                ctx.fillRect(0, 342, canvas.width, 58);
+                ctx.fillStyle = "#00a800";
+                ctx.fillRect(0, 342, canvas.width, 8);
+
+                // موانع
+                for (const obs of this.obstacles) {
+                    if (obs.type === "pipe") {
+                        ctx.fillStyle = "#00a800";
+                        ctx.fillRect(obs.x, obs.y, obs.w, obs.h);
+                        ctx.strokeStyle = "#000";
+                        ctx.strokeRect(obs.x, obs.y, obs.w, obs.h);
+                    } else {
+                        ctx.fillStyle = "#fc9838";
+                        ctx.fillRect(obs.x, obs.y, obs.w, obs.h);
+                        ctx.strokeStyle = "#000";
+                        ctx.strokeRect(obs.x, obs.y, obs.w, obs.h);
+                    }
+                }
+
+                // کاراکتر ماریو (طراحی وکتور با پالت ارجینال NES)
+                const m = this.mario;
+                ctx.fillStyle = "#e52521"; // کلاه و پیراهن قرمز
+                ctx.fillRect(m.x + 4, m.y, 16, 8);
+                ctx.fillRect(m.x + 2, m.y + 12, 20, 10);
+
+                ctx.fillStyle = "#0026a5"; // شلوار آبی
+                ctx.fillRect(m.x + 4, m.y + 20, 16, 8);
+                ctx.fillRect(m.x + 2, m.y + 28, 8, 4);
+                ctx.fillRect(m.x + 14, m.y + 28, 8, 4);
+
+                ctx.fillStyle = "#fcc082"; // صورت
+                ctx.fillRect(m.x + 4, m.y + 6, 14, 6);
+            }
+
+            start() {
+                const gameTick = () => {
+                    this.update();
+                    this.render();
+                    this.updateHUD();
+                    requestAnimationFrame(gameTick);
+                };
+                requestAnimationFrame(gameTick);
+            }
+
+            updateHUD() {
+                const diag = shield.getDiagnostics();
+                document.getElementById("hud-intercepted").textContent = diag.totalIntercepted;
+                document.getElementById("hud-rejections").textContent = diag.unhandledRejections;
+                document.getElementById("hud-loop").textContent = diag.loopFaults;
+            }
+        }
+
+        // ثبت سراسری جهت ریکاوری لایه ۱۰
+        window.MarioGameInstance = new MarioSimulation();
+
+        // -------------------------------------------------------------
+        // تست‌های تخریب کنترل شده برای تایید قدرت محافظت سپر
+        // -------------------------------------------------------------
+
+        // ۱. تزریق خطای Unhandled Promise
+        document.getElementById("btn-chaos-async").addEventListener("click", () => {
+            new Promise((_, reject) => {
+                reject(new Error("FATAL: Unhandled Promise Rejection in Async Level Streaming Engine!"));
+            });
+        });
+
+        // ۲. تزریق استثنای کشنده داخل چرخه Render Loop
+        document.getElementById("btn-chaos-loop").addEventListener("click", () => {
+            setTimeout(() => {
+                // این خطا مستقیماً در قلب فریم رندر رخ می‌دهد ولی توسط لایه ۵ مهار خواهد شد
+                throw new Error("CRITICAL: Segment Fault inside Canvas Mario Transform Matrix!");
+            }, 50);
+        });
+
+        // ۳. تزریق خطای پرامیس در سیستم صوتی
+        document.getElementById("btn-chaos-audio").addEventListener("click", () => {
+            const actx = new (window.AudioContext || window.webkitAudioContext)();
+            actx.decodeAudioData(new ArrayBuffer(16)); // بافر غیرمعتبر جهت ایجاد خطای پرامیس صوتی
+        });
+    </script>
 </body>
 </html>

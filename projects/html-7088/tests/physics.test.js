@@ -1,57 +1,83 @@
 /**
- * مجموعه تست‌های واحد خودکار برای محاسبات فیزیک، جاذبه و شخصیت‌ها
- * قابلیت اجرا در محیط‌های استاندارد Node.js یا مرورگر
+ * Studio B2.st - Unit Tests for Physics, AABB, and Mario State Transitions
+ * Can be run in Node.js (v16+) or imported directly into browser testing runners.
  */
-import { PhysicsEngine } from '../src/engine/Physics.js';
-import { Player } from '../src/entities/Player.js';
+
+import { Physics } from '../src/engine/Physics.js';
+import { Mario } from '../src/entities/Mario.js';
+import { Goomba, Koopa } from '../src/entities/Enemies.js';
+
+let passed = 0;
+let failed = 0;
 
 function assert(condition, message) {
-  if (!condition) {
-    throw new Error(`[FAIL] ${message}`);
+  if (condition) {
+    console.log(`  [PASS] ${message}`);
+    passed++;
+  } else {
+    console.error(`  [FAIL] ${message}`);
+    failed++;
   }
-  console.log(`[PASS] ${message}`);
 }
 
-export function runPhysicsTests() {
-  console.log('--- آغاز اجرای پایپ‌لاین تست‌های فیزیک B2.st ---');
+console.log('=== Running Studio B2.st Physics & Logic Tests ===\n');
 
-  // تست شماره ۱: تداخل دو جعبه AABB
-  const boxA = { x: 10, y: 10, width: 20, height: 20 };
-  const boxB = { x: 25, y: 25, width: 20, height: 20 };
-  const boxC = { x: 100, y: 100, width: 20, height: 20 };
+// 1. Test AABB Collision Detection
+{
+  console.log('Test Suite 1: AABB Collision Mathematics');
+  const boxA = { x: 10, y: 10, width: 16, height: 16 };
+  const boxB = { x: 20, y: 10, width: 16, height: 16 };
+  const boxC = { x: 100, y: 100, width: 16, height: 16 };
 
-  assert(PhysicsEngine.checkAABB(boxA, boxB) === true, 'تداخل دو باکس متقاطع باید مثبت باشد');
-  assert(PhysicsEngine.checkAABB(boxA, boxC) === false, 'دو باکس دور از هم نباید تداخل داشته باشند');
-
-  // تست شماره ۲: بارگذاری شخصیت‌ها با ویژگی‌های اختصاصی
-  const mario = new Player(0, 0, 'mario');
-  const luigi = new Player(0, 0, 'luigi');
-  const toad = new Player(0, 0, 'toad');
-  const peach = new Player(0, 0, 'peach');
-
-  assert(luigi.stats.jumpPower < mario.stats.jumpPower, 'پرش لوئیجی باید ارتفاع بیشتری نسبت به ماریو داشته باشد');
-  assert(toad.stats.runSpeed > mario.stats.runSpeed, 'سرعت تود باید بیشتر از ماریو باشد');
-  assert(peach.stats.canHover === true, 'پرنسس پیچ باید دارای قابلیت هاور در هوا باشد');
-
-  // تست شماره ۳: شبیه‌سازی سقوط و اعمال گرانش
-  const physics = new PhysicsEngine(32);
-  const dummyLevel = {
-    getTile(col, row) {
-      if (row >= 10) return { solid: true };
-      return null;
-    }
-  };
-
-  const testEntity = { x: 50, y: 0, width: 28, height: 32, vx: 0, vy: 0, onGround: false };
-  physics.updateEntityY(testEntity, dummyLevel);
-
-  assert(testEntity.vy > 0, 'جاذبه باید سرعت عمودی را پس از یک فریم مثبت کند');
-  assert(testEntity.y > 0, 'موقعیت عمودی باید رو به پایین تغییر کند');
-
-  console.log('--- تمام تست‌های فیزیک با موفقیت سپری شدند! ---');
+  assert(Physics.checkAABB(boxA, boxB) === true, 'Overlapping boxes detected');
+  assert(Physics.checkAABB(boxA, boxC) === false, 'Disjoint boxes correctly report no collision');
 }
 
-// در صورت اجرا به عنوان اسکریپت مستقل Node
-if (typeof process !== 'undefined' && process.argv && process.argv[1]?.includes('physics.test.js')) {
-  runPhysicsTests();
+// 2. Test Mario Powerup State Transitions
+{
+  console.log('\nTest Suite 2: Mario Powerup & Health Morphing');
+  const mario = new Mario(50, 100);
+
+  assert(mario.powerState === 'SMALL', 'Mario starts in SMALL form');
+  assert(mario.height === 16, 'Small Mario height is 16px');
+
+  mario.growToSuper();
+  assert(mario.powerState === 'SUPER', 'Mushroom transforms Mario to SUPER');
+  assert(mario.height === 32, 'Super Mario height is 32px');
+
+  mario.growToFire();
+  assert(mario.powerState === 'FIRE', 'Fire flower promotes to FIRE Mario');
+
+  mario.takeDamage();
+  assert(mario.powerState === 'SUPER', 'Damage to Fire Mario reverts to SUPER');
+  assert(mario.isInvulnerable === true, 'Damage triggers temporary invulnerability');
+
+  mario.isInvulnerable = false;
+  mario.takeDamage();
+  assert(mario.powerState === 'SMALL', 'Damage to Super Mario reverts to SMALL');
+  assert(mario.height === 16, 'Small Mario height restored');
+}
+
+// 3. Test Koopa Shell Mechanic
+{
+  console.log('\nTest Suite 3: Koopa Shell Mechanics');
+  const koopa = new Koopa(100, 100);
+  const mario = new Mario(100, 90);
+
+  assert(koopa.inShell === false, 'Koopa starts walking');
+  koopa.stomp(mario);
+  assert(koopa.inShell === true, 'First stomp puts Koopa into shell');
+  assert(koopa.vx === 0, 'Stationary shell has 0 velocity');
+
+  koopa.kick(1);
+  assert(koopa.shellMoving === true, 'Kicking shell puts it in moving state');
+  assert(koopa.vx > 200, 'Kicked shell moves at high speed');
+}
+
+console.log(`\n========================================`);
+console.log(`Test Results: ${passed} Passed, ${failed} Failed.`);
+if (failed === 0) {
+  console.log('ALL SYSTEMS NOMINAL. Ready for deployment!');
+} else {
+  process.exit(1);
 }

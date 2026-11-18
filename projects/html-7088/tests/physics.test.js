@@ -1,93 +1,118 @@
-/**
- * پایپ‌لاین تست‌های واحد موتور فیزیک AABB، دوربین و تعامل با تایل‌ها
- * قابل اجرا مستقیم در محیط Node.js: `node tests/physics.test.js`
- */
-import { Camera } from '../src/engine/Camera.js';
-import { Physics } from '../src/engine/Physics.js';
-import { TileMap, TILE_TYPES } from '../src/levels/TileMap.js';
+import { describe, it, expect, beforeEach } from 'vitest';
+import { PhysicsEngine, PHYSICS_CONSTANTS } from '../src/engine/PhysicsEngine.js';
+import { Mario, MARIO_CONSTANTS } from '../src/entities/Mario.js';
 
-let passed = 0;
-let failed = 0;
+describe('PhysicsEngine & Mario Kinematics', () => {
+  let physics;
+  let mario;
 
-function assert(condition, message) {
-  if (condition) {
-    console.log(`[\x1b[32mPASS\x1b[0m] ${message}`);
-    passed++;
-  } else {
-    console.error(`[\x1b[31mFAIL\x1b[0m] ${message}`);
-    failed++;
-  }
-}
+  beforeEach(() => {
+    physics = new PhysicsEngine({
+      gravity: 980,
+      terminalVelocity: 600,
+      friction: 0.88
+    });
+    mario = new Mario(100, 100);
+  });
 
-console.log('--- شروع اجرای تست‌های واحد موتور B2.st ---\n');
+  describe('Gravity and Free Fall', () => {
+    it('accelerates a falling entity downward by g * dt', () => {
+      const dt = 1 / 60;
+      mario.isGrounded = false;
+      mario.vel.set(0, 0);
 
-// ۱. تست تشخیص همپوشانی AABB
-{
-  const boxA = { x: 10, y: 10, width: 20, height: 20 };
-  const boxB = { x: 25, y: 25, width: 20, height: 20 };
-  const boxC = { x: 40, y: 40, width: 10, height: 10 };
+      physics.integrate(mario, dt);
 
-  assert(Physics.testAABB(boxA, boxB) === true, 'AABB باید برخورد دو مستطیل متداخل را شناسایی کند');
-  assert(Physics.testAABB(boxA, boxC) === false, 'AABB نباید برای مستطیل‌های جدا برخورد شناسایی کند');
-}
+      const expectedVy = 980 * dt;
+      expect(mario.vel.y).toBeCloseTo(expectedVy, 4);
+      expect(mario.pos.y).toBeGreaterThan(100);
+    });
 
-// ۲. تست دوربین و اسکرول یک‌طرفه (Forward-Only)
-{
-  const camera = new Camera(256, 240);
-  camera.setBounds(0, 1000);
+    it('clamps downward velocity to terminal velocity', () => {
+      mario.isGrounded = false;
+      mario.vel.set(0, 590);
 
-  // حرکت ماریو به جلو
-  camera.follow({ pos: { x: 200 } });
-  const initialCamX = camera.x;
-  assert(initialCamX > 0, 'دوربین باید همراه با حرکت ماریو به جلو اسکرول کند');
+      // Multiple integration steps
+      for (let i = 0; i < 20; i++) {
+        physics.integrate(mario, 1 / 60);
+      }
 
-  // تلاش برای برگشتن به عقب
-  camera.follow({ pos: { x: 50 } });
-  assert(camera.x === initialCamX, 'دوربین استاندارد NES نباید اجازه اسکرول به عقب را بدهد');
-}
+      expect(mario.vel.y).toBe(600);
+    });
+  });
 
-// ۳. تست Viewport Culling دوربین
-{
-  const camera = new Camera(256, 240);
-  camera.x = 100;
-  camera.y = 0;
+  describe('Jump Ascent, Apex, and Descent Dynamics', () => {
+    it('sets upward impulse on jump execution when grounded', () => {
+      mario.isGrounded = true;
+      const jumped = mario.jump();
 
-  assert(camera.isVisible(120, 50, 16, 16) === true, 'آبجکت داخل دید دوربین باید Visible باشد');
-  assert(camera.isVisible(10, 50, 16, 16) === false, 'آبجکت سمت چپ دوربین باید Culling شود');
-  assert(camera.isVisible(400, 50, 16, 16) === false, 'آبجکت سمت راست دوربین باید Culling شود');
-}
+      expect(jumped).toBe(true);
+      expect(mario.isGrounded).toBe(false);
+      expect(mario.vel.y).toBe(MARIO_CONSTANTS.JUMP_IMPULSE);
+      expect(mario.state).toBe('jumping');
+    });
 
-// ۴. تست تعامل سر کاراکتر با بلوک علامت سوال (Question Block)
-{
-  const tileMap = new TileMap(20, 15, 16);
-  tileMap.setTile(5, 5, TILE_TYPES.QUESTION_COIN);
+    it('rejects jump request when airborne', () => {
+      mario.isGrounded = false;
+      mario.vel.y = -200;
 
-  let scoreAdded = 0;
-  let coinsAdded = 0;
-  const mockContext = {
-    addScore: (s) => { scoreAdded += s; },
-    addCoin: () => { coinsAdded += 1; }
-  };
+      const jumped = mario.jump();
 
-  const dummyPlayer = { pos: { x: 5 * 16, y: 6 * 16 } };
-  tileMap.bumpTile(5, 5, dummyPlayer, mockContext);
+      expect(jumped).toBe(false);
+      expect(mario.vel.y).toBe(-200);
+    });
 
-  assert(tileMap.getTile(5, 5) === TILE_TYPES.QUESTION_EMPTY, 'تایل علامت سوال باید به بلوک خالی تبدیل شود');
-  assert(coinsAdded === 1, 'ضربه به بلوک علامت سوال باید ۱ سکه اضافه کند');
-  assert(scoreAdded === 200, 'ضربه به بلوک علامت سوال باید ۲۰۰ امتیاز اهدا کند');
-  assert(tileMap.particles.length > 0, 'باید سکه جهنده در سیستم ذرات ایجاد شده باشد');
-}
+    it('verifies ascent, apex inflection point, and descent phase accurately', () => {
+      mario.isGrounded = true;
+      mario.jump();
 
-// ۵. تست خرد شدن بلوک آجری (Brick Block)
-{
-  const tileMap = new TileMap(20, 15, 16);
-  tileMap.setTile(7, 5, TILE_TYPES.BRICK);
+      const initialY = mario.pos.y;
+      const dt = 1 / 60;
+      let reachedApex = false;
+      let apexTime = 0;
+      let apexY = initialY;
 
-  tileMap.bumpTile(7, 5, {}, null);
-  assert(tileMap.getTile(7, 5) === TILE_TYPES.EMPTY, 'آجر پس از متلاشی شدن باید به فضای خالی تبدیل شود');
-  // ۴ قطعه خرده سنگ آجر + ۱ متن امتیاز شناور = ۵ موجودیت ذره
-  assert(tileMap.particles.length === 5, 'تخریب آجر باید ۴ تکه خرده آجر و ۱ نمایشگر امتیاز ایجاد کند');
-}
+      // Track simulation over 1 full second
+      for (let step = 0; step < 60; step++) {
+        const currentTime = step * dt;
+        physics.integrate(mario, dt);
+        mario.updateState();
 
-console.log(`\nنتایج تست: ${passed} موفق | ${failed} ناموفق`);
-if (failed > 0) process.exit(1);
+        if (!reachedApex && mario.vel.y >= 0) {
+          reachedApex = true;
+          apexTime = currentTime;
+          apexY = mario.pos.y;
+
+          // At apex, vertical velocity has crossed zero
+          expect(mario.vel.y).toBeGreaterThanOrEqual(0);
+          expect(mario.vel.y).toBeLessThan(980 * dt);
+          // Mario has risen substantially above starting point (screen y decreases going up)
+          expect(apexY).toBeLessThan(initialY);
+        }
+
+        if (reachedApex && currentTime > apexTime + 0.1) {
+          // In descent phase, velocity must be positive and state falling
+          expect(mario.vel.y).toBeGreaterThan(0);
+          expect(mario.pos.y).toBeGreaterThan(apexY);
+          expect(mario.state).toBe('falling');
+        }
+      }
+
+      expect(reachedApex).toBe(true);
+      // Apex theoretical time: t = |v0| / g = 420 / 980 ≈ 0.428s
+      expect(apexTime).toBeCloseTo(0.428, 1);
+    });
+  });
+
+  describe('Friction and Horizontal Damping', () => {
+    it('decelerates horizontal velocity on ground', () => {
+      mario.isGrounded = true;
+      mario.vel.set(100, 0);
+
+      physics.integrate(mario, 1 / 60);
+
+      expect(mario.vel.x).toBeLessThan(100);
+      expect(mario.vel.x).toBeGreaterThan(0);
+    });
+  });
+});

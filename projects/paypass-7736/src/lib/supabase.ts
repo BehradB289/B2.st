@@ -1,42 +1,42 @@
+import { createClient } from "@supabase/supabase-js";
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "https://mock-paypass.supabase.co";
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || "mock-service-key";
+
 /**
- * کلاینت شبیه‌ساز و اتصالی سوپابیس (Supabase) برای پی‌پاس
+ * Supabase Admin client with service_role permissions for secure backend operations
  */
+export const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
+  auth: {
+    persistSession: false,
+    autoRefreshToken: false,
+  },
+});
 
-import { PayPassItem, PayPassOrder } from '../types/paypass';
-
-// مموری‌استور پیش‌فرض جهت تست‌های واحد و ایزوله بودن بدون نیاز به شبکه خارجی
-export class MockDatabase {
-  items: Map<string, PayPassItem> = new Map();
-  orders: Map<string, PayPassOrder> = new Map();
-
-  reset() {
-    this.items.clear();
-    this.orders.clear();
-  }
-
-  insertItem(item: PayPassItem) {
-    this.items.set(item.id, item);
-  }
-
-  getItem(id: string): PayPassItem | undefined {
-    return this.items.get(id);
-  }
-
-  insertOrder(order: PayPassOrder) {
-    this.orders.set(order.id, order);
-  }
-
-  getOrder(id: string): PayPassOrder | undefined {
-    return this.orders.get(id);
-  }
-
-  updateOrder(id: string, updates: Partial<PayPassOrder>): PayPassOrder | undefined {
-    const current = this.orders.get(id);
-    if (!current) return undefined;
-    const updated = { ...current, ...updates, updated_at: new Date().toISOString() };
-    this.orders.set(id, updated);
-    return updated;
-  }
+export interface ItemRecord {
+  id: string;
+  slug: string;
+  title: string;
+  description: string;
+  price: number;
+  encrypted_content: string;
+  iv: string;
+  auth_tag: string;
+  creator_payout_target: string;
+  view_count: number;
+  created_at: string;
 }
 
-export const dbInstance = new MockDatabase();
+export interface OrderRecord {
+  id: string;
+  item_id: string;
+  amount: number;
+  platform_fee: number;
+  creator_share: number;
+  customer_identifier: string;
+  status: "pending" | "completed" | "failed";
+  payment_token: string | null;
+  payment_ref_id: string | null;
+  created_at: string;
+  updated_at: string;
+}

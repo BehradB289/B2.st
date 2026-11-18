@@ -1,9 +1,12 @@
 ```
 node_modules/
-dist/
-.cache/
-tmp/
-*.log
+.env
 .DS_Store
 Thumbs.db
+*.log
+npm-debug.log*
+.vscode/
+.idea/
+dist/
+coverage/
 ```

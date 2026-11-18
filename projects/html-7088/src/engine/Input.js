@@ -1,97 +1,112 @@
 /**
- * مدیر ورودی چندگانه: کیبورد، تاچ اسکرین و گیم‌پد با بافر کردن کلیدها
+ * Universal Game Input Handler
+ * Supports Keyboard, Gamepads (Standard API), and Virtual Mobile Touch D-Pad.
  */
-export class InputHandler {
-  constructor() {
-    this.keys = {};
-    this.prevKeys = {};
-    this.touchStates = {};
 
-    this.KEY_MAP = {
-      ArrowLeft: 'left',
-      ArrowRight: 'right',
-      ArrowUp: 'up',
-      ArrowDown: 'down',
-      KeyA: 'left',
-      KeyD: 'right',
-      KeyW: 'jump',
-      KeyS: 'down',
-      Space: 'jump',
-      KeyZ: 'jump',
-      KeyX: 'run',
-      ShiftLeft: 'run',
-      ShiftRight: 'run',
-      Enter: 'start',
-      Escape: 'pause',
-      KeyC: 'crt',
-      Digit1: 'slot1',
-      Digit2: 'slot2',
-      Digit3: 'slot3',
-      Digit4: 'slot4'
+export class InputManager {
+  constructor() {
+    this.keys = new Map();
+    this.previousKeys = new Map();
+    this.touchState = {
+      left: false,
+      right: false,
+      down: false,
+      jump: false,
+      sprint: false
     };
 
-    window.addEventListener('keydown', (e) => this.onKeyDown(e));
-    window.addEventListener('keyup', (e) => this.onKeyUp(e));
-
-    this.bindTouchControls();
+    this._bindKeyboard();
   }
 
-  onKeyDown(e) {
-    const action = this.KEY_MAP[e.code];
-    if (action) {
-      this.keys[action] = true;
-      if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) {
+  _bindKeyboard() {
+    window.addEventListener('keydown', (e) => {
+      if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(e.code)) {
         e.preventDefault();
       }
-    }
-  }
+      this.keys.set(e.code, true);
+    });
 
-  onKeyUp(e) {
-    const action = this.KEY_MAP[e.code];
-    if (action) {
-      this.keys[action] = false;
-    }
+    window.addEventListener('keyup', (e) => {
+      this.keys.set(e.code, false);
+    });
   }
 
   update() {
-    // کپی وضعیت برای تشخیص تک کلیک (Just Pressed)
-    this.prevKeys = { ...this.keys, ...this.touchStates };
+    // Copy current state to previous keys for edge detection
+    this.previousKeys = new Map(this.keys);
+
+    // Poll Gamepad if supported
+    const gamepads = navigator.getGamepads ? navigator.getGamepads() : [];
+    const gp = gamepads[0];
+    if (gp) {
+      const dpadLeft = gp.axes[0] < -0.4 || gp.buttons[14]?.pressed;
+      const dpadRight = gp.axes[0] > 0.4 || gp.buttons[15]?.pressed;
+      const dpadDown = gp.axes[1] > 0.4 || gp.buttons[13]?.pressed;
+      const btnA = gp.buttons[0]?.pressed || gp.buttons[1]?.pressed; // Jump
+      const btnB = gp.buttons[2]?.pressed || gp.buttons[3]?.pressed; // Run/Fire
+
+      if (dpadLeft) this.keys.set('ArrowLeft', true);
+      if (dpadRight) this.keys.set('ArrowRight', true);
+      if (dpadDown) this.keys.set('ArrowDown', true);
+      if (btnA) this.keys.set('Space', true);
+      if (btnB) this.keys.set('ShiftLeft', true);
+    }
   }
 
-  isDown(action) {
-    return !!(this.keys[action] || this.touchStates[action]);
+  isDown(code) {
+    return !!this.keys.get(code);
   }
 
-  isJustPressed(action) {
-    const isNow = !!(this.keys[action] || this.touchStates[action]);
-    const wasPrev = !!this.prevKeys[action];
-    return isNow && !wasPrev;
+  isJustPressed(code) {
+    return !!this.keys.get(code) && !this.previousKeys.get(code);
   }
 
-  bindTouchControls() {
-    const map = [
-      { id: 'btn-left', action: 'left' },
-      { id: 'btn-right', action: 'right' },
-      { id: 'btn-down', action: 'down' },
-      { id: 'btn-jump', action: 'jump' },
-      { id: 'btn-run', action: 'run' }
-    ];
+  // High-level action getters combining Keyboard and Touch
+  get isLeft() {
+    return this.isDown('ArrowLeft') || this.isDown('KeyA') || this.touchState.left;
+  }
 
-    map.forEach(({ id, action }) => {
-      const el = document.getElementById(id);
-      if (!el) return;
-      const start = (e) => {
-        e.preventDefault();
-        this.touchStates[action] = true;
-      };
-      const end = (e) => {
-        e.preventDefault();
-        this.touchStates[action] = false;
-      };
-      el.addEventListener('touchstart', start, { passive: false });
-      el.addEventListener('touchend', end, { passive: false });
-      el.addEventListener('mousedown', start);
-      el.addEventListener('mouseup', end);
-    });
+  get isRight() {
+    return this.isDown('ArrowRight') || this.isDown('KeyD') || this.touchState.right;
+  }
+
+  get isDownAction() {
+    return this.isDown('ArrowDown') || this.isDown('KeyS') || this.touchState.down;
+  }
+
+  get isJump() {
+    return (
+      this.isDown('Space') ||
+      this.isDown('ArrowUp') ||
+      this.isDown('KeyW') ||
+      this.touchState.jump
+    );
+  }
+
+  get isJumpJustPressed() {
+    return (
+      this.isJustPressed('Space') ||
+      this.isJustPressed('ArrowUp') ||
+      this.isJustPressed('KeyW') ||
+      this.touchState.jumpJustPressed
+    );
+  }
+
+  get isRunOrShoot() {
+    return (
+      this.isDown('ShiftLeft') ||
+      this.isDown('ShiftRight') ||
+      this.isDown('KeyX') ||
+      this.touchState.sprint
+    );
+  }
+
+  get isShootJustPressed() {
+    return (
+      this.isJustPressed('ShiftLeft') ||
+      this.isJustPressed('ShiftRight') ||
+      this.isJustPressed('KeyX') ||
+      this.touchState.shootJustPressed
+    );
   }
 }

@@ -1,0 +1,53 @@
+# ==============================================================================
+# B2.st Studio - Production Docker Compose Orchestration
+# ==============================================================================
+
+version: '3.8'
+
+services:
+  mario-game:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    image: b2st/mario-html5:${APP_VERSION:-latest}
+    container_name: b2st-mario-web
+    restart: unless-stopped
+    ports:
+      - "${HOST_IP:-0.0.0.0}:${HOST_PORT:-80}:8080"
+    environment:
+      - NODE_ENV=production
+      - TZ=UTC
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=16m
+      - /var/run:rw,noexec,nosuid,size=16m
+      - /var/cache/nginx:rw,noexec,nosuid,size=64m
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 256M
+        reservations:
+          cpus: '0.2'
+          memory: 64M
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://127.0.0.1:8080/healthz || exit 1"]
+      interval: 15s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
+    networks:
+      - b2st-network
+
+networks:
+  b2st-network:
+    name: b2st-game-network
+    driver: bridge

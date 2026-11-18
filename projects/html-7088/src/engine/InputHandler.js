@@ -1,83 +1,68 @@
 /**
- * Cross-platform Keyboard and Virtual Touch Input Handler
+ * Keyboard and Simulated Input Manager
+ * Studio: B2.st
  */
+
 export class InputHandler {
   constructor() {
-    this.keys = new Map();
-    this.prevKeys = new Map();
+    this.keys = {
+      left: false,
+      right: false,
+      down: false,
+      jump: false,
+      run: false
+    };
 
-    this.bindings = {
+    this.keyMap = {
       ArrowLeft: 'left',
       KeyA: 'left',
       ArrowRight: 'right',
       KeyD: 'right',
+      ArrowDown: 'down',
+      KeyS: 'down',
       ArrowUp: 'jump',
       KeyW: 'jump',
       Space: 'jump',
+      KeyZ: 'jump',
+      KeyX: 'run',
       ShiftLeft: 'run',
-      KeyJ: 'run',
-      KeyK: 'jump',
-      KeyP: 'pause',
-      KeyM: 'mute'
+      ShiftRight: 'run'
     };
-
-    this.state = {
-      left: false,
-      right: false,
-      jump: false,
-      run: false,
-      pause: false,
-      mute: false
-    };
-
-    this.justPressed = {
-      jump: false,
-      pause: false,
-      mute: false
-    };
-
-    this._bindEvents();
   }
 
-  _bindEvents() {
-    window.addEventListener('keydown', (e) => {
-      const action = this.bindings[e.code];
+  bindDOM(target = (typeof window !== 'undefined' ? window : null)) {
+    if (!target || !target.addEventListener) return;
+
+    target.addEventListener('keydown', (event) => {
+      const action = this.keyMap[event.code];
       if (action) {
-        if (!this.keys.get(action)) {
-          this.justPressed[action] = true;
-        }
-        this.keys.set(action, true);
-        if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) {
-          e.preventDefault();
+        this.keys[action] = true;
+        if (event.code === 'Space' || event.code.startsWith('Arrow')) {
+          event.preventDefault();
         }
       }
     });
 
-    window.addEventListener('keyup', (e) => {
-      const action = this.bindings[e.code];
+    target.addEventListener('keyup', (event) => {
+      const action = this.keyMap[event.code];
       if (action) {
-        this.keys.set(action, false);
+        this.keys[action] = false;
+        if (event.code === 'Space' || event.code.startsWith('Arrow')) {
+          event.preventDefault();
+        }
       }
     });
   }
 
-  update() {
-    for (const action in this.state) {
-      const isDown = !!this.keys.get(action);
-      this.state[action] = isDown;
+  setKey(action, state) {
+    if (this.keys.hasOwnProperty(action)) {
+      this.keys[action] = Boolean(state);
     }
   }
 
-  postUpdate() {
-    for (const key in this.justPressed) {
-      this.justPressed[key] = false;
+  reset() {
+    for (const key of Object.keys(this.keys)) {
+      this.keys[key] = false;
     }
-  }
-
-  setVirtualAction(action, isDown) {
-    if (isDown && !this.keys.get(action)) {
-      this.justPressed[action] = true;
-    }
-    this.keys.set(action, isDown);
   }
 }

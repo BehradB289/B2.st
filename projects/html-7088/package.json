@@ -1,26 +1,46 @@
 ```json
 {
-  "name": "b2st-mario",
+  "name": "mario-game-b2st",
   "version": "1.0.0",
-  "description": "🎮 B2.st Mario — بازی ماریو با HTML5 Canvas و ابزار CLI مدیریتی",
-  "main": "src/cli.js",
-  "bin": {
-    "mario": "src/cli.js"
-  },
+  "description": "Super Mario Bros HTML5 Game by B2.st Studio",
+  "main": "index.html",
   "scripts": {
-    "start": "node src/cli.js serve",
-    "dev": "node src/cli.js serve --port 3000",
-    "build": "node src/cli.js build --minify",
-    "test": "node src/cli.js test",
-    "health": "node src/cli.js health",
-    "status": "node src/cli.js status --verbose",
-    "clean": "node src/cli.js clean"
+    "start": "npx serve . -p $PORT",
+    "dev": "npx serve . -p 3000 --cors",
+    "lint": "echo 'No linting configured for pure HTML project'",
+    "test": "echo 'Open index.html in browser to test'",
+    "build": "echo 'No build step needed - pure HTML/JS/CSS'",
+    "security-check": "node config/security_check.js",
+    "validate-env": "node config/env_config.js --validate"
   },
-  "keywords": ["mario", "game", "canvas", "html5", "retro", "nes"],
+  "keywords": [
+    "mario",
+    "game",
+    "html5",
+    "canvas",
+    "javascript",
+    "platformer"
+  ],
   "author": "B2.st Studio",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/b2st/mario-game"
+  },
   "engines": {
-    "node": ">=16.0.0"
-  }
+    "node": ">=16.0.0",
+    "npm": ">=8.0.0"
+  },
+  "dependencies": {
+    "serve": "^14.2.4"
+  },
+  "devDependencies": {
+    "dotenv": "^16.4.7"
+  },
+  "browserslist": [
+    "> 1%",
+    "last 2 versions",
+    "not dead"
+  ]
 }
 ```

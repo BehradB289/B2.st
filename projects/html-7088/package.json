@@ -1,22 +1,23 @@
 {
-  "name": "b2st-super-mario-engine",
+  "name": "mario-html5-canvas",
   "version": "1.0.0",
-  "description": "Modular 2D NES Super Mario Engine with ECS Architecture, OpenAPI 3.0 Specs and Unit Testing Pipeline",
-  "author": "B2.st Studio",
-  "license": "MIT",
+  "description": "Modular NES-style Mario engine in HTML5 Canvas 2D with lightweight ECS and automated physics test suite",
+  "main": "src/engine/GameEngine.js",
   "type": "module",
-  "main": "src/engine/Game.js",
   "scripts": {
-    "start": "npx serve public -l 3000",
-    "test": "node tests/physics.test.js"
+    "test": "node tests/runAll.js",
+    "test:unit": "node tests/unit.test.js",
+    "test:integration": "node tests/integration.test.js",
+    "start": "npx serve public"
   },
   "keywords": [
     "mario",
-    "html5-canvas",
+    "canvas-2d",
     "game-engine",
+    "aabb-physics",
     "ecs",
-    "physics",
-    "swagger",
-    "openapi"
-  ]
+    "automated-tests"
+  ],
+  "author": "B2.st Studio",
+  "license": "MIT"
 }

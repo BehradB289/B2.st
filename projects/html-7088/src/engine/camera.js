@@ -1,43 +1,52 @@
 /**
- * دوربین اسکرول متحرک جهت دنبال کردن روان ماریو در ابعاد مرحله
+ * 2D Dynamic Scrolling Camera
+ * Keeps Mario in focus with horizontal boundary locking
+ * Layer: Central Engine
+ * Studio: B2.st
  */
-(function (global) {
-  'use strict';
 
-  class Camera {
-    constructor(viewportWidth = 256, viewportHeight = 240) {
-      this.x = 0;
-      this.y = 0;
-      this.viewportWidth = viewportWidth;
-      this.viewportHeight = viewportHeight;
-      this.minX = 0;
-      this.maxX = 3200;
-    }
+import { CONFIG } from '../../config/game_config.js';
 
-    setBounds(minX, maxX) {
-      this.minX = minX;
-      this.maxX = maxX;
-    }
-
-    /**
-     * هدایت فوکوس روی ماریو با اسکرول رو به جلو مشابه نسخه رسمی NES
-     */
-    update(targetX) {
-      const centerThreshold = targetX - this.viewportWidth * 0.45;
-      if (centerThreshold > this.x) {
-        this.x = centerThreshold;
-      }
-      // ممانعت از بازگشت به عقب‌تر از حد مجاز
-      if (this.x < this.minX) this.x = this.minX;
-      if (this.x > this.maxX - this.viewportWidth) {
-        this.x = this.maxX - this.viewportWidth;
-      }
-    }
+export class Camera {
+  constructor(viewportWidth = CONFIG.CANVAS.WIDTH, viewportHeight = CONFIG.CANVAS.HEIGHT) {
+    this.viewportWidth = viewportWidth;
+    this.viewportHeight = viewportHeight;
+    this.x = 0;
+    this.y = 0;
+    this.minX = 0;
+    this.maxX = 10000;
   }
 
-  if (typeof module !== 'undefined' && module.exports) {
-    module.exports = { Camera };
-  } else {
-    global.Camera = Camera;
+  setLevelBounds(worldWidth) {
+    this.maxX = Math.max(0, worldWidth - this.viewportWidth);
   }
-})(typeof window !== 'undefined' ? window : globalThis);
+
+  follow(target) {
+    // Mario center target
+    const targetCenterX = target.position.x + target.width / 2;
+    const desiredX = targetCenterX - this.viewportWidth * 0.45;
+
+    // Smooth forward progression (Mario classic: camera doesn't scroll backwards)
+    if (desiredX > this.x) {
+      this.x = desiredX;
+    }
+
+    // Clamping to map edges
+    if (this.x < this.minX) this.x = this.minX;
+    if (this.x > this.maxX) this.x = this.maxX;
+  }
+
+  reset() {
+    this.x = 0;
+    this.y = 0;
+  }
+
+  isVisible(x, y, width, height) {
+    return (
+      x + width >= this.x &&
+      x <= this.x + this.viewportWidth &&
+      y + height >= this.y &&
+      y <= this.y + this.viewportHeight
+    );
+  }
+}

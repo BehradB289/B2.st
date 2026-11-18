@@ -1,54 +1,77 @@
 /**
- * چرخه بازی با نرخ فریم پایدار و گام زمانی ثابت (Fixed Timestep 60Hz Game Loop)
+ * Deterministic Game Loop
+ * Fixed Timestep for Physics Simulation + Smooth Interpolated Render
+ * Layer: Central Engine
+ * Studio: B2.st
  */
-(function (global) {
-  'use strict';
 
-  class GameLoop {
-    constructor(updateFn, renderFn) {
-      this.update = updateFn;
-      this.render = renderFn;
-      this.targetFps = 60;
-      this.fixedStep = 1 / 60;
-      this.accumulator = 0;
-      this.lastTime = 0;
-      this.isRunning = false;
+export class GameLoop {
+  /**
+   * @param {Function} updateFn - Called with fixed delta time
+   * @param {Function} renderFn - Called on animation frame
+   * @param {number} [targetFps=60]
+   */
+  constructor(updateFn, renderFn, targetFps = 60) {
+    this.updateFn = updateFn;
+    this.renderFn = renderFn;
+    this.fixedDeltaTime = 1 / targetFps;
+
+    this.isRunning = false;
+    this.rafId = null;
+    this.lastTime = 0;
+    this.accumulator = 0;
+
+    // Performance telemetry
+    this.fps = 60;
+    this.frameCount = 0;
+    this.lastFpsUpdate = 0;
+  }
+
+  start() {
+    if (this.isRunning) return;
+    this.isRunning = true;
+    this.lastTime = performance.now();
+    this.lastFpsUpdate = this.lastTime;
+    this.frameCount = 0;
+    this.rafId = requestAnimationFrame(this.tick.bind(this));
+  }
+
+  stop() {
+    this.isRunning = false;
+    if (this.rafId) {
+      cancelAnimationFrame(this.rafId);
       this.rafId = null;
     }
-
-    start() {
-      if (this.isRunning) return;
-      this.isRunning = true;
-      this.lastTime = performance.now();
-      const tick = (now) => {
-        if (!this.isRunning) return;
-        const delta = Math.min((now - this.lastTime) / 1000, 0.1); // جلوگیری از Spiral of Death
-        this.lastTime = now;
-        this.accumulator += delta;
-
-        while (this.accumulator >= this.fixedStep) {
-          this.update(this.fixedStep);
-          this.accumulator -= this.fixedStep;
-        }
-
-        this.render();
-        this.rafId = requestAnimationFrame(tick);
-      };
-      this.rafId = requestAnimationFrame(tick);
-    }
-
-    stop() {
-      this.isRunning = false;
-      if (this.rafId) {
-        cancelAnimationFrame(this.rafId);
-        this.rafId = null;
-      }
-    }
   }
 
-  if (typeof module !== 'undefined' && module.exports) {
-    module.exports = { GameLoop };
-  } else {
-    global.GameLoop = GameLoop;
+  tick(currentTime) {
+    if (!this.isRunning) return;
+
+    let frameTime = (currentTime - this.lastTime) / 1000;
+    this.lastTime = currentTime;
+
+    // Prevent spiral of death on lag spikes (cap at 250ms)
+    if (frameTime > 0.25) {
+      frameTime = 0.25;
+    }
+
+    this.accumulator += frameTime;
+
+    while (this.accumulator >= this.fixedDeltaTime) {
+      this.updateFn(this.fixedDeltaTime);
+      this.accumulator -= this.fixedDeltaTime;
+    }
+
+    this.renderFn();
+
+    // FPS calculation
+    this.frameCount++;
+    if (currentTime - this.lastFpsUpdate >= 1000) {
+      this.fps = Math.round((this.frameCount * 1000) / (currentTime - this.lastFpsUpdate));
+      this.frameCount = 0;
+      this.lastFpsUpdate = currentTime;
+    }
+
+    this.rafId = requestAnimationFrame(this.tick.bind(this));
   }
-})(typeof window !== 'undefined' ? window : globalThis);
+}

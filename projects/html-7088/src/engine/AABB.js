@@ -1,8 +1,10 @@
 /**
- * Axis-Aligned Bounding Box (AABB) for 2D collision detection and resolution.
+ * Axis-Aligned Bounding Box (AABB) for 2D Collision Detection
+ * Studio: B2.st
  */
+
 export class AABB {
-  constructor(x, y, width, height) {
+  constructor(x = 0, y = 0, width = 0, height = 0) {
     this.x = x;
     this.y = y;
     this.width = width;
@@ -33,11 +35,18 @@ export class AABB {
     return this.y + this.height / 2;
   }
 
-  /**
-   * Checks whether this AABB intersects with another.
-   * @param {AABB} other
-   * @returns {boolean}
-   */
+  setPosition(x, y) {
+    this.x = x;
+    this.y = y;
+    return this;
+  }
+
+  setSize(width, height) {
+    this.width = width;
+    this.height = height;
+    return this;
+  }
+
   intersects(other) {
     return (
       this.left < other.right &&
@@ -47,24 +56,16 @@ export class AABB {
     );
   }
 
-  /**
-   * Calculates penetration depth and direction relative to another box.
-   * @param {AABB} other
-   * @returns {{ox: number, oy: number, dx: number, dy: number} | null}
-   */
-  getOverlap(other) {
-    const dx = this.centerX - other.centerX;
-    const dy = this.centerY - other.centerY;
-    const halfWidths = (this.width + other.width) / 2;
-    const halfHeights = (this.height + other.height) / 2;
+  contains(px, py) {
+    return (
+      px >= this.left &&
+      px <= this.right &&
+      py >= this.top &&
+      py <= this.bottom
+    );
+  }
 
-    const ox = halfWidths - Math.abs(dx);
-    const oy = halfHeights - Math.abs(dy);
-
-    if (ox <= 0 || oy <= 0) {
-      return null;
-    }
-
-    return { ox, oy, dx, dy };
+  clone() {
+    return new AABB(this.x, this.y, this.width, this.height);
   }
 }

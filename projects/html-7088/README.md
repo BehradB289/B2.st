@@ -26,6 +26,7 @@ projects/html-7088/
 ├── docs/DATABASE_SCHEMA.md
 ├── docs/DEBUG_SYNTAX.md
 ├── docs/DEPLOYMENT.md
+├── docs/FULL_AUDIT_REPORT.md
 ├── docs/TEST_SPEC.md
 ├── docs/architecture.md
 ├── docs/openapi.json
@@ -39,6 +40,8 @@ projects/html-7088/
 ├── scripts/deploy.sh
 ├── scripts/rollback.sh
 ├── src/.dockerignore
+├── src/core/Engine.js
+├── src/core/InputHandler.js
 ├── src/core/error_shield.js
 ├── src/core/memory_guard.js
 ├── src/core/performance_cache.js
@@ -84,11 +87,15 @@ projects/html-7088/
 ├── src/levels/level_1_1.js
 ├── src/main.js
 ├── src/module_83.js
+├── src/physics/Physics.js
+├── src/security/Guardian.js
 ├── src/security/owasp_guard.js
 ├── src/services/network_retry.js
+├── src/utils/backup.js
 ├── src/utils/validator.js
 ├── src/vitest.config.js
 ├── src/world/Level.js
+├── src/world/TileMap.js
 ├── tests/collision.test.js
 ├── tests/database_layer.test.js
 ├── tests/integration.test.js

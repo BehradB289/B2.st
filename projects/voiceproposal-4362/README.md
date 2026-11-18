@@ -11,6 +11,7 @@ projects/voiceproposal-4362/
 ├── .env.example
 ├── config/supabase-schema.sql
 ├── docs/ARCHITECTURE.md
+├── docs/PROPOSAL_PDF_ENGINE.md
 ├── docs/architecture-pipeline.md
 ├── package.json
 ├── public/index.html
@@ -23,6 +24,9 @@ projects/voiceproposal-4362/
 ├── src/components/AudioVisualizer.tsx
 ├── src/components/GlassCard.tsx
 ├── src/components/Header.tsx
+├── src/components/ProposalViewer.tsx
+├── src/components/pdf/DownloadPdfButton.tsx
+├── src/components/pdf/ProposalDocument.tsx
 ├── src/hooks/useAudioRecorder.ts
 ├── src/lib/groq.ts
 ├── src/lib/schemas/proposal.ts
@@ -33,6 +37,8 @@ projects/voiceproposal-4362/
 ├── src/tsconfig.json
 ├── src/types/audio.ts
 ├── src/types/database.ts
+├── src/types/proposal.ts
 ├── tests/AudioRecorder.test.tsx
 ├── tests/proposal-pipeline.test.ts
+├── tests/proposal-viewer.test.tsx
 ```

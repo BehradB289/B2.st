@@ -1,23 +1,27 @@
 /**
- * چرخه بازی (Game Loop) با گام زمانی ثابت (Fixed Timestep 60Hz) و رندر شناور
+ * Fixed Timestep Precision Game Loop
  */
+
 export class GameLoop {
-  constructor(updateFn, renderFn) {
-    this.update = updateFn;
-    this.render = renderFn;
+  constructor(updateFn, renderFn, fixedDelta = 1 / 60) {
+    this.updateFn = updateFn;
+    this.renderFn = renderFn;
+    this.fixedDelta = fixedDelta;
+
     this.lastTime = 0;
-    this.accumulatedTime = 0;
-    this.step = 1000 / 60; // 60 فریم بر ثانیه پایدار
+    this.accumulator = 0;
     this.running = false;
     this.rafId = null;
+
+    this._loop = this._loop.bind(this);
   }
 
   start() {
     if (this.running) return;
     this.running = true;
     this.lastTime = performance.now();
-    this.loop = this.loop.bind(this);
-    this.rafId = requestAnimationFrame(this.loop);
+    this.accumulator = 0;
+    this.rafId = requestAnimationFrame(this._loop);
   }
 
   stop() {
@@ -28,21 +32,23 @@ export class GameLoop {
     }
   }
 
-  loop(currentTime) {
+  _loop(currentTime) {
     if (!this.running) return;
 
-    let delta = currentTime - this.lastTime;
-    if (delta > 250) delta = 250; // جلوگیری از افت فریم فاجعه‌بار حین تعویض تب مرورگر
-
-    this.accumulatedTime += delta;
+    let frameTime = (currentTime - this.lastTime) / 1000;
+    if (frameTime > 0.25) frameTime = 0.25; // Prevent spiral of death
     this.lastTime = currentTime;
 
-    while (this.accumulatedTime >= this.step) {
-      this.update(this.step);
-      this.accumulatedTime -= this.step;
+    this.accumulator += frameTime;
+
+    while (this.accumulator >= this.fixedDelta) {
+      this.updateFn(this.fixedDelta);
+      this.accumulator -= this.fixedDelta;
     }
 
-    this.render();
-    this.rafId = requestAnimationFrame(this.loop);
+    const alpha = this.accumulator / this.fixedDelta;
+    this.renderFn(alpha);
+
+    this.rafId = requestAnimationFrame(this._loop);
   }
 }

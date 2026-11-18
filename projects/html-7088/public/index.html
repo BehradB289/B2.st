@@ -1,26 +1,837 @@
 <!DOCTYPE html>
-<html lang="fa" dir="rtl">
+<html lang="fa" dir="rtl" class="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Super Mario Bros - B2.st Studio Edition</title>
-    <link rel="stylesheet" href="style.css">
+    <title>Super Mario Odyssey Core // B2.st Studio Admin OS</title>
+    
+    <!-- Google Fonts: Vazirmatn & Outfit -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;800;900&family=Vazirmatn:wght@300;400;500;700;900&display=swap" rel="stylesheet">
+    
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    
+    <!-- Chart.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <!-- Tailwind CSS Play CDN with Config -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        mario: {
+                            red: '#FF334B',
+                            gold: '#FFB800',
+                            blue: '#00B0FF',
+                            green: '#00E676',
+                            purple: '#9D4EDD',
+                            surface: '#0B0D14',
+                            card: 'rgba(18, 22, 34, 0.65)',
+                            border: 'rgba(255, 255, 255, 0.08)'
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Vazirmatn', 'Outfit', 'sans-serif'],
+                        tech: ['Outfit', 'sans-serif']
+                    },
+                    boxShadow: {
+                        'neon-red': '0 0 25px -5px rgba(255, 51, 75, 0.45)',
+                        'neon-gold': '0 0 25px -5px rgba(255, 184, 0, 0.45)',
+                        'neon-blue': '0 0 25px -5px rgba(0, 176, 255, 0.45)',
+                        'neon-green': '0 0 25px -5px rgba(0, 230, 118, 0.45)',
+                        'glass': '0 8px 32px 0 rgba(0, 0, 0, 0.37)'
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <style>
+        /* Glassmorphism & Custom Styling */
+        body {
+            background-color: #06080F;
+            background-image: 
+                radial-gradient(at 0% 0%, rgba(255, 51, 75, 0.12) 0px, transparent 50%),
+                radial-gradient(at 100% 0%, rgba(0, 176, 255, 0.12) 0px, transparent 50%),
+                radial-gradient(at 50% 100%, rgba(255, 184, 0, 0.08) 0px, transparent 50%);
+            background-attachment: fixed;
+        }
+
+        .glass-panel {
+            background: rgba(15, 18, 28, 0.6);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .glass-card-hover {
+            transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        .glass-card-hover:hover {
+            transform: translateY(-4px);
+            border-color: rgba(255, 255, 255, 0.2);
+            background: rgba(23, 28, 44, 0.75);
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(6, 8, 15, 0.8);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 9999px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #FF334B;
+        }
+
+        .pixel-badge {
+            clip-path: polygon(6px 0, calc(100% - 6px) 0, 100% 6px, 100% calc(100% - 6px), calc(100% - 6px) 100%, 6px 100%, 0 calc(100% - 6px), 0 6px);
+        }
+    </style>
 </head>
-<body>
-    <div class="arcade-wrapper">
-        <div class="screen-container">
-            <canvas id="gameCanvas" width="256" height="240"></canvas>
-            <div class="scanlines"></div>
+<body class="text-slate-200 antialiased font-sans min-h-screen flex flex-col md:flex-row overflow-x-hidden selection:bg-mario-red selection:text-white">
+
+    <!-- SIDEBAR NAVIGATION -->
+    <aside class="w-full md:w-72 glass-panel border-b md:border-b-0 md:border-l border-mario-border p-5 flex flex-col justify-between shrink-0 z-30">
+        <div>
+            <!-- B2 Studio Brand Tag -->
+            <div class="flex items-center gap-3.5 px-2 py-3 mb-8">
+                <div class="w-11 h-11 rounded-2xl bg-gradient-to-tr from-mario-red via-rose-500 to-mario-gold flex items-center justify-center shadow-neon-red ring-1 ring-white/30">
+                    <i class="fa-solid fa-gamepad text-white text-xl"></i>
+                </div>
+                <div>
+                    <div class="flex items-center gap-1.5">
+                        <span class="font-tech font-black text-xl tracking-wider text-white">MARIO<span class="text-mario-red">OS</span></span>
+                        <span class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-mario-red/20 text-mario-red border border-mario-red/30">v4.8</span>
+                    </div>
+                    <p class="text-xs text-slate-400 font-medium">B2.st Design Lab // Monitoring</p>
+                </div>
+            </div>
+
+            <!-- Quick Engine Telemetry Badge -->
+            <div class="glass-panel p-3.5 rounded-2xl mb-6 border border-emerald-500/20 bg-emerald-950/10 flex items-center justify-between">
+                <div class="flex items-center gap-2.5">
+                    <span class="relative flex h-2.5 w-2.5">
+                        <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-mario-green opacity-75"></span>
+                        <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-mario-green"></span>
+                    </span>
+                    <span class="text-xs font-semibold text-emerald-400">موتور بازی آنلاین</span>
+                </div>
+                <span class="font-tech text-xs text-slate-400">60.2 FPS</span>
+            </div>
+
+            <!-- Nav Links -->
+            <nav class="space-y-1.5">
+                <a href="#" class="flex items-center gap-3 px-4 py-3 rounded-xl bg-mario-red/15 text-white font-medium border border-mario-red/30 shadow-neon-red/40 transition">
+                    <i class="fa-solid fa-chart-pie text-mario-red"></i>
+                    <span>داشبورد زنده</span>
+                </a>
+                <a href="#players-section" class="flex items-center gap-3 px-4 py-3 rounded-xl text-slate-400 hover:text-white hover:bg-white/5 transition">
+                    <i class="fa-solid fa-users"></i>
+                    <span>مدیریت بازیکنان</span>
+                    <span class="mr-auto font-tech text-xs bg-white/10 px-2 py-0.5 rounded-full text-slate-300">1,248</span>
+                </a>
+                <a href="#" class="flex items-center gap-3 px-4 py-3 rounded-xl text-slate-400 hover:text-white hover:bg-white/5 transition">
+                    <i class="fa-solid fa-cubes-stacked"></i>
+                    <span>جهان‌ها و مراحل</span>
+                    <span class="mr-auto font-tech text-xs bg-mario-gold/20 text-mario-gold px-2 py-0.5 rounded-full">World 8</span>
+                </a>
+                <a href="#" class="flex items-center gap-3 px-4 py-3 rounded-xl text-slate-400 hover:text-white hover:bg-white/5 transition">
+                    <i class="fa-solid fa-skull-crossbones"></i>
+                    <span>وضعیت باس‌ها (Bowser)</span>
+                </a>
+                <a href="#" class="flex items-center gap-3 px-4 py-3 rounded-xl text-slate-400 hover:text-white hover:bg-white/5 transition">
+                    <i class="fa-solid fa-sliders"></i>
+                    <span>تنظیمات فیزیک و گرانش</span>
+                </a>
+            </nav>
         </div>
 
-        <div class="controls-hint">
-            <span>حرکت: <span class="key-badge">A / D</span> یا <span class="key-badge">← / →</span></span>
-            <span>پرش: <span class="key-badge">SPACE</span> یا <span class="key-badge">W</span></span>
-            <span>دویدن سریع: <span class="key-badge">SHIFT</span></span>
+        <!-- System Controls Card -->
+        <div class="mt-8 pt-4 border-t border-white/5 space-y-4">
+            <div class="glass-panel p-3.5 rounded-2xl bg-gradient-to-b from-white/[0.04] to-transparent">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-xs text-slate-400 font-medium">پایداری سرور توکیو</span>
+                    <span class="text-xs font-tech text-mario-green font-bold">99.98%</span>
+                </div>
+                <div class="w-full bg-white/10 h-1.5 rounded-full overflow-hidden">
+                    <div class="bg-gradient-to-r from-mario-green to-mario-blue h-full w-[94%]"></div>
+                </div>
+            </div>
+
+            <!-- Admin Profile -->
+            <div class="flex items-center gap-3 px-2">
+                <div class="relative">
+                    <img src="https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=120&auto=format&fit=crop&q=80" 
+                         alt="B2 Designer" class="w-10 h-10 rounded-xl object-cover ring-2 ring-mario-red/60">
+                    <span class="absolute -top-1 -right-1 w-3.5 h-3.5 bg-mario-gold rounded-full flex items-center justify-center text-[8px] text-black font-black">★</span>
+                </div>
+                <div class="truncate">
+                    <p class="text-xs font-bold text-white truncate">ارشد دیزاین استودیو B2</p>
+                    <p class="text-[11px] text-slate-500 font-tech">Root SuperAdmin</p>
+                </div>
+            </div>
+        </div>
+    </aside>
+
+    <!-- MAIN DASHBOARD CONTENT -->
+    <main class="flex-1 flex flex-col min-w-0 overflow-y-auto">
+        
+        <!-- TOP APP BAR -->
+        <header class="glass-panel sticky top-0 z-20 border-b border-mario-border px-6 py-4 flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div class="flex items-center gap-4 w-full sm:w-auto">
+                <div class="relative w-full sm:w-80">
+                    <i class="fa-solid fa-magnifying-glass absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
+                    <input type="text" id="global-search" placeholder="جستجوی سریع بازیکن، جهان، رویداد..." 
+                           class="w-full bg-white/[0.05] border border-white/10 rounded-xl pr-9 pl-12 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-mario-red/60 focus:ring-1 focus:ring-mario-red/60 transition">
+                    <kbd class="absolute left-3 top-1/2 -translate-y-1/2 font-tech text-[10px] bg-white/10 px-1.5 py-0.5 rounded text-slate-400">⌘K</kbd>
+                </div>
+            </div>
+
+            <!-- Top Actions -->
+            <div class="flex items-center gap-3 w-full sm:w-auto justify-end">
+                <!-- Trigger Global Event Dropdown/Button -->
+                <button onclick="triggerCoinFrenzy()" class="relative group px-4 py-2 rounded-xl text-xs font-semibold bg-gradient-to-r from-mario-gold/20 to-amber-500/20 text-mario-gold border border-mario-gold/40 hover:bg-mario-gold hover:text-black transition-all shadow-neon-gold/20 flex items-center gap-2">
+                    <i class="fa-solid fa-coins animate-bounce"></i>
+                    <span>باران سکه (رویداد سراسری)</span>
+                </button>
+
+                <div class="h-6 w-[1px] bg-white/10 hidden sm:block"></div>
+
+                <button class="relative p-2.5 rounded-xl bg-white/[0.05] border border-white/10 hover:border-white/20 text-slate-300 hover:text-white transition">
+                    <i class="fa-solid fa-bell text-xs"></i>
+                    <span class="absolute top-1.5 right-1.5 w-2 h-2 bg-mario-red rounded-full ring-2 ring-mario-surface"></span>
+                </button>
+
+                <button class="relative p-2.5 rounded-xl bg-white/[0.05] border border-white/10 hover:border-white/20 text-slate-300 hover:text-white transition">
+                    <i class="fa-solid fa-rotate text-xs" id="refresh-icon"></i>
+                </button>
+            </div>
+        </header>
+
+        <!-- DASHBOARD BODY CONTAINER -->
+        <div class="p-6 md:p-8 space-y-8">
+            
+            <!-- SECTION 1: KPI CARDS WITH GLASSMORPHISM -->
+            <section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+                
+                <!-- Card 1: Active Players -->
+                <div class="glass-panel glass-card-hover rounded-2xl p-5 relative overflow-hidden group">
+                    <div class="absolute -right-10 -bottom-10 w-32 h-32 bg-mario-red/10 rounded-full blur-2xl group-hover:bg-mario-red/25 transition"></div>
+                    <div class="flex items-center justify-between mb-4">
+                        <span class="text-xs font-semibold text-slate-400">بازیکنان هم‌اکنون آنلاین</span>
+                        <div class="w-9 h-9 rounded-xl bg-mario-red/20 text-mario-red flex items-center justify-center border border-mario-red/30">
+                            <i class="fa-solid fa-gamepad text-sm"></i>
+                        </div>
+                    </div>
+                    <div class="flex items-baseline gap-3">
+                        <h3 class="font-tech text-3xl font-black text-white" id="active-players-count">1,842</h3>
+                        <span class="text-xs font-tech text-emerald-400 flex items-center gap-1 font-bold">
+                            <i class="fa-solid fa-arrow-trend-up"></i> +14.2%
+                        </span>
+                    </div>
+                    <p class="text-[11px] text-slate-400 mt-2">توزیع در ۲۴ ریلِم ابری فعال</p>
+                </div>
+
+                <!-- Card 2: Total Coins Harvested -->
+                <div class="glass-panel glass-card-hover rounded-2xl p-5 relative overflow-hidden group">
+                    <div class="absolute -right-10 -bottom-10 w-32 h-32 bg-mario-gold/10 rounded-full blur-2xl group-hover:bg-mario-gold/25 transition"></div>
+                    <div class="flex items-center justify-between mb-4">
+                        <span class="text-xs font-semibold text-slate-400">سکه‌های کسب‌شده امروز</span>
+                        <div class="w-9 h-9 rounded-xl bg-mario-gold/20 text-mario-gold flex items-center justify-center border border-mario-gold/30">
+                            <i class="fa-solid fa-coins text-sm"></i>
+                        </div>
+                    </div>
+                    <div class="flex items-baseline gap-3">
+                        <h3 class="font-tech text-3xl font-black text-white" id="total-coins">8,492,100</h3>
+                        <span class="text-xs font-tech text-amber-400 flex items-center gap-1 font-bold">
+                            <i class="fa-solid fa-bolt"></i> 1.2M/ساعت
+                        </span>
+                    </div>
+                    <p class="text-[11px] text-slate-400 mt-2">نرخ پاداش ۱-آپ: <span class="font-tech text-white">100/1</span></p>
+                </div>
+
+                <!-- Card 3: Castle Cleared (Progress) -->
+                <div class="glass-panel glass-card-hover rounded-2xl p-5 relative overflow-hidden group">
+                    <div class="absolute -right-10 -bottom-10 w-32 h-32 bg-mario-blue/10 rounded-full blur-2xl group-hover:bg-mario-blue/25 transition"></div>
+                    <div class="flex items-center justify-between mb-4">
+                        <span class="text-xs font-semibold text-slate-400">قلعه باوزر تسخیرشده</span>
+                        <div class="w-9 h-9 rounded-xl bg-mario-blue/20 text-mario-blue flex items-center justify-center border border-mario-blue/30">
+                            <i class="fa-solid fa-crown text-sm"></i>
+                        </div>
+                    </div>
+                    <div class="flex items-baseline gap-3">
+                        <h3 class="font-tech text-3xl font-black text-white">42.8%</h3>
+                        <span class="text-xs font-tech text-mario-blue flex items-center gap-1 font-bold">
+                            <i class="fa-solid fa-shield-halved"></i> World 8-4
+                        </span>
+                    </div>
+                    <p class="text-[11px] text-slate-400 mt-2">تلفات باوزر: <span class="font-tech text-white">638 بار</span></p>
+                </div>
+
+                <!-- Card 4: Physics Engine Ping -->
+                <div class="glass-panel glass-card-hover rounded-2xl p-5 relative overflow-hidden group">
+                    <div class="absolute -right-10 -bottom-10 w-32 h-32 bg-mario-green/10 rounded-full blur-2xl group-hover:bg-mario-green/25 transition"></div>
+                    <div class="flex items-center justify-between mb-4">
+                        <span class="text-xs font-semibold text-slate-400">تأخیر فیزیک (Latency)</span>
+                        <div class="w-9 h-9 rounded-xl bg-mario-green/20 text-mario-green flex items-center justify-center border border-mario-green/30">
+                            <i class="fa-solid fa-microchip text-sm"></i>
+                        </div>
+                    </div>
+                    <div class="flex items-baseline gap-3">
+                        <h3 class="font-tech text-3xl font-black text-white">16.4 <span class="text-sm font-normal text-slate-400">ms</span></h3>
+                        <span class="text-xs font-tech text-emerald-400 flex items-center gap-1 font-bold">
+                            <i class="fa-solid fa-check"></i> پایدار
+                        </span>
+                    </div>
+                    <p class="text-[11px] text-slate-400 mt-2">تیک ریت رندرینگ: <span class="font-tech text-white">120 Hz</span></p>
+                </div>
+
+            </section>
+
+            <!-- SECTION 2: LIVE CHARTS & TELEMETRY -->
+            <section class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                
+                <!-- Main Chart: Concurrency & Frame Stability -->
+                <div class="lg:col-span-8 glass-panel rounded-3xl p-6 relative">
+                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+                        <div>
+                            <div class="flex items-center gap-2">
+                                <h4 class="font-bold text-white text-base">مانیتورینگ هجوم بازیکنان و بار سرور</h4>
+                                <span class="px-2 py-0.5 text-[10px] font-tech uppercase tracking-wide bg-mario-red/20 text-mario-red border border-mario-red/30 rounded-full animate-pulse">زنده</span>
+                            </div>
+                            <p class="text-xs text-slate-400 mt-1">نرخ درخواست همگام‌سازی جابجایی ماریو و اشیاء متحرک</p>
+                        </div>
+                        <!-- Granularity Switcher -->
+                        <div class="flex items-center gap-1 bg-white/[0.04] p-1 rounded-xl border border-white/5">
+                            <button class="px-3 py-1 text-xs rounded-lg bg-mario-red text-white font-medium transition">لحظه‌ای</button>
+                            <button class="px-3 py-1 text-xs rounded-lg text-slate-400 hover:text-white transition">۱ ساعت</button>
+                            <button class="px-3 py-1 text-xs rounded-lg text-slate-400 hover:text-white transition">۲۴ ساعت</button>
+                        </div>
+                    </div>
+                    <!-- Chart Canvas Container -->
+                    <div class="h-72 w-full">
+                        <canvas id="liveTelemetryChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Secondary Chart: Power-up Distribution -->
+                <div class="lg:col-span-4 glass-panel rounded-3xl p-6 flex flex-col justify-between">
+                    <div>
+                        <div class="flex items-center justify-between mb-3">
+                            <h4 class="font-bold text-white text-base">توزیع پاورآپ‌ها در گردش</h4>
+                            <i class="fa-solid fa-wand-magic-sparkles text-mario-gold text-xs"></i>
+                        </div>
+                        <p class="text-xs text-slate-400">آمار آیتم‌های فعال در دست بازیکنان هم‌اکنون</p>
+                    </div>
+
+                    <div class="relative h-56 flex items-center justify-center my-2">
+                        <canvas id="powerUpsDoughnut"></canvas>
+                        <!-- Center Label inside doughnut -->
+                        <div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                            <span class="font-tech text-2xl font-black text-white">4,810</span>
+                            <span class="text-[10px] text-slate-400">آیتم فعال</span>
+                        </div>
+                    </div>
+
+                    <!-- Legend Items -->
+                    <div class="grid grid-cols-2 gap-2 text-xs pt-3 border-t border-white/5 font-tech">
+                        <div class="flex items-center gap-2">
+                            <span class="w-2.5 h-2.5 rounded-full bg-mario-red"></span>
+                            <span class="text-slate-300">قارچ سوپر (۴۰٪)</span>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <span class="w-2.5 h-2.5 rounded-full bg-mario-gold"></span>
+                            <span class="text-slate-300">گل آتشین (۲۸٪)</span>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <span class="w-2.5 h-2.5 rounded-full bg-mario-blue"></span>
+                            <span class="text-slate-300">ستاره نامیرایی (۱۸٪)</span>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <span class="w-2.5 h-2.5 rounded-full bg-mario-green"></span>
+                            <span class="text-slate-300">قارچ ۱-آپ (۱۴٪)</span>
+                        </div>
+                    </div>
+                </div>
+
+            </section>
+
+            <!-- SECTION 3: PLAYER MANAGEMENT TABLE WITH REALTIME ACTIONS -->
+            <section id="players-section" class="glass-panel rounded-3xl p-6 space-y-6">
+                <!-- Table Header & Filters -->
+                <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div>
+                        <div class="flex items-center gap-3">
+                            <h4 class="font-bold text-white text-lg">کنترل مانیتورینگ زنده گیمرها</h4>
+                            <span class="px-2.5 py-0.5 rounded-lg text-xs bg-white/5 text-slate-300 border border-white/10 font-tech">Active Sessions</span>
+                        </div>
+                        <p class="text-xs text-slate-400 mt-1">نظارت بر بازیکنان برتر، اسپیدرانرها و تشخیص رفتارهای مشکوک</p>
+                    </div>
+
+                    <!-- Action Filters -->
+                    <div class="flex flex-wrap items-center gap-2">
+                        <div class="relative">
+                            <input type="text" id="player-table-search" placeholder="فیلتر بر اساس نام یا جهان..." 
+                                   class="bg-white/[0.04] border border-white/10 rounded-xl px-3.5 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-mario-blue w-48 sm:w-60">
+                        </div>
+                        <button onclick="filterTable('all')" class="table-filter-btn px-3 py-2 text-xs rounded-xl bg-white/10 text-white font-medium hover:bg-white/15 transition active">همه</button>
+                        <button onclick="filterTable('in-castle')" class="table-filter-btn px-3 py-2 text-xs rounded-xl bg-white/[0.04] text-slate-400 hover:text-white transition">در قلعه باوزر</button>
+                        <button onclick="filterTable('flagged')" class="table-filter-btn px-3 py-2 text-xs rounded-xl bg-white/[0.04] text-rose-400 hover:text-rose-300 transition">اسپیدران مشکوک</button>
+                    </div>
+                </div>
+
+                <!-- Table Container -->
+                <div class="overflow-x-auto rounded-2xl border border-white/5">
+                    <table class="w-full text-right text-xs">
+                        <thead class="bg-white/[0.03] text-slate-400 border-b border-white/5 font-semibold">
+                            <tr>
+                                <th class="py-3.5 px-4">بازیکن (IGN / Tag)</th>
+                                <th class="py-3.5 px-4">مرحله فعلی</th>
+                                <th class="py-3.5 px-4">امتیاز کسب‌شده</th>
+                                <th class="py-3.5 px-4">سکه‌ها</th>
+                                <th class="py-3.5 px-4">جان‌ها</th>
+                                <th class="py-3.5 px-4">وضعیت گیم‌پلی</th>
+                                <th class="py-3.5 px-4 text-center">عملیات ادمین</th>
+                            </tr>
+                        </thead>
+                        <tbody id="playerTableBody" class="divide-y divide-white/5 font-sans">
+                            <!-- Row 1 -->
+                            <tr class="hover:bg-white/[0.02] transition" data-status="normal" data-world="World 8-4">
+                                <td class="py-3.5 px-4 flex items-center gap-3">
+                                    <div class="w-8 h-8 rounded-lg bg-mario-red/20 border border-mario-red/40 flex items-center justify-center font-black text-mario-red font-tech">M</div>
+                                    <div>
+                                        <p class="font-bold text-white">SpeedyPlumber_99</p>
+                                        <span class="text-[10px] text-slate-500 font-tech">ID: #8921-TK</span>
+                                    </div>
+                                </td>
+                                <td class="py-3.5 px-4 font-tech text-slate-300 font-semibold">World 8-4 (قلعه تاریک)</td>
+                                <td class="py-3.5 px-4 font-tech text-mario-gold font-bold">1,894,300</td>
+                                <td class="py-3.5 px-4 font-tech text-slate-200">
+                                    <span class="flex items-center gap-1"><i class="fa-solid fa-coins text-mario-gold text-[10px]"></i> 248</span>
+                                </td>
+                                <td class="py-3.5 px-4 font-tech text-mario-green font-bold">× 5</td>
+                                <td class="py-3.5 px-4">
+                                    <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                                        <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span> نبرد با Bowser
+                                    </span>
+                                </td>
+                                <td class="py-3.5 px-4 text-center">
+                                    <div class="flex items-center justify-center gap-2">
+                                        <button onclick="adminAction('spectate', 'SpeedyPlumber_99')" title="تماشای زنده گیم‌پلی" class="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white transition">
+                                            <i class="fa-regular fa-eye"></i>
+                                        </button>
+                                        <button onclick="adminAction('gift', 'SpeedyPlumber_99')" title="اعطای پاورآپ ۱-آپ" class="p-1.5 rounded-lg bg-mario-green/10 hover:bg-mario-green/20 text-mario-green transition">
+                                            <i class="fa-solid fa-heart"></i>
+                                        </button>
+                                        <button onclick="adminAction('kick', 'SpeedyPlumber_99')" title="قطع اتصال بازیکن" class="p-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 transition">
+                                            <i class="fa-solid fa-ban"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+
+                            <!-- Row 2 (Flagged) -->
+                            <tr class="hover:bg-white/[0.02] transition" data-status="flagged" data-world="World 1-2">
+                                <td class="py-3.5 px-4 flex items-center gap-3">
+                                    <div class="w-8 h-8 rounded-lg bg-purple-500/20 border border-purple-500/40 flex items-center justify-center font-black text-purple-400 font-tech">W</div>
+                                    <div>
+                                        <p class="font-bold text-white">Waluigi_Hax0r</p>
+                                        <span class="text-[10px] text-slate-500 font-tech">ID: #4301-DE</span>
+                                    </div>
+                                </td>
+                                <td class="py-3.5 px-4 font-tech text-slate-300 font-semibold">World 1-2 (Underground)</td>
+                                <td class="py-3.5 px-4 font-tech text-mario-gold font-bold">9,999,990</td>
+                                <td class="py-3.5 px-4 font-tech text-slate-200">
+                                    <span class="flex items-center gap-1"><i class="fa-solid fa-coins text-mario-gold text-[10px]"></i> 999</span>
+                                </td>
+                                <td class="py-3.5 px-4 font-tech text-mario-green font-bold">× 99</td>
+                                <td class="py-3.5 px-4">
+                                    <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-medium bg-rose-500/15 text-rose-400 border border-rose-500/30">
+                                        <i class="fa-solid fa-triangle-exclamation"></i> وال‌هک مشکوک
+                                    </span>
+                                </td>
+                                <td class="py-3.5 px-4 text-center">
+                                    <div class="flex items-center justify-center gap-2">
+                                        <button onclick="adminAction('spectate', 'Waluigi_Hax0r')" title="تماشای زنده گیم‌پلی" class="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white transition">
+                                            <i class="fa-regular fa-eye"></i>
+                                        </button>
+                                        <button onclick="adminAction('freeze', 'Waluigi_Hax0r')" title="فریز کردن فیزیک بازیکن" class="p-1.5 rounded-lg bg-mario-blue/10 hover:bg-mario-blue/20 text-mario-blue transition">
+                                            <i class="fa-regular fa-snowflake"></i>
+                                        </button>
+                                        <button onclick="adminAction('kick', 'Waluigi_Hax0r')" title="بن از سرور" class="p-1.5 rounded-lg bg-rose-500/20 hover:bg-rose-500/30 text-rose-400 transition">
+                                            <i class="fa-solid fa-gavel"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+
+                            <!-- Row 3 -->
+                            <tr class="hover:bg-white/[0.02] transition" data-status="normal" data-world="World 4-1">
+                                <td class="py-3.5 px-4 flex items-center gap-3">
+                                    <div class="w-8 h-8 rounded-lg bg-mario-green/20 border border-mario-green/40 flex items-center justify-center font-black text-mario-green font-tech">L</div>
+                                    <div>
+                                        <p class="font-bold text-white">LuigiGhostBuster</p>
+                                        <span class="text-[10px] text-slate-500 font-tech">ID: #9903-FR</span>
+                                    </div>
+                                </td>
+                                <td class="py-3.5 px-4 font-tech text-slate-300 font-semibold">World 4-1 (Lakitu Skies)</td>
+                                <td class="py-3.5 px-4 font-tech text-mario-gold font-bold">542,120</td>
+                                <td class="py-3.5 px-4 font-tech text-slate-200">
+                                    <span class="flex items-center gap-1"><i class="fa-solid fa-coins text-mario-gold text-[10px]"></i> 84</span>
+                                </td>
+                                <td class="py-3.5 px-4 font-tech text-mario-green font-bold">× 3</td>
+                                <td class="py-3.5 px-4">
+                                    <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-medium bg-blue-500/10 text-mario-blue border border-blue-500/20">
+                                        <i class="fa-solid fa-cloud"></i> سوار بر ابر Lakitu
+                                    </span>
+                                </td>
+                                <td class="py-3.5 px-4 text-center">
+                                    <div class="flex items-center justify-center gap-2">
+                                        <button onclick="adminAction('spectate', 'LuigiGhostBuster')" class="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white transition">
+                                            <i class="fa-regular fa-eye"></i>
+                                        </button>
+                                        <button onclick="adminAction('gift', 'LuigiGhostBuster')" class="p-1.5 rounded-lg bg-mario-green/10 hover:bg-mario-green/20 text-mario-green transition">
+                                            <i class="fa-solid fa-heart"></i>
+                                        </button>
+                                        <button onclick="adminAction('kick', 'LuigiGhostBuster')" class="p-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 transition">
+                                            <i class="fa-solid fa-ban"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+
+                            <!-- Row 4 -->
+                            <tr class="hover:bg-white/[0.02] transition" data-status="in-castle" data-world="World 8-4">
+                                <td class="py-3.5 px-4 flex items-center gap-3">
+                                    <div class="w-8 h-8 rounded-lg bg-amber-500/20 border border-amber-500/40 flex items-center justify-center font-black text-amber-400 font-tech">P</div>
+                                    <div>
+                                        <p class="font-bold text-white">PrincessPeach99</p>
+                                        <span class="text-[10px] text-slate-500 font-tech">ID: #1184-US</span>
+                                    </div>
+                                </td>
+                                <td class="py-3.5 px-4 font-tech text-slate-300 font-semibold">World 8-4 (Bowser Core)</td>
+                                <td class="py-3.5 px-4 font-tech text-mario-gold font-bold">1,402,680</td>
+                                <td class="py-3.5 px-4 font-tech text-slate-200">
+                                    <span class="flex items-center gap-1"><i class="fa-solid fa-coins text-mario-gold text-[10px]"></i> 192</span>
+                                </td>
+                                <td class="py-3.5 px-4 font-tech text-mario-green font-bold">× 2</td>
+                                <td class="py-3.5 px-4">
+                                    <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-medium bg-amber-500/10 text-amber-300 border border-amber-500/20">
+                                        <i class="fa-solid fa-fire"></i> مقاومت در لاوا
+                                    </span>
+                                </td>
+                                <td class="py-3.5 px-4 text-center">
+                                    <div class="flex items-center justify-center gap-2">
+                                        <button onclick="adminAction('spectate', 'PrincessPeach99')" class="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white transition">
+                                            <i class="fa-regular fa-eye"></i>
+                                        </button>
+                                        <button onclick="adminAction('gift', 'PrincessPeach99')" class="p-1.5 rounded-lg bg-mario-green/10 hover:bg-mario-green/20 text-mario-green transition">
+                                            <i class="fa-solid fa-heart"></i>
+                                        </button>
+                                        <button onclick="adminAction('kick', 'PrincessPeach99')" class="p-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 transition">
+                                            <i class="fa-solid fa-ban"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Footer Pagination & State -->
+                <div class="flex flex-col sm:flex-row items-center justify-between text-xs text-slate-400 pt-2 gap-3">
+                    <span class="font-tech">نمایش ۱ تا ۴ از ۱,۲۴۸ پلیر فعال در کلاستر تهران/فرانکفورت</span>
+                    <div class="flex items-center gap-2">
+                        <button class="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 transition">قبلی</button>
+                        <span class="px-2 font-tech text-white font-bold">1 / 312</span>
+                        <button class="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 transition">بعدی</button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- SECTION 4: LIVE SERVER LOG STREAM -->
+            <section class="glass-panel rounded-3xl p-6">
+                <div class="flex items-center justify-between mb-4">
+                    <div class="flex items-center gap-2">
+                        <i class="fa-solid fa-terminal text-mario-gold text-xs"></i>
+                        <h4 class="font-bold text-white text-sm">لاگ زنده رویدادهای سرور (Console Feed)</h4>
+                    </div>
+                    <button onclick="clearLogs()" class="text-xs text-slate-400 hover:text-white font-mono transition">پاک‌سازی [CLR]</button>
+                </div>
+                <div id="logTerminal" class="h-28 overflow-y-auto space-y-1.5 font-mono text-xs bg-black/40 p-3.5 rounded-2xl border border-white/5 text-slate-300">
+                    <div class="flex items-center gap-2">
+                        <span class="text-slate-600">[21:40:02]</span>
+                        <span class="text-emerald-400">INFO:</span>
+                        <span>مختصات بازیکن #8921 در World 8-4 تأیید شد. پرش از روی Bowser Lava موفق بود.</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-slate-600">[21:40:11]</span>
+                        <span class="text-amber-400">WARN:</span>
+                        <span>شتاب غیرعادی بازیکن #4301 ثبت شد (DX: 48.4 pix/f). سیستم ضدتقلب فعال شد.</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-slate-600">[21:40:19]</span>
+                        <span class="text-mario-blue">EVENT:</span>
+                        <span>تخمین پرتاب قارچ ۱-آپ توسط بلاک اسرارآمیز در مختصات (X: 1240, Y: 420).</span>
+                    </div>
+                </div>
+            </section>
+
+        </div>
+    </main>
+
+    <!-- TOAST NOTIFICATION POPUP -->
+    <div id="toast" class="fixed bottom-6 left-6 z-50 transform translate-y-24 opacity-0 transition-all duration-300 pointer-events-none">
+        <div class="glass-panel border-l-4 border-mario-red px-5 py-3.5 rounded-2xl shadow-neon-red flex items-center gap-3 bg-slate-900/90 text-white text-xs">
+            <i id="toast-icon" class="fa-solid fa-circle-info text-mario-red text-base"></i>
+            <div>
+                <p id="toast-title" class="font-bold">پیام سیستم</p>
+                <p id="toast-desc" class="text-slate-400 text-[11px]">دستور با موفقیت در بازی اجرا گردید.</p>
+            </div>
         </div>
     </div>
 
-    <!-- بارگذاری ماژولار موتور ES6 بازی -->
-    <script type="module" src="../src/game.js"></script>
+    <!-- JAVASCRIPT LOGIC & TELEMETRY CHARTS -->
+    <script>
+        // 1. Chart.js Defaults & Styling
+        Chart.defaults.color = '#94a3b8';
+        Chart.defaults.font.family = 'Outfit, Vazirmatn, sans-serif';
+
+        // Initialize Live Telemetry Wave Chart
+        const ctxTelemetry = document.getElementById('liveTelemetryChart').getContext('2d');
+        const gradientFill = ctxTelemetry.createLinearGradient(0, 0, 0, 260);
+        gradientFill.addColorStop(0, 'rgba(255, 51, 75, 0.4)');
+        gradientFill.addColorStop(1, 'rgba(255, 51, 75, 0.0)');
+
+        const gradientBlue = ctxTelemetry.createLinearGradient(0, 0, 0, 260);
+        gradientBlue.addColorStop(0, 'rgba(0, 176, 255, 0.35)');
+        gradientBlue.addColorStop(1, 'rgba(0, 176, 255, 0.0)');
+
+        const telemetryChart = new Chart(ctxTelemetry, {
+            type: 'line',
+            data: {
+                labels: ['10s', '9s', '8s', '7s', '6s', '5s', '4s', '3s', '2s', 'الان'],
+                datasets: [
+                    {
+                        label: 'همگام‌سازی ماریو (Sync Req/s)',
+                        data: [1200, 1340, 1290, 1450, 1380, 1510, 1490, 1620, 1750, 1842],
+                        borderColor: '#FF334B',
+                        backgroundColor: gradientFill,
+                        borderWidth: 2.5,
+                        tension: 0.4,
+                        fill: true,
+                        pointRadius: 4,
+                        pointBackgroundColor: '#FF334B',
+                        pointBorderColor: '#ffffff'
+                    },
+                    {
+                        label: 'ورودی فیزیک سرور (Tick Hz)',
+                        data: [60, 59.8, 60, 60.1, 59.9, 60, 60.2, 60.1, 60.0, 60.2],
+                        borderColor: '#00B0FF',
+                        backgroundColor: gradientBlue,
+                        borderWidth: 2,
+                        tension: 0.3,
+                        yAxisID: 'y1',
+                        borderDash: [4, 4],
+                        pointRadius: 0
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: {
+                    mode: 'index',
+                    intersect: false,
+                },
+                plugins: {
+                    legend: {
+                        display: true,
+                        position: 'top',
+                        align: 'end',
+                        labels: {
+                            boxWidth: 10,
+                            usePointStyle: true,
+                            font: { size: 11 }
+                        }
+                    },
+                    tooltip: {
+                        backgroundColor: 'rgba(15, 18, 28, 0.9)',
+                        titleColor: '#fff',
+                        bodyColor: '#cbd5e1',
+                        borderColor: 'rgba(255, 255, 255, 0.15)',
+                        borderWidth: 1,
+                        padding: 10,
+                        boxPadding: 4,
+                        usePointStyle: true
+                    }
+                },
+                scales: {
+                    x: {
+                        grid: { color: 'rgba(255, 255, 255, 0.04)' },
+                        ticks: { font: { size: 10 } }
+                    },
+                    y: {
+                        position: 'left',
+                        grid: { color: 'rgba(255, 255, 255, 0.04)' },
+                        ticks: { font: { size: 10 } }
+                    },
+                    y1: {
+                        position: 'right',
+                        grid: { drawOnChartArea: false },
+                        min: 50,
+                        max: 70,
+                        ticks: { font: { size: 10 } }
+                    }
+                }
+            }
+        });
+
+        // Initialize PowerUps Doughnut Chart
+        const ctxDoughnut = document.getElementById('powerUpsDoughnut').getContext('2d');
+        const powerUpsChart = new Chart(ctxDoughnut, {
+            type: 'doughnut',
+            data: {
+                labels: ['سوپر قارچ', 'گل آتشین', 'ستاره مصونیت', 'قارچ ۱-آپ'],
+                datasets: [{
+                    data: [1920, 1346, 865, 679],
+                    backgroundColor: [
+                        '#FF334B',
+                        '#FFB800',
+                        '#00B0FF',
+                        '#00E676'
+                    ],
+                    borderWidth: 3,
+                    borderColor: '#0e121d',
+                    hoverOffset: 6
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                cutout: '76%',
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        backgroundColor: 'rgba(15, 18, 28, 0.95)',
+                        borderColor: 'rgba(255, 255, 255, 0.1)',
+                        borderWidth: 1,
+                        padding: 10
+                    }
+                }
+            }
+        });
+
+        // 2. Real-Time Telemetry Simulation (Tick every 2.5s)
+        setInterval(() => {
+            // Update active players random jitter
+            const jitter = Math.floor(Math.random() * 30) - 14;
+            const currentCount = parseInt(document.getElementById('active-players-count').innerText.replace(',', '')) + jitter;
+            document.getElementById('active-players-count').innerText = currentCount.toLocaleString();
+
+            // Push fresh chart data
+            telemetryChart.data.datasets[0].data.shift();
+            telemetryChart.data.datasets[0].data.push(currentCount);
+
+            // Slightly jitter tick rate
+            telemetryChart.data.datasets[1].data.shift();
+            telemetryChart.data.datasets[1].data.push(+(59.8 + Math.random() * 0.4).toFixed(1));
+
+            telemetryChart.update('none');
+        }, 2500);
+
+        // 3. Search and Table Filter Functionality
+        const tableSearchInput = document.getElementById('player-table-search');
+        tableSearchInput.addEventListener('input', (e) => {
+            const query = e.target.value.toLowerCase();
+            const rows = document.querySelectorAll('#playerTableBody tr');
+            rows.forEach(row => {
+                const text = row.innerText.toLowerCase();
+                row.style.display = text.includes(query) ? '' : 'none';
+            });
+        });
+
+        function filterTable(filter) {
+            document.querySelectorAll('.table-filter-btn').forEach(btn => btn.classList.remove('bg-white/10', 'active'));
+            event.target.classList.add('bg-white/10', 'active');
+
+            const rows = document.querySelectorAll('#playerTableBody tr');
+            rows.forEach(row => {
+                if (filter === 'all') {
+                    row.style.display = '';
+                } else if (filter === 'in-castle') {
+                    row.style.display = row.dataset.world.includes('8-4') ? '' : 'none';
+                } else if (filter === 'flagged') {
+                    row.style.display = row.dataset.status === 'flagged' ? '' : 'none';
+                }
+            });
+        }
+
+        // 4. Admin Action Feedback & Toast System
+        function showToast(title, desc, colorClass = 'border-mario-red', icon = 'fa-circle-info') {
+            const toast = document.getElementById('toast');
+            const titleEl = document.getElementById('toast-title');
+            const descEl = document.getElementById('toast-desc');
+            const iconEl = document.getElementById('toast-icon');
+
+            titleEl.innerText = title;
+            descEl.innerText = desc;
+            iconEl.className = `fa-solid ${icon}`;
+
+            toast.classList.remove('translate-y-24', 'opacity-0');
+            toast.classList.add('translate-y-0', 'opacity-100');
+
+            setTimeout(() => {
+                toast.classList.add('translate-y-24', 'opacity-0');
+                toast.classList.remove('translate-y-0', 'opacity-100');
+            }, 3500);
+        }
+
+        function adminAction(type, playerName) {
+            const logTerminal = document.getElementById('logTerminal');
+            const now = new Date().toLocaleTimeString('fa-IR');
+
+            if (type === 'spectate') {
+                showToast('حالت تماشاگر (Spectator)', `دوربین روی گیم‌پلی ${playerName} قفل شد.`, 'border-mario-blue', 'fa-eye');
+                logTerminal.innerHTML += `<div class="flex items-center gap-2 text-mario-blue"><span class="text-slate-600">[${now}]</span><span>SPECTATE: اتصال به دوربین استریم ${playerName} برقرار شد.</span></div>`;
+            } else if (type === 'gift') {
+                showToast('اعطای لایف (1-UP)', `یک جان اضافه و استار برای ${playerName} پرتاب شد!`, 'border-mario-green', 'fa-heart');
+                logTerminal.innerHTML += `<div class="flex items-center gap-2 text-mario-green"><span class="text-slate-600">[${now}]</span><span>GIFT: 1-UP Mushroom برای ${playerName} صادر شد.</span></div>`;
+            } else if (type === 'kick') {
+                showToast('قطع اتصال بازیکن', `پلیر ${playerName} با دستور ادمین کیک شد.`, 'border-mario-red', 'fa-gavel');
+                logTerminal.innerHTML += `<div class="flex items-center gap-2 text-rose-400"><span class="text-slate-600">[${now}]</span><span>DISCONNECT: نشست پلیر ${playerName} ابطال گردید.</span></div>`;
+            } else if (type === 'freeze') {
+                showToast('توقف فیزیک', `حرکات مشکوک ${playerName} مسدود شد.`, 'border-mario-blue', 'fa-snowflake');
+            }
+            logTerminal.scrollTop = logTerminal.scrollHeight;
+        }
+
+        function triggerCoinFrenzy() {
+            showToast('رویداد سراسری فعال شد!', 'باران ۱۰,۰۰۰ سکه طلایی در تمامی جهان‌های بازی شروع شد!', 'border-mario-gold', 'fa-coins');
+            const totalCoinsEl = document.getElementById('total-coins');
+            const currentCoins = parseInt(totalCoinsEl.innerText.replace(/,/g, ''));
+            totalCoinsEl.innerText = (currentCoins + 10000).toLocaleString();
+
+            const logTerminal = document.getElementById('logTerminal');
+            const now = new Date().toLocaleTimeString('fa-IR');
+            logTerminal.innerHTML += `<div class="flex items-center gap-2 text-mario-gold"><span class="text-slate-600">[${now}]</span><span>EVENT: Coin Frenzy Event با کلید ادمین اجرا شد (+10K Coins).</span></div>`;
+            logTerminal.scrollTop = logTerminal.scrollHeight;
+        }
+
+        function clearLogs() {
+            document.getElementById('logTerminal').innerHTML = '<div class="text-slate-500 italic text-[11px]">// لاگ‌ها توسط کاربر پاک‌سازی شدند.</div>';
+        }
+    </script>
 </body>
 </html>

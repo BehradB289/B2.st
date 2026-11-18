@@ -1,242 +1,282 @@
 /**
- * ماژول شتاب‌دهنده سرعت و کشینگ درون‌حافظه‌ای هوشمند به همراه Rate Limiter
- * توسعه‌داده‌شده برای موتور بازی استودیو B2.st
+ * Intelligent In-Memory Cache with TTL and LRU Eviction + Rate Limiter
+ * Layer: Core Foundation
+ * Studio: B2.st
  */
 
-export class PerformanceCache {
-    /**
-     * @param {Object} options تنظیمات کشینگ
-     * @param {number} options.defaultTTL مدت زمان اعتبار پیش‌فرض بر حسب میلی‌ثانیه
-     * @param {number} options.maxEntries حداکثر تعداد مدخل‌ها در حافظه
-     */
-    constructor(options = {}) {
-        this.defaultTTL = options.defaultTTL || 15000;
-        this.maxEntries = options.maxEntries || 500;
-        
-        /** @type {Map<string, {value: any, expiry: number, hits: number, lastAccessed: number}>} */
-        this.store = new Map();
+/**
+ * Cache Item Node containing value, expiry timestamp, and access metadata
+ */
+class CacheItem {
+  constructor(key, value, ttlMs) {
+    this.key = key;
+    this.value = value;
+    this.createdAt = Date.now();
+    this.expiresAt = ttlMs > 0 ? this.createdAt + ttlMs : null;
+    this.lastAccessed = this.createdAt;
+    this.accessCount = 0;
+  }
 
-        // تلمتری و آمار عملکرد کش
-        this.metrics = {
-            hits: 0,
-            misses: 0,
-            evictions: 0,
-            sets: 0
-        };
+  isExpired() {
+    return this.expiresAt !== null && Date.now() > this.expiresAt;
+  }
 
-        // شروع زمان‌بند پاکسازی دوره‌ای آیتم‌های منقضی
-        this.pruneInterval = setInterval(() => this.prune(), options.pruneIntervalMs || 5000);
-    }
-
-    /**
-     * ذخیره‌سازی مقدار به همراه زمان انقضا
-     * @param {string} key کلید دسترسی
-     * @param {any} value مقداری که باید ذخیره شود
-     * @param {number} [ttlMs] مدت اعتبار اختصاصی
-     */
-    set(key, value, ttlMs) {
-        const ttl = (typeof ttlMs === 'number' && ttlMs > 0) ? ttlMs : this.defaultTTL;
-        const now = performance.now();
-        const expiry = now + ttl;
-
-        // اگر ظرفیت پر است، آیتم با کمترین میزان بهره‌وری (LRU) حذف می‌شود
-        if (this.store.size >= this.maxEntries && !this.store.has(key)) {
-            this._evictLRU();
-        }
-
-        this.store.set(key, {
-            value,
-            expiry,
-            hits: 0,
-            lastAccessed: now
-        });
-
-        this.metrics.sets++;
-        return value;
-    }
-
-    /**
-     * بازیابی مقدار کش شده با اعتبارسنجی TTL
-     * @param {string} key 
-     * @returns {any|null}
-     */
-    get(key) {
-        const entry = this.store.get(key);
-        if (!entry) {
-            this.metrics.misses++;
-            return null;
-        }
-
-        const now = performance.now();
-
-        // بررسی انقضای زمانی
-        if (now > entry.expiry) {
-            this.store.delete(key);
-            this.metrics.evictions++;
-            this.metrics.misses++;
-            return null;
-        }
-
-        entry.hits++;
-        entry.lastAccessed = now;
-        this.metrics.hits++;
-        return entry.value;
-    }
-
-    /**
-     * بررسی وجود داشتن کلید معتبر
-     * @param {string} key 
-     * @returns {boolean}
-     */
-    has(key) {
-        return this.get(key) !== null;
-    }
-
-    /**
-     * حذف دستی کلید
-     * @param {string} key 
-     */
-    delete(key) {
-        return this.store.delete(key);
-    }
-
-    /**
-     * پاکسازی تمام مدخل‌های کش
-     */
-    clear() {
-        this.store.clear();
-    }
-
-    /**
-     * پاکسازی مدخل‌های تاریخ‌گذشته
-     */
-    prune() {
-        const now = performance.now();
-        for (const [key, entry] of this.store.entries()) {
-            if (now > entry.expiry) {
-                this.store.delete(key);
-                this.metrics.evictions++;
-            }
-        }
-    }
-
-    /**
-     * سیاست بیرون‌اندازی کم‌استفاده‌ترین داده (Least Recently Used)
-     * @private
-     */
-    _evictLRU() {
-        let oldestKey = null;
-        let oldestAccess = Infinity;
-
-        for (const [key, entry] of this.store.entries()) {
-            if (entry.lastAccessed < oldestAccess) {
-                oldestAccess = entry.lastAccessed;
-                oldestKey = key;
-            }
-        }
-
-        if (oldestKey) {
-            this.store.delete(oldestKey);
-            this.metrics.evictions++;
-        }
-    }
-
-    /**
-     * متد مموایز خودکار برای توابع سنگین ریاضی و فیزیک
-     * @param {Function} fn تابع هدف
-     * @param {Function} keyResolver تولیدکننده کلید اختصاصی
-     * @param {number} [ttlMs] زمان کش
-     */
-    memoize(fn, keyResolver, ttlMs) {
-        return (...args) => {
-            const cacheKey = keyResolver ? keyResolver(...args) : JSON.stringify(args);
-            const cachedResult = this.get(cacheKey);
-
-            if (cachedResult !== null) {
-                return cachedResult;
-            }
-
-            const freshResult = fn(...args);
-            this.set(cacheKey, freshResult, ttlMs);
-            return freshResult;
-        };
-    }
-
-    /**
-     * دریافت نسبت موفقیت کش
-     * @returns {number} درصد اصابت کش (۰ تا ۱۰۰)
-     */
-    getHitRatio() {
-        const total = this.metrics.hits + this.metrics.misses;
-        if (total === 0) return 0;
-        return (this.metrics.hits / total) * 100;
-    }
-
-    /**
-     * متوقف کردن تایمر پاکسازی در زمان تخریب شیء
-     */
-    destroy() {
-        if (this.pruneInterval) {
-            clearInterval(this.pruneInterval);
-        }
-        this.clear();
-    }
+  touch() {
+    this.lastAccessed = Date.now();
+    this.accessCount++;
+  }
 }
 
 /**
- * سیستم کنترل نرخ اجرای فراخوانی‌ها (Rate Limiter)
- * بر پایه الگوریتم پنجره لغزان و باکت توکن‌ها جهت جلوگیری از اسپم کلیدها و صداها
+ * High-performance In-Memory Cache with TTL & LRU Eviction
+ */
+export class PerformanceCache {
+  /**
+   * @param {Object} options
+   * @param {number} [options.maxSize=256] - Max entries before LRU eviction
+   * @param {number} [options.defaultTTL=0] - Default TTL in ms (0 = infinite)
+   * @param {number} [options.autoPruneInterval=0] - Interval to auto-purge expired keys
+   */
+  constructor(options = {}) {
+    this.maxSize = options.maxSize || 256;
+    this.defaultTTL = options.defaultTTL || 0;
+    this.cache = new Map();
+    this.stats = {
+      hits: 0,
+      misses: 0,
+      sets: 0,
+      evictions: 0,
+      expirations: 0
+    };
+
+    if (options.autoPruneInterval && options.autoPruneInterval > 0) {
+      this.pruneTimer = setInterval(() => this.prune(), options.autoPruneInterval);
+    }
+  }
+
+  /**
+   * Store a value with optional custom TTL
+   * @param {string|number} key
+   * @param {*} value
+   * @param {number} [ttlMs]
+   */
+  set(key, value, ttlMs = this.defaultTTL) {
+    if (this.cache.has(key)) {
+      this.cache.delete(key);
+    } else if (this.cache.size >= this.maxSize) {
+      // Evict Least Recently Used (first item in Map iterator)
+      const lruKey = this.cache.keys().next().value;
+      if (lruKey !== undefined) {
+        this.cache.delete(lruKey);
+        this.stats.evictions++;
+      }
+    }
+
+    const item = new CacheItem(key, value, ttlMs);
+    this.cache.set(key, item);
+    this.stats.sets++;
+    return value;
+  }
+
+  /**
+   * Retrieve an item from the cache
+   * @param {string|number} key
+   * @returns {*|null}
+   */
+  get(key) {
+    const item = this.cache.get(key);
+
+    if (!item) {
+      this.stats.misses++;
+      return null;
+    }
+
+    if (item.isExpired()) {
+      this.cache.delete(key);
+      this.stats.expirations++;
+      this.stats.misses++;
+      return null;
+    }
+
+    // Refresh LRU order (delete & re-insert)
+    this.cache.delete(key);
+    item.touch();
+    this.cache.set(key, item);
+
+    this.stats.hits++;
+    return item.value;
+  }
+
+  /**
+   * Check if a valid, non-expired key exists
+   * @param {string|number} key
+   * @returns {boolean}
+   */
+  has(key) {
+    const item = this.cache.get(key);
+    if (!item) return false;
+    if (item.isExpired()) {
+      this.cache.delete(key);
+      this.stats.expirations++;
+      return false;
+    }
+    return true;
+  }
+
+  /**
+   * Delete an item by key
+   * @param {string|number} key
+   * @returns {boolean}
+   */
+  delete(key) {
+    return this.cache.delete(key);
+  }
+
+  /**
+   * Clear entire cache
+   */
+  clear() {
+    this.cache.clear();
+  }
+
+  /**
+   * Prune all expired entries immediately
+   * @returns {number} count of purged items
+   */
+  prune() {
+    const now = Date.now();
+    let purgedCount = 0;
+
+    for (const [key, item] of this.cache.entries()) {
+      if (item.expiresAt !== null && now > item.expiresAt) {
+        this.cache.delete(key);
+        this.stats.expirations++;
+        purgedCount++;
+      }
+    }
+
+    return purgedCount;
+  }
+
+  /**
+   * Helper: memoize a heavy computation or canvas render
+   * @param {string} cacheKey
+   * @param {Function} factoryFn
+   * @param {number} [ttlMs]
+   */
+  getOrCompute(cacheKey, factoryFn, ttlMs = this.defaultTTL) {
+    const cached = this.get(cacheKey);
+    if (cached !== null) {
+      return cached;
+    }
+    const computed = factoryFn();
+    this.set(cacheKey, computed, ttlMs);
+    return computed;
+  }
+
+  /**
+   * Get metrics and hit/miss ratios
+   */
+  getStats() {
+    const totalRequests = this.stats.hits + this.stats.misses;
+    const hitRate = totalRequests > 0 ? (this.stats.hits / totalRequests) * 100 : 0;
+
+    return {
+      size: this.cache.size,
+      maxSize: this.maxSize,
+      hits: this.stats.hits,
+      misses: this.stats.misses,
+      hitRate: Number(hitRate.toFixed(1)),
+      evictions: this.stats.evictions,
+      expirations: this.stats.expirations
+    };
+  }
+
+  destroy() {
+    if (this.pruneTimer) {
+      clearInterval(this.pruneTimer);
+      this.pruneTimer = null;
+    }
+    this.cache.clear();
+  }
+}
+
+/**
+ * Token Bucket & Sliding Window Rate Limiter
+ * Controls frequency of audio events, spam keys, and intensive recalculations.
  */
 export class RateLimiter {
-    constructor() {
-        /** @type {Map<string, number>} زمان آخرین اجرا به ازای کلید */
-        this.lastExecutions = new Map();
-        /** @type {Map<string, number>} توکن‌های باقیمانده به ازای هر گروه */
-        this.tokenBuckets = new Map();
+  /**
+   * @param {number} capacity - Max bursts tokens available
+   * @param {number} refillRatePerSec - Tokens added per second
+   */
+  constructor(capacity = 10, refillRatePerSec = 10) {
+    this.capacity = capacity;
+    this.tokens = capacity;
+    this.refillRate = refillRatePerSec;
+    this.lastRefill = Date.now();
+  }
+
+  refill() {
+    const now = Date.now();
+    const elapsedSeconds = (now - this.lastRefill) / 1000;
+    if (elapsedSeconds > 0) {
+      this.tokens = Math.min(this.capacity, this.tokens + elapsedSeconds * this.refillRate);
+      this.lastRefill = now;
     }
+  }
 
-    /**
-     * بررسی اینکه آیا اجرای رویداد مجاز است یا خیر
-     * @param {string} actionKey نام یا کلید رویداد
-     * @param {number} minIntervalMs حداقل زمان مجاز بین دو فراخوانی به میلی‌ثانیه
-     * @returns {boolean}
-     */
-    canExecute(actionKey, minIntervalMs) {
-        const now = performance.now();
-        const lastTime = this.lastExecutions.get(actionKey) || 0;
-
-        if (now - lastTime >= minIntervalMs) {
-            this.lastExecutions.set(actionKey, now);
-            return true;
-        }
-
-        return false;
+  /**
+   * Try to acquire tokens. Returns true if allowed, false if limited.
+   * @param {number} [cost=1]
+   * @returns {boolean}
+   */
+  tryAcquire(cost = 1) {
+    this.refill();
+    if (this.tokens >= cost) {
+      this.tokens -= cost;
+      return true;
     }
+    return false;
+  }
 
-    /**
-     * اجرای تابع تنها در صورت عبور از فیلتر ریت‌لیمیت
-     * @param {string} actionKey 
-     * @param {number} minIntervalMs 
-     * @param {Function} callback 
-     * @returns {boolean} آیا تابع اجرا شد؟
-     */
-    throttle(actionKey, minIntervalMs, callback) {
-        if (this.canExecute(actionKey, minIntervalMs)) {
-            callback();
-            return true;
-        }
-        return false;
-    }
+  /**
+   * Creates a sliding-window rate limit checker for named keys
+   * @param {number} maxCalls - Allowed hits per window
+   * @param {number} windowMs - Time window in milliseconds
+   */
+  static createSlidingWindow(maxCalls = 5, windowMs = 500) {
+    const timestampsMap = new Map();
 
-    /**
-     * پاکسازی سابقه یک اکشن مشخص
-     * @param {string} actionKey 
-     */
-    reset(actionKey) {
-        if (actionKey) {
-            this.lastExecutions.delete(actionKey);
-        } else {
-            this.lastExecutions.clear();
-        }
-    }
+    return function isAllowed(key = 'default') {
+      const now = Date.now();
+      let timestamps = timestampsMap.get(key) || [];
+      timestamps = timestamps.filter(t => now - t < windowMs);
+
+      if (timestamps.length < maxCalls) {
+        timestamps.push(now);
+        timestampsMap.set(key, timestamps);
+        return true;
+      }
+
+      timestampsMap.set(key, timestamps);
+      return false;
+    };
+  }
+
+  /**
+   * Throttles a function so it only runs at most once every `limitMs`
+   * @param {Function} func
+   * @param {number} limitMs
+   */
+  static throttle(func, limitMs) {
+    let lastRan = 0;
+    return function (...args) {
+      const now = Date.now();
+      if (now - lastRan >= limitMs) {
+        lastRan = now;
+        return func.apply(this, args);
+      }
+    };
+  }
 }

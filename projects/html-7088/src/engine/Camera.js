@@ -1,61 +1,49 @@
 /**
- * دوربین داینامیک ۲ بعدی با منطقه مرده (Dead-Zone) و مرزهای هوشمند مرحله
+ * Dynamic Viewport Camera with Lookahead & Deadzones
  */
+
+import { CONFIG } from '../../config/game.config.js';
+
 export class Camera {
-  constructor(viewportWidth, viewportHeight) {
+  constructor() {
     this.x = 0;
     this.y = 0;
-    this.width = viewportWidth;
-    this.height = viewportHeight;
-    this.levelWidth = viewportWidth;
-    this.levelHeight = viewportHeight;
-    this.deadZoneX = 140;
-    this.lerpSpeed = 0.12;
+    this.width = CONFIG.CANVAS.INTERNAL_WIDTH;
+    this.height = CONFIG.CANVAS.INTERNAL_HEIGHT;
+    this.shakeDuration = 0;
+    this.shakeIntensity = 0;
   }
 
-  setLevelBounds(width, height) {
-    this.levelWidth = width;
-    this.levelHeight = height;
-  }
-
-  update(target) {
+  update(target, maxLevelWidth, dt) {
     if (!target) return;
 
-    // تعقیب نرم افقی کاراکتر
-    const targetCenterX = target.x + target.width / 2;
-    const viewCenterX = this.x + this.width / 2;
+    // Classic NES Mario camera only scrolls right forward
+    const deadzoneCenterX = this.x + this.width * 0.42;
 
-    if (Math.abs(targetCenterX - viewCenterX) > this.deadZoneX) {
-      const desiredX = targetCenterX > viewCenterX
-        ? targetCenterX - this.deadZoneX - this.width / 2
-        : targetCenterX + this.deadZoneX - this.width / 2;
-
-      this.x += (desiredX - this.x) * this.lerpSpeed;
+    if (target.x > deadzoneCenterX) {
+      this.x = Math.max(this.x, target.x - this.width * 0.42);
     }
 
-    // قفل کردن مرزهای افقی و عمودی دوربین
+    // Horizontal limit
+    const maxX = maxLevelWidth * CONFIG.TILES.SIZE - this.width;
+    if (this.x > maxX) this.x = maxX;
     if (this.x < 0) this.x = 0;
-    if (this.x > this.levelWidth - this.width) {
-      this.x = Math.max(0, this.levelWidth - this.width);
-    }
 
-    // دوربین در راستای عمودی روی زمین تثبیت می‌شود مگر در مراحل مرتفع
-    if (this.levelHeight > this.height) {
-      const targetCenterY = target.y + target.height / 2;
-      const desiredY = targetCenterY - this.height / 2;
-      this.y += (desiredY - this.y) * 0.08;
-      this.y = Math.max(0, Math.min(this.y, this.levelHeight - this.height));
+    // Screen Shake effect
+    if (this.shakeDuration > 0) {
+      this.shakeDuration -= dt;
+      this.shakeOffset = (Math.random() - 0.5) * this.shakeIntensity;
     } else {
-      this.y = 0;
+      this.shakeOffset = 0;
     }
   }
 
-  apply(ctx) {
-    ctx.save();
-    ctx.translate(-Math.floor(this.x), -Math.floor(this.y));
+  shake(duration = 0.2, intensity = 4) {
+    this.shakeDuration = duration;
+    this.shakeIntensity = intensity;
   }
 
-  restore(ctx) {
-    ctx.restore();
+  isVisible(x, width) {
+    return x + width >= this.x && x <= this.x + this.width;
   }
 }

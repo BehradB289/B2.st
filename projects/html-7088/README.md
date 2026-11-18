@@ -9,17 +9,14 @@
 ```text
 projects/html-7088/
 ├── .env.example
-├── .gitignore
 ├── Dockerfile
 ├── config/constants.js
 ├── config/database.config.js
 ├── config/game.config.js
-├── config/game.config.json
 ├── config/game_config.js
 ├── config/nginx.conf
 ├── docker-compose.yml
 ├── docs/ARCHITECTURE.md
-├── docs/CLI_GUIDE.md
 ├── docs/DATABASE_SCHEMA.md
 ├── docs/DEBUG_SYNTAX.md
 ├── docs/DEPLOYMENT.md
@@ -36,9 +33,7 @@ projects/html-7088/
 ├── scripts/deploy.sh
 ├── scripts/rollback.sh
 ├── src/.dockerignore
-├── src/cli.js
 ├── src/core/error_shield.js
-├── src/core/health_monitor.js
 ├── src/core/memory_guard.js
 ├── src/core/performance_cache.js
 ├── src/db/database_layer.js
@@ -82,15 +77,14 @@ projects/html-7088/
 ├── src/levels/World1_1.js
 ├── src/levels/level_1_1.js
 ├── src/main.js
+├── src/module_83.js
 ├── src/security/owasp_guard.js
 ├── src/services/network_retry.js
 ├── src/utils/validator.js
 ├── src/vitest.config.js
 ├── src/world/Level.js
-├── tests/cli.test.js
 ├── tests/collision.test.js
 ├── tests/database_layer.test.js
-├── tests/health_monitor.test.js
 ├── tests/integration.test.js
 ├── tests/physics.test.js
 ├── tests/physics_cache.test.js

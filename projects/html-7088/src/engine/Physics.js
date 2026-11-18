@@ -1,76 +1,82 @@
 /**
- * High-performance AABB Physics & Tile Collision Solver
+ * AABB (Axis-Aligned Bounding Box) Physics & Collision Solver
  */
-
-import { CONFIG } from '../../config/game.config.js';
-
 export class Physics {
-  static checkAABB(a, b) {
+  /**
+   * Checks overlap between two Axis-Aligned Bounding Boxes
+   */
+  static checkAABB(boxA, boxB) {
     return (
-      a.x < b.x + b.width &&
-      a.x + a.width > b.x &&
-      a.y < b.y + b.height &&
-      a.y + a.height > b.y
+      boxA.x < boxB.x + boxB.width &&
+      boxA.x + boxA.width > boxB.x &&
+      boxA.y < boxB.y + boxB.height &&
+      boxA.y + boxA.height > boxB.y
     );
   }
 
-  static resolveEntityVsTilemap(entity, level, dt) {
-    const tileSize = CONFIG.TILES.SIZE;
+  /**
+   * Resolves tilemap collision for an entity moving within a grid
+   */
+  static resolveTileMapCollisions(entity, tileMap, tileSize = 16) {
+    entity.isGrounded = false;
 
-    // --- HORIZONTAL MOVEMENT & COLLISION ---
-    entity.x += entity.vx * dt;
+    // Horizontal resolution
+    entity.position.x += entity.velocity.x * entity.dt;
+    let bounds = entity.getBounds();
+    let startCol = Math.floor(bounds.x / tileSize);
+    let endCol = Math.floor((bounds.x + bounds.width) / tileSize);
+    let startRow = Math.floor(bounds.y / tileSize);
+    let endRow = Math.floor((bounds.y + bounds.height - 0.1) / tileSize);
 
-    let startX = Math.floor(entity.x / tileSize);
-    let endX = Math.floor((entity.x + entity.width - 0.01) / tileSize);
-    let startY = Math.floor(entity.y / tileSize);
-    let endY = Math.floor((entity.y + entity.height - 0.01) / tileSize);
-
-    for (let ty = startY; ty <= endY; ty++) {
-      for (let tx = startX; tx <= endX; tx++) {
-        if (level.isSolid(tx, ty)) {
-          if (entity.vx > 0) {
-            entity.x = tx * tileSize - entity.width;
-            entity.onCollideWall?.('right');
-          } else if (entity.vx < 0) {
-            entity.x = (tx + 1) * tileSize;
-            entity.onCollideWall?.('left');
+    for (let r = startRow; r <= endRow; r++) {
+      for (let c = startCol; c <= endCol; c++) {
+        if (tileMap.isSolid(c, r)) {
+          if (entity.velocity.x > 0) {
+            entity.position.x = c * tileSize - bounds.width - entity.collisionOffset.x;
+            entity.velocity.x = 0;
+            entity.onWallCollision?.(1);
+          } else if (entity.velocity.x < 0) {
+            entity.position.x = (c + 1) * tileSize - entity.collisionOffset.x;
+            entity.velocity.x = 0;
+            entity.onWallCollision?.(-1);
           }
-          entity.vx = 0;
         }
       }
     }
 
-    // --- VERTICAL MOVEMENT & COLLISION ---
-    entity.vy += (entity.customGravity || CONFIG.PHYSICS.GRAVITY) * dt;
-    if (entity.vy > CONFIG.PHYSICS.MAX_FALL_SPEED) {
-      entity.vy = CONFIG.PHYSICS.MAX_FALL_SPEED;
-    }
+    // Vertical resolution
+    entity.position.y += entity.velocity.y * entity.dt;
+    bounds = entity.getBounds();
+    startCol = Math.floor(bounds.x / tileSize);
+    endCol = Math.floor((bounds.x + bounds.width - 0.1) / tileSize);
+    startRow = Math.floor(bounds.y / tileSize);
+    endRow = Math.floor((bounds.y + bounds.height) / tileSize);
 
-    entity.y += entity.vy * dt;
-
-    startX = Math.floor(entity.x / tileSize);
-    endX = Math.floor((entity.x + entity.width - 0.01) / tileSize);
-    startY = Math.floor(entity.y / tileSize);
-    endY = Math.floor((entity.y + entity.height - 0.01) / tileSize);
-
-    entity.onGround = false;
-
-    for (let ty = startY; ty <= endY; ty++) {
-      for (let tx = startX; tx <= endX; tx++) {
-        if (level.isSolid(tx, ty)) {
-          if (entity.vy > 0) {
-            // Landing on floor
-            entity.y = ty * tileSize - entity.height;
-            entity.vy = 0;
-            entity.onGround = true;
-            entity.onCollideGround?.();
-          } else if (entity.vy < 0) {
-            // Hitting ceiling / block above
-            entity.y = (ty + 1) * tileSize;
-            entity.vy = 0;
-            entity.onCollideCeiling?.(tx, ty, level);
+    for (let r = startRow; r <= endRow; r++) {
+      for (let c = startCol; c <= endCol; c++) {
+        if (tileMap.isSolid(c, r)) {
+          if (entity.velocity.y > 0) {
+            entity.position.y = r * tileSize - bounds.height - entity.collisionOffset.y;
+            entity.velocity.y = 0;
+            entity.isGrounded = true;
+          } else if (entity.velocity.y < 0) {
+            entity.position.y = (r + 1) * tileSize - entity.collisionOffset.y;
+            entity.velocity.y = 0;
+            tileMap.onTileHitFromBelow?.(c, r, entity);
           }
         }
+      }
+    }
+  }
+
+  /**
+   * Applies standard gravitational force to dynamic bodies
+   */
+  static applyGravity(entity, gravity, maxFallSpeed, dt) {
+    if (!entity.isGrounded) {
+      entity.velocity.y += gravity * dt;
+      if (entity.velocity.y > maxFallSpeed) {
+        entity.velocity.y = maxFallSpeed;
       }
     }
   }

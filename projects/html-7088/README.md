@@ -8,8 +8,10 @@
 ## 🗂️ Folder Structure
 ```text
 projects/html-7088/
+├── config/db.config.js
 ├── config/game_config.js
 ├── docs/ARCHITECTURE.md
+├── docs/DATABASE_ARCHITECTURE.md
 ├── docs/DEBUG_SYNTAX.md
 ├── docs/TEST_SPEC.md
 ├── docs/architecture.md
@@ -18,7 +20,11 @@ projects/html-7088/
 ├── public/index.html
 ├── public/style.css
 ├── src/core/error_shield.js
+├── src/core/memory_guard.js
 ├── src/core/performance_cache.js
+├── src/db/database_layer.js
+├── src/db/migrations.js
+├── src/db/schema.js
 ├── src/engine/AABB.js
 ├── src/engine/Audio.js
 ├── src/engine/AudioEngine.js
@@ -47,6 +53,7 @@ projects/html-7088/
 ├── src/vitest.config.js
 ├── src/world/Level.js
 ├── tests/collision.test.js
+├── tests/db.test.js
 ├── tests/physics.test.js
 ├── tests/physics_cache.test.js
 ```

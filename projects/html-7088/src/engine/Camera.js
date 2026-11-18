@@ -1,35 +1,61 @@
 /**
- * دوربین اسکرولر افقی متحرک جهت دنبال کردن ماریو به سبک بازی کلاسیک NES
+ * دوربین داینامیک ۲ بعدی با منطقه مرده (Dead-Zone) و مرزهای هوشمند مرحله
  */
 export class Camera {
-    /**
-     * @param {number} width عرض دید دوربین
-     * @param {number} height ارتفاع دید دوربین
-     */
-    constructor(width, height) {
-        this.x = 0;
-        this.y = 0;
-        this.width = width;
-        this.height = height;
-        this.maxX = 0;
+  constructor(viewportWidth, viewportHeight) {
+    this.x = 0;
+    this.y = 0;
+    this.width = viewportWidth;
+    this.height = viewportHeight;
+    this.levelWidth = viewportWidth;
+    this.levelHeight = viewportHeight;
+    this.deadZoneX = 140;
+    this.lerpSpeed = 0.12;
+  }
+
+  setLevelBounds(width, height) {
+    this.levelWidth = width;
+    this.levelHeight = height;
+  }
+
+  update(target) {
+    if (!target) return;
+
+    // تعقیب نرم افقی کاراکتر
+    const targetCenterX = target.x + target.width / 2;
+    const viewCenterX = this.x + this.width / 2;
+
+    if (Math.abs(targetCenterX - viewCenterX) > this.deadZoneX) {
+      const desiredX = targetCenterX > viewCenterX
+        ? targetCenterX - this.deadZoneX - this.width / 2
+        : targetCenterX + this.deadZoneX - this.width / 2;
+
+      this.x += (desiredX - this.x) * this.lerpSpeed;
     }
 
-    /**
-     * دنبال کردن هدف (ماریو) بدون امکان برگشت به عقب در صورت نیاز
-     * @param {import('../entities/Entity.js').Entity} target 
-     * @param {number} levelPixelWidth عرض کل مرحله به پیکسل
-     */
-    update(target, levelPixelWidth) {
-        // دوربین ماریو را در مرکز افقی یا کمی متمایل به چپ حفظ می‌کند
-        const targetX = target.position.x - this.width * 0.38;
-
-        if (targetX > this.x) {
-            this.x = targetX;
-        }
-
-        // قفل کردن دوربین در محدوده مرحله
-        if (this.x < 0) this.x = 0;
-        const maxScroll = levelPixelWidth - this.width;
-        if (this.x > maxScroll) this.x = maxScroll;
+    // قفل کردن مرزهای افقی و عمودی دوربین
+    if (this.x < 0) this.x = 0;
+    if (this.x > this.levelWidth - this.width) {
+      this.x = Math.max(0, this.levelWidth - this.width);
     }
+
+    // دوربین در راستای عمودی روی زمین تثبیت می‌شود مگر در مراحل مرتفع
+    if (this.levelHeight > this.height) {
+      const targetCenterY = target.y + target.height / 2;
+      const desiredY = targetCenterY - this.height / 2;
+      this.y += (desiredY - this.y) * 0.08;
+      this.y = Math.max(0, Math.min(this.y, this.levelHeight - this.height));
+    } else {
+      this.y = 0;
+    }
+  }
+
+  apply(ctx) {
+    ctx.save();
+    ctx.translate(-Math.floor(this.x), -Math.floor(this.y));
+  }
+
+  restore(ctx) {
+    ctx.restore();
+  }
 }

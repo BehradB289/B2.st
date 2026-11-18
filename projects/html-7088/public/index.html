@@ -1,757 +1,914 @@
-```html
 <!DOCTYPE html>
-<html lang="fa" dir="rtl">
+<html lang="fa" dir="rtl" class="scroll-smooth">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>🎮 B2.st Mario</title>
-  <style>
-    /* ── NES Retro Style ── */
-    @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Super Mario HTML5 | شاهکار رترو در وب مدرن - استودیو B2.st</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts: Vazirmatn & Press Start 2P -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Vazirmatn:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
 
-    * { margin: 0; padding: 0; box-sizing: border-box; }
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Vazirmatn', 'sans-serif'],
+                        retro: ['"Press Start 2P"', 'monospace'],
+                    },
+                    colors: {
+                        mario: {
+                            red: '#FF2A2A',
+                            darkRed: '#B91C1C',
+                            blue: '#0066FF',
+                            gold: '#FFD700',
+                            brick: '#D97706',
+                            pipe: '#10B981',
+                            night: '#080c18',
+                            surface: '#0f172a',
+                        }
+                    },
+                    boxShadow: {
+                        'neon-red': '0 0 25px -5px rgba(255, 42, 42, 0.5), 0 0 10px -2px rgba(255, 42, 42, 0.3)',
+                        'neon-gold': '0 0 25px -5px rgba(255, 215, 0, 0.5), 0 0 10px -2px rgba(255, 215, 0, 0.3)',
+                        'neon-pipe': '0 0 25px -5px rgba(16, 185, 129, 0.5), 0 0 10px -2px rgba(16, 185, 129, 0.3)',
+                        'glass-inner': 'inset 0 1px 1px 0 rgba(255, 255, 255, 0.15)',
+                    },
+                    animation: {
+                        'float': 'float 5s ease-in-out infinite',
+                        'float-delayed': 'float 6s ease-in-out 2s infinite',
+                        'pulse-glow': 'pulseGlow 2.5s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                        'coin-spin': 'coinSpin 1s steps(4) infinite',
+                    },
+                    keyframes: {
+                        float: {
+                            '0%, 100%': { transform: 'translateY(0px)' },
+                            '50%': { transform: 'translateY(-14px)' },
+                        },
+                        pulseGlow: {
+                            '0%, 100%': { opacity: '0.4' },
+                            '50%': { opacity: '0.8' },
+                        },
+                    }
+                }
+            }
+        }
+    </script>
 
-    body {
-      background: #000;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      min-height: 100vh;
-      font-family: 'Press Start 2P', monospace;
-      color: #fff;
-      overflow: hidden;
-      image-rendering: pixelated;
-    }
+    <style>
+        /* Glassmorphism Classes */
+        .glass-panel {
+            background: rgba(15, 23, 42, 0.65);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+        .glass-card {
+            background: rgba(30, 41, 59, 0.45);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.07);
+        }
+        .glass-badge {
+            background: rgba(255, 255, 255, 0.06);
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+        }
 
-    #game-wrapper {
-      position: relative;
-      border: 4px solid #444;
-      border-radius: 2px;
-      box-shadow: 0 0 30px rgba(107, 140, 255, 0.3);
-    }
+        /* Scanline CRT FX */
+        .crt-overlay::before {
+            content: " ";
+            display: block;
+            position: absolute;
+            top: 0; left: 0; bottom: 0; right: 0;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%);
+            background-size: 100% 4px;
+            z-index: 20;
+            pointer-events: none;
+            opacity: 0.35;
+        }
 
-    canvas {
-      display: block;
-      background: #6B8CFF;
-    }
-
-    /* ── HUD Overlay ── */
-    #hud {
-      position: absolute;
-      top: 8px;
-      left: 8px;
-      right: 8px;
-      display: flex;
-      justify-content: space-between;
-      font-size: 8px;
-      color: #fff;
-      text-shadow: 1px 1px 0 #000;
-      pointer-events: none;
-      z-index: 10;
-    }
-
-    .hud-item { text-align: center; }
-    .hud-label { color: #ccc; margin-bottom: 4px; }
-    .hud-value { font-size: 10px; }
-
-    /* ── Health Badge ── */
-    #health-badge {
-      position: fixed;
-      bottom: 12px;
-      right: 12px;
-      padding: 6px 12px;
-      border-radius: 4px;
-      font-size: 7px;
-      font-family: 'Press Start 2P', monospace;
-      cursor: pointer;
-      z-index: 100;
-      transition: all 0.3s;
-    }
-
-    #health-badge.healthy { background: #2d5a1b; color: #7fff00; border: 1px solid #7fff00; }
-    #health-badge.degraded { background: #5a4a1b; color: #ffd700; border: 1px solid #ffd700; }
-    #health-badge.critical { background: #5a1b1b; color: #ff4444; border: 1px solid #ff4444; }
-
-    /* ── Start Screen ── */
-    #start-screen {
-      position: absolute;
-      inset: 0;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      background: #6B8CFF;
-      z-index: 20;
-    }
-
-    #start-screen h1 {
-      font-size: 24px;
-      color: #e44;
-      text-shadow: 2px 2px 0 #800, 4px 4px 0 #400;
-      margin-bottom: 40px;
-    }
-
-    #start-screen .blink {
-      font-size: 10px;
-      animation: blink 1s step-end infinite;
-    }
-
-    @keyframes blink {
-      50% { opacity: 0; }
-    }
-
-    /* ── Responsive ── */
-    @media (max-width: 800px) {
-      canvas { width: 100vw !important; height: auto !important; }
-    }
-  </style>
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #080c18;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #1e293b;
+            border-radius: 4px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #FF2A2A;
+        }
+    </style>
 </head>
-<body>
 
-  <div id="game-wrapper">
-    <canvas id="game-canvas" width="768" height="720"></canvas>
+<body class="bg-[#070b14] text-slate-100 font-sans selection:bg-mario-red selection:text-white antialiased overflow-x-hidden relative min-h-screen">
 
-    <!-- HUD -->
-    <div id="hud">
-      <div class="hud-item">
-        <div class="hud-label">MARIO</div>
-        <div class="hud-value" id="hud-score">000000</div>
-      </div>
-      <div class="hud-item">
-        <div class="hud-label">COINS</div>
-        <div class="hud-value" id="hud-coins">×00</div>
-      </div>
-      <div class="hud-item">
-        <div class="hud-label">WORLD</div>
-        <div class="hud-value" id="hud-world">1-1</div>
-      </div>
-      <div class="hud-item">
-        <div class="hud-label">TIME</div>
-        <div class="hud-value" id="hud-time">400</div>
-      </div>
-      <div class="hud-item">
-        <div class="hud-label">LIVES</div>
-        <div class="hud-value" id="hud-lives">×03</div>
-      </div>
-    </div>
+    <!-- Canvas Particle Background -->
+    <canvas id="ambient-canvas" class="fixed inset-0 pointer-events-none z-0"></canvas>
 
-    <!-- Start Screen -->
-    <div id="start-screen">
-      <h1>SUPER MARIO</h1>
-      <p style="font-size: 8px; margin-bottom: 20px;">© B2.st STUDIO</p>
-      <p class="blink">PRESS ENTER TO START</p>
-    </div>
-  </div>
+    <!-- Glowing Orbs in Background -->
+    <div class="fixed top-[-10%] right-[-5%] w-[500px] h-[500px] bg-mario-red/15 rounded-full blur-[140px] pointer-events-none z-0"></div>
+    <div class="fixed top-[45%] left-[-10%] w-[550px] h-[550px] bg-mario-blue/15 rounded-full blur-[160px] pointer-events-none z-0"></div>
+    <div class="fixed bottom-[-10%] right-[30%] w-[600px] h-[600px] bg-mario-gold/10 rounded-full blur-[150px] pointer-events-none z-0"></div>
 
-  <!-- Health Badge -->
-  <div id="health-badge" class="healthy" title="کلیک برای جزئیات سلامت">● HEALTHY</div>
+    <!-- Navigation Bar -->
+    <header class="sticky top-0 z-50 px-4 sm:px-8 py-4 transition-all duration-300" id="navbar">
+        <div class="max-w-7xl mx-auto glass-panel rounded-2xl px-5 py-3.5 flex items-center justify-between shadow-2xl shadow-black/40">
+            <!-- Studio Brand & Mario Badge -->
+            <div class="flex items-center gap-3">
+                <a href="#" class="flex items-center gap-2 group">
+                    <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-mario-red to-rose-500 flex items-center justify-center shadow-neon-red group-hover:scale-105 transition-transform duration-300">
+                        <span class="font-retro text-white text-base font-bold">M</span>
+                    </div>
+                    <div class="flex flex-col">
+                        <span class="font-extrabold text-lg tracking-tight flex items-center gap-1.5">
+                            سوپرماریو
+                            <span class="text-[10px] px-2 py-0.5 rounded-full bg-mario-gold/20 text-mario-gold font-retro border border-mario-gold/30">HTML5</span>
+                        </span>
+                        <span class="text-[11px] text-slate-400 font-medium">B2.st Studio Edition</span>
+                    </div>
+                </a>
+            </div>
 
-  <script>
-    /**
-     * ═══════════════════════════════════════════════════════════════
-     *  🎮 B2.st Mario — Client-Side Game + Health Monitor
-     * ═══════════════════════════════════════════════════════════════
-     */
+            <!-- Navigation Links -->
+            <nav class="hidden md:flex items-center gap-8 text-sm font-medium text-slate-300">
+                <a href="#features" class="hover:text-white transition-colors duration-200">ویژگی‌ها</a>
+                <a href="#preview" class="hover:text-white transition-colors duration-200">پیش‌نمایش گیم‌پلی</a>
+                <a href="#powerups" class="hover:text-white transition-colors duration-200">آیتم‌ها و قدرت‌ها</a>
+                <a href="#controls" class="hover:text-white transition-colors duration-200">کنترل‌ها</a>
+            </nav>
 
-    // ── Health Monitor (Browser Version) ──
-    class HealthMonitor {
-      constructor(config = {}) {
-        this.config = {
-          checkIntervalMs:        config.checkIntervalMs        ?? 5000,
-          memoryThresholdMB:      config.memoryThresholdMB      ?? 512,
-          fpsThreshold:           config.fpsThreshold           ?? 30,
-          maxEntityCount:         config.maxEntityCount         ?? 1000,
-          physicsStepThresholdMs: config.physicsStepThresholdMs ?? 16,
-          renderStepThresholdMs:  config.renderStepThresholdMs  ?? 16,
-          historySize:            config.historySize            ?? 100,
-        };
-        this.metrics = {
-          uptime: 0, fps: 60, memoryUsageMB: 0, entityCount: 0,
-          physicsStepMs: 0, renderStepMs: 0, collisionChecks: 0,
-        };
-        this.status = 'healthy';
-        this.history = [];
-        this._frameCount = 0;
-        this._fpsTimer = 0;
-        this._startTime = performance.now();
-      }
+            <!-- Actions: SFX & Play CTA -->
+            <div class="flex items-center gap-3">
+                <button id="sfx-toggle" title="تغییر وضعیت افکت‌های صوتی رترو" class="glass-badge p-2.5 rounded-xl hover:bg-white/10 text-slate-300 hover:text-mario-gold transition-all duration-200">
+                    <svg id="sfx-icon" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"/>
+                    </svg>
+                </button>
+                <a href="#game-launcher" class="relative group overflow-hidden rounded-xl bg-gradient-to-r from-mario-red to-red-600 px-5 py-2.5 text-xs sm:text-sm font-bold text-white shadow-neon-red hover:shadow-red-500/50 hover:scale-[1.02] active:scale-95 transition-all duration-200 flex items-center gap-2">
+                    <span class="font-retro text-[10px]">▶</span>
+                    <span>اجرای آنلاین بازی</span>
+                </a>
+            </div>
+        </div>
+    </header>
 
-      tick(dt) {
-        this._frameCount++;
-        this._fpsTimer += dt;
-        this.metrics.uptime = (performance.now() - this._startTime) / 1000;
-        if (this._fpsTimer >= 1.0) {
-          this.metrics.fps = Math.round(this._frameCount / this._fpsTimer);
-          this._frameCount = 0;
-          this._fpsTimer = 0;
-        }
-      }
+    <main class="relative z-10">
+        <!-- Hero Section -->
+        <section class="max-w-7xl mx-auto px-4 sm:px-8 pt-10 pb-20 lg:pt-16 lg:pb-32">
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
+                
+                <!-- Left: Headline & Copywriting -->
+                <div class="lg:col-span-7 space-y-6 text-center lg:text-right">
+                    <div class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full glass-badge text-xs font-medium text-slate-300 border border-white/10">
+                        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+                        <span>نسل جدید گیم‌پلی رترو • بدون وابستگی جانبی</span>
+                    </div>
 
-      updateMetrics(partial) {
-        if (!partial || typeof partial !== 'object') return;
-        Object.keys(partial).forEach(k => { if (k in this.metrics) this.metrics[k] = partial[k]; });
-      }
+                    <h1 class="text-3xl sm:text-5xl lg:text-6xl font-black tracking-tight leading-[1.25]">
+                        بازگشت قهرمان خاطره‌ها؛<br>
+                        <span class="text-transparent bg-clip-text bg-gradient-to-r from-mario-red via-mario-gold to-rose-400">
+                            ماریو در دنیای وب مدرن
+                        </span>
+                    </h1>
 
-      evaluate() {
-        const checks = [];
-        let failCount = 0;
+                    <p class="text-slate-300 text-base sm:text-lg leading-relaxed max-w-2xl mx-auto lg:mx-0 font-normal">
+                        یک بازسازی خارق‌العاده و سبک‌وزن در قالب یک فایل HTML؛ بهره‌مند از موتور فیزیک روان نیوتنی، افکت‌های صوتی رترو به‌کمک Web Audio API و رابط کاربری شیشه‌ای لوکس طراحی‌شده توسط <span class="text-white font-semibold underline decoration-mario-red decoration-2 underline-offset-4">B2.st Studio</span>.
+                    </p>
 
-        const check = (name, value, threshold, comp) => {
-          let status = 'pass';
-          if (comp === 'gte' && value < threshold) status = value < threshold * 0.5 ? 'critical' : 'fail';
-          if (comp === 'lte' && value > threshold) status = value > threshold * 2 ? 'critical' : 'fail';
-          if (status !== 'pass') failCount++;
-          checks.push({ name, status, value, threshold });
-        };
+                    <!-- Interactive Badges & CTAs -->
+                    <div class="pt-2 flex flex-wrap items-center justify-center lg:justify-start gap-4">
+                        <button onclick="playRetroSound('coin'); scrollToLauncher();" class="px-7 py-3.5 rounded-xl bg-gradient-to-r from-mario-red to-red-600 hover:from-red-500 hover:to-mario-red text-white font-bold text-sm shadow-neon-red hover:shadow-red-500/60 transition-all duration-300 flex items-center gap-3 group">
+                            <span>ورود به بازی</span>
+                            <span class="font-retro text-xs group-hover:translate-x-[-4px] transition-transform">◀</span>
+                        </button>
+                        
+                        <button onclick="playRetroSound('jump')" class="px-6 py-3.5 rounded-xl glass-card hover:bg-white/10 text-slate-200 font-semibold text-sm border border-white/15 transition-all duration-300 flex items-center gap-2.5">
+                            <span class="font-retro text-mario-gold text-xs">?</span>
+                            <span>تست صدای رترو</span>
+                        </button>
+                    </div>
 
-        check('fps', this.metrics.fps, this.config.fpsThreshold, 'gte');
-        check('memory', this.metrics.memoryUsageMB, this.config.memoryThresholdMB, 'lte');
-        check('entityCount', this.metrics.entityCount, this.config.maxEntityCount, 'lte');
+                    <!-- Trust / Specs Grid -->
+                    <div class="pt-8 border-t border-white/10 grid grid-cols-3 gap-4 max-w-md mx-auto lg:mx-0 text-center">
+                        <div class="glass-card rounded-xl p-3 border border-white/5">
+                            <div class="font-retro text-mario-gold text-lg lg:text-xl">60</div>
+                            <div class="text-[11px] text-slate-400 mt-1 font-medium">فریم در ثانیه (FPS)</div>
+                        </div>
+                        <div class="glass-card rounded-xl p-3 border border-white/5">
+                            <div class="font-retro text-mario-pipe text-lg lg:text-xl">&lt;150k</div>
+                            <div class="text-[11px] text-slate-400 mt-1 font-medium">حجم کل پکیج</div>
+                        </div>
+                        <div class="glass-card rounded-xl p-3 border border-white/5">
+                            <div class="font-retro text-cyan-400 text-lg lg:text-xl">0</div>
+                            <div class="text-[11px] text-slate-400 mt-1 font-medium">وابستگی و کتابخانه</div>
+                        </div>
+                    </div>
+                </div>
 
-        this.status = failCount >= 3 ? 'critical' : failCount > 0 ? 'degraded' : 'healthy';
+                <!-- Right: Interactive Glassmorphic Visual Showcase -->
+                <div class="lg:col-span-5 relative flex justify-center">
+                    <!-- Retro Question Box & Floating Assets -->
+                    <div class="relative w-full max-w-[420px] aspect-[4/5] glass-panel rounded-3xl p-6 shadow-2xl border border-white/15 overflow-hidden flex flex-col justify-between crt-overlay group">
+                        
+                        <!-- Top HUD Bar inside Glass Card -->
+                        <div class="flex items-center justify-between text-xs font-retro border-b border-white/10 pb-4">
+                            <div class="flex flex-col">
+                                <span class="text-mario-red">MARIO</span>
+                                <span id="hero-score" class="text-white mt-1">004280</span>
+                            </div>
+                            <div class="flex flex-col items-center">
+                                <span class="text-mario-gold flex items-center gap-1">
+                                    <span class="inline-block w-2.5 h-3 bg-mario-gold rounded-[2px] animate-pulse"></span> x14
+                                </span>
+                                <span class="text-slate-400 mt-1">COINS</span>
+                            </div>
+                            <div class="flex flex-col text-left">
+                                <span class="text-cyan-400">WORLD</span>
+                                <span class="text-white mt-1">1 - 1</span>
+                            </div>
+                        </div>
 
-        const report = { timestamp: Date.now(), status: this.status, checks, metrics: { ...this.metrics } };
-        this.history.push(report);
-        if (this.history.length > this.config.historySize) this.history.shift();
-        return report;
-      }
+                        <!-- Center Character / Interactive Scene -->
+                        <div class="my-auto relative flex flex-col items-center justify-center py-6">
+                            <!-- Glow Behind Mario -->
+                            <div class="absolute w-48 h-48 bg-mario-gold/20 rounded-full blur-2xl group-hover:bg-mario-red/30 transition-all duration-500"></div>
 
-      getReport() { return this.evaluate(); }
-    }
+                            <!-- Interactive Pixel Mario SVG Graphic -->
+                            <div id="mario-character" onclick="interactiveMarioJump()" class="cursor-pointer transition-transform duration-200 active:scale-90 flex flex-col items-center relative z-10 animate-float">
+                                <!-- Coin Popup Container -->
+                                <div id="coin-popup" class="absolute -top-12 opacity-0 pointer-events-none transition-all duration-500 font-retro text-mario-gold text-xs flex items-center gap-1">
+                                    🪙 +200
+                                </div>
 
-    // ── Game Engine ──
-    const canvas = document.getElementById('game-canvas');
-    const ctx = canvas.getContext('2d');
-    const startScreen = document.getElementById('start-screen');
-    const healthBadge = document.getElementById('health-badge');
+                                <!-- Custom SVG Mario Avatar 8-bit Inspired -->
+                                <svg class="w-36 h-36 drop-shadow-[0_15px_25px_rgba(0,0,0,0.7)]" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                    <!-- Hat & Shirt (Red) -->
+                                    <path d="M4 1h5v1h2v1h1v1h1v1H8v1H5v-1H3V3h1V2h-1V1h1z" fill="#FF2A2A"/>
+                                    <!-- Face / Skin Tone -->
+                                    <path d="M4 3h4v1h3v1h1v1h-1v1h-2v1H6V7H4V6H3V4h1V3z" fill="#FBBF24"/>
+                                    <!-- Hair & Mustache (Brown/Black) -->
+                                    <path d="M2 4h2v2H2V4zm2 2h2v1H4V6zm5 0h1v2H9V6zm1 0h2v1h-2V6zm-3 2h2v1H7V8z" fill="#451A03"/>
+                                    <!-- Overalls (Blue) -->
+                                    <path d="M4 8h2v1h1v1h2v-1h1V8h2v4h-1v1h-2v2H7v-2H5v-1H4V8z" fill="#2563EB"/>
+                                    <!-- Buttons (Gold) -->
+                                    <rect x="5" y="9" width="1" height="1" fill="#FEF08A"/>
+                                    <rect x="10" y="9" width="1" height="1" fill="#FEF08A"/>
+                                    <!-- Shoes (Brown) -->
+                                    <path d="M3 13h3v2H2v-1h1v-1zm7 0h3v1h1v1H9v-2h1z" fill="#78350F"/>
+                                </svg>
 
-    const TILE = 16;
-    const SCALE = 3;
-    const GRAVITY = 0.7;
-    const FRICTION = 0.85;
+                                <span class="text-[11px] font-retro text-slate-300 mt-3 px-3 py-1 rounded-full bg-black/40 border border-white/10 backdrop-blur-sm">
+                                    کلیک کن بپره! 🍄
+                                </span>
+                            </div>
+                        </div>
 
-    // Game state
-    const game = {
-      running: false,
-      score: 0,
-      coins: 0,
-      lives: 3,
-      time: 400,
-      world: '1-1',
-      lastTime: 0,
-      timeAccum: 0,
-    };
+                        <!-- Bottom Level Mini-Platform -->
+                        <div class="relative pt-2">
+                            <!-- Brick Block Row -->
+                            <div class="flex items-center justify-center gap-2">
+                                <div onclick="playRetroSound('brick')" class="w-12 h-12 rounded-lg bg-amber-800/80 border-2 border-amber-600 flex items-center justify-center shadow-md cursor-pointer hover:scale-105 active:scale-95 transition-transform">
+                                    <div class="grid grid-cols-2 gap-1 w-full h-full p-1 opacity-70">
+                                        <div class="border-b border-amber-950"></div>
+                                        <div class="border-b border-amber-950"></div>
+                                        <div class="border-b border-amber-950"></div>
+                                        <div class="border-b border-amber-950"></div>
+                                    </div>
+                                </div>
 
-    // Camera
-    const camera = { x: 0, y: 0, width: canvas.width, height: canvas.height };
+                                <div onclick="interactiveQuestionBlock(this)" class="w-12 h-12 rounded-lg bg-gradient-to-b from-mario-gold to-amber-500 border-2 border-yellow-200 flex items-center justify-center font-retro text-black text-xl font-bold shadow-neon-gold cursor-pointer hover:scale-110 active:scale-95 transition-all">
+                                    ?
+                                </div>
 
-    // Mario
-    const mario = {
-      x: 50, y: 400, width: 16, height: 16,
-      vx: 0, vy: 0,
-      speed: 3, jumpForce: -10,
-      grounded: false,
-      facing: 1,
-      frame: 0, frameTimer: 0,
-      state: 'small', // small | big | fire
-      alive: true,
-    };
+                                <div onclick="playRetroSound('brick')" class="w-12 h-12 rounded-lg bg-amber-800/80 border-2 border-amber-600 flex items-center justify-center shadow-md cursor-pointer hover:scale-105 active:scale-95 transition-transform">
+                                    <div class="grid grid-cols-2 gap-1 w-full h-full p-1 opacity-70">
+                                        <div class="border-b border-amber-950"></div>
+                                        <div class="border-b border-amber-950"></div>
+                                        <div class="border-b border-amber-950"></div>
+                                        <div class="border-b border-amber-950"></div>
+                                    </div>
+                                </div>
 
-    // Input
-    const keys = {};
-    window.addEventListener('keydown', e => {
-      keys[e.code] = true;
-      if (e.code === 'Enter' && !game.running) startGame();
-    });
-    window.addEventListener('keyup', e => { keys[e.code] = false; });
+                                <!-- Warp Pipe -->
+                                <div onclick="playRetroSound('pipe')" class="w-14 h-16 rounded-t-lg bg-gradient-to-r from-emerald-600 via-emerald-400 to-emerald-700 border-2 border-emerald-300 shadow-neon-pipe cursor-pointer hover:brightness-110 transition-all flex flex-col justify-between p-1">
+                                    <div class="h-3 w-full bg-emerald-500 rounded-sm"></div>
+                                    <div class="text-[9px] font-retro text-center text-emerald-950 font-bold opacity-80">PIPE</div>
+                                </div>
+                            </div>
+                        </div>
 
-    // Level data (simplified World 1-1 layout)
-    const levelData = {
-      width: 220,
-      height: 15,
-      tiles: [],
-    };
+                    </div>
+                </div>
 
-    function generateLevel() {
-      const w = levelData.width;
-      const h = levelData.height;
-      levelData.tiles = [];
+            </div>
+        </section>
 
-      for (let x = 0; x < w; x++) {
-        for (let y = 0; y < h; y++) {
-          // Ground
-          if (y >= 13) {
-            // Gaps
-            if ((x >= 69 && x <= 70) || (x >= 86 && x <= 88)) continue;
-            levelData.tiles.push({ x: x * TILE, y: y * TILE, w: TILE, h: TILE, type: 'ground' });
-          }
-          // Pipes
-          if (x === 28 && y >= 11 && y <= 12) levelData.tiles.push({ x: x * TILE, y: y * TILE, w: TILE, h: TILE, type: 'pipe' });
-          if (x === 29 && y >= 11 && y <= 12) levelData.tiles.push({ x: x * TILE, y: y * TILE, w: TILE, h: TILE, type: 'pipe' });
-          if (x === 38 && y >= 10 && y <= 12) levelData.tiles.push({ x: x * TILE, y: y * TILE, w: TILE, h: TILE, type: 'pipe' });
-          if (x === 39 && y >= 10 && y <= 12) levelData.tiles.push({ x: x * TILE, y: y * TILE, w: TILE, h: TILE, type: 'pipe' });
-          if (x === 46 && y >= 9 && y <= 12) levelData.tiles.push({ x: x * TILE, y: y * TILE, w: TILE, h: TILE, type: 'pipe' });
-          if (x === 47 && y >= 9 && y <= 12) levelData.tiles.push({ x: x * TILE, y: y * TILE, w: TILE, h: TILE, type: 'pipe' });
-          // Question blocks
-          if (y === 9 && (x === 16 || x === 21 || x === 22 || x === 23)) {
-            levelData.tiles.push({ x: x * TILE, y: y * TILE, w: TILE, h: TILE, type: 'question' });
-          }
-          if (y === 5 && x === 22) {
-            levelData.tiles.push({ x: x * TILE, y: y * TILE, w: TILE, h: TILE, type: 'question' });
-          }
-          // Brick blocks
-          if (y === 9 && (x === 20 || x === 24)) {
-            levelData.tiles.push({ x: x * TILE, y: y * TILE, w: TILE, h: TILE, type: 'brick' });
-          }
-          // Stairs (end of level)
-          if (x >= 134 && x <= 142) {
-            const stairHeight = x - 134 + 1;
-            if (y >= 13 - stairHeight && y <= 12) {
-              levelData.tiles.push({ x: x * TILE, y: y * TILE, w: TILE, h: TILE, type: 'ground' });
+        <!-- Product Features (B2.st Studio Glass Grid) -->
+        <section id="features" class="max-w-7xl mx-auto px-4 sm:px-8 py-20 border-t border-white/5">
+            <div class="text-center max-w-3xl mx-auto space-y-4 mb-16">
+                <div class="inline-block px-3 py-1 rounded-full glass-badge text-xs font-semibold text-mario-gold">
+                    معماری فنی و تجربه کاربری
+                </div>
+                <h2 class="text-3xl sm:text-4xl font-black">
+                    چرا این پیاده‌سازی ماریو متفاوت است؟
+                </h2>
+                <p class="text-slate-400 text-sm sm:text-base">
+                    طراحی شده با استانداردهای استودیو B2.st؛ ترکیب زیبایی‌شناسی گلس‌مورفیسم، مهندسی عملکرد بی‌نقص در وب و احترام به روح بازی خاطره‌انگیز Nintendo.
+                </p>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <!-- Card 1 -->
+                <div class="glass-card rounded-2xl p-6 hover:border-mario-red/40 hover:-translate-y-1.5 transition-all duration-300 group">
+                    <div class="w-12 h-12 rounded-xl bg-mario-red/20 border border-mario-red/30 flex items-center justify-center text-mario-red mb-5 group-hover:scale-110 group-hover:bg-mario-red group-hover:text-white transition-all">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                    </div>
+                    <h3 class="font-bold text-lg text-white mb-2">فیزیک نیوتنی رترو</h3>
+                    <p class="text-slate-400 text-xs sm:text-sm leading-relaxed">
+                        شبیه‌سازی دقیق شتاب، اینرسی، اصطکاک سطوح مختلف، جاذبه پرش و برخورد دقیق پیکسلی (AABB Collision).
+                    </p>
+                </div>
+
+                <!-- Card 2 -->
+                <div class="glass-card rounded-2xl p-6 hover:border-mario-gold/40 hover:-translate-y-1.5 transition-all duration-300 group">
+                    <div class="w-12 h-12 rounded-xl bg-mario-gold/20 border border-mario-gold/30 flex items-center justify-center text-mario-gold mb-5 group-hover:scale-110 group-hover:bg-mario-gold group-hover:text-black transition-all">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3"/></svg>
+                    </div>
+                    <h3 class="font-bold text-lg text-white mb-2">سنتز صدای Web Audio</h3>
+                    <p class="text-slate-400 text-xs sm:text-sm leading-relaxed">
+                        تولید مستقیم شکل‌موج‌های صوتی اسکوئر و نویز ۸بیتی در مرورگر بدون نیاز به دانلود فایل‌های صوتی سنگین خارجی.
+                    </p>
+                </div>
+
+                <!-- Card 3 -->
+                <div class="glass-card rounded-2xl p-6 hover:border-mario-pipe/40 hover:-translate-y-1.5 transition-all duration-300 group">
+                    <div class="w-12 h-12 rounded-xl bg-mario-pipe/20 border border-mario-pipe/30 flex items-center justify-center text-mario-pipe mb-5 group-hover:scale-110 group-hover:bg-mario-pipe group-hover:text-white transition-all">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
+                    </div>
+                    <h3 class="font-bold text-lg text-white mb-2">طراحی صددرصد واکنش‌گرا</h3>
+                    <p class="text-slate-400 text-xs sm:text-sm leading-relaxed">
+                        سازگاری کامل با نمایشگرهای موبایل، تبلت و دسکتاپ با دی‌پد لمسی ارگونومیک اختصاصی برای گوشی‌ها.
+                    </p>
+                </div>
+
+                <!-- Card 4 -->
+                <div class="glass-card rounded-2xl p-6 hover:border-cyan-400/40 hover:-translate-y-1.5 transition-all duration-300 group">
+                    <div class="w-12 h-12 rounded-xl bg-cyan-400/20 border border-cyan-400/30 flex items-center justify-center text-cyan-400 mb-5 group-hover:scale-110 group-hover:bg-cyan-400 group-hover:text-black transition-all">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z"/></svg>
+                    </div>
+                    <h3 class="font-bold text-lg text-white mb-2">یک فایل مستقل HTML</h3>
+                    <p class="text-slate-400 text-xs sm:text-sm leading-relaxed">
+                        کدنویسی تمیز، سبک، آماده اجرا به‌صورت آفلاین و امکان میزبانی آسان در هر سرور استاتیک یا گیت‌هاب پیجز.
+                    </p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Powerups & Characters Showcase -->
+        <section id="powerups" class="max-w-7xl mx-auto px-4 sm:px-8 py-20">
+            <div class="glass-panel rounded-3xl p-8 lg:p-12 relative overflow-hidden border border-white/10">
+                <div class="absolute top-0 right-0 w-96 h-96 bg-mario-red/10 rounded-full blur-3xl pointer-events-none"></div>
+
+                <div class="flex flex-col lg:flex-row items-center justify-between gap-8 mb-12">
+                    <div>
+                        <span class="text-xs font-retro text-mario-red tracking-wider">ARSENAL & POWERS</span>
+                        <h2 class="text-2xl sm:text-3xl font-black text-white mt-1">جعبه ابزار قدرت‌ها و دشمنان</h2>
+                    </div>
+                    <p class="text-slate-400 text-sm max-w-md lg:text-left">
+                        تمامی آیتم‌های کلاسیک با رفتار هوشمند و دقیق بازسازی شده‌اند. روی هر آیتم کلیک کنید تا تاثیرش را بشنوید!
+                    </p>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                    <!-- Super Mushroom -->
+                    <div onclick="playRetroSound('powerup')" class="glass-card rounded-2xl p-6 text-center cursor-pointer hover:border-red-400/50 hover:bg-white/[0.08] transition-all duration-300">
+                        <div class="w-16 h-16 mx-auto mb-4 rounded-2xl bg-red-500/20 border border-red-500/30 flex items-center justify-center text-3xl shadow-neon-red">
+                            🍄
+                        </div>
+                        <h4 class="font-bold text-white text-base">قارچ جادویی (Super Mushroom)</h4>
+                        <p class="text-slate-400 text-xs mt-2 leading-relaxed">افزایش قد ماریو، توانایی شکستن بلوک‌های آجری سخت و دوام در برابر ۱ ضربه دشمن.</p>
+                        <span class="inline-block mt-4 text-[10px] font-retro text-mario-red">+1000 PTS</span>
+                    </div>
+
+                    <!-- Fire Flower -->
+                    <div onclick="playRetroSound('fireball')" class="glass-card rounded-2xl p-6 text-center cursor-pointer hover:border-amber-400/50 hover:bg-white/[0.08] transition-all duration-300">
+                        <div class="w-16 h-16 mx-auto mb-4 rounded-2xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-3xl shadow-neon-gold">
+                            🔥
+                        </div>
+                        <h4 class="font-bold text-white text-base">گل آتشین (Fire Flower)</h4>
+                        <p class="text-slate-400 text-xs mt-2 leading-relaxed">تبدیل ماریو به فایر ماریو با قابلیت پرتاب گلوله‌های آتش جهنده برای نابودی دشمنان.</p>
+                        <span class="inline-block mt-4 text-[10px] font-retro text-amber-400">PROJECTILE</span>
+                    </div>
+
+                    <!-- Super Star -->
+                    <div onclick="playRetroSound('star')" class="glass-card rounded-2xl p-6 text-center cursor-pointer hover:border-yellow-300/50 hover:bg-white/[0.08] transition-all duration-300">
+                        <div class="w-16 h-16 mx-auto mb-4 rounded-2xl bg-yellow-400/20 border border-yellow-400/30 flex items-center justify-center text-3xl shadow-neon-gold">
+                            ⭐
+                        </div>
+                        <h4 class="font-bold text-white text-base">ستاره شکست‌ناپذیر (Starman)</h4>
+                        <p class="text-slate-400 text-xs mt-2 leading-relaxed">رویین‌تنی موقت، دو برابر شدن سرعت دویدن و نابودی آنی هر دشمنی که لمس شود.</p>
+                        <span class="inline-block mt-4 text-[10px] font-retro text-yellow-300">INVINCIBLE</span>
+                    </div>
+
+                    <!-- Goomba -->
+                    <div onclick="playRetroSound('stomp')" class="glass-card rounded-2xl p-6 text-center cursor-pointer hover:border-orange-500/50 hover:bg-white/[0.08] transition-all duration-300">
+                        <div class="w-16 h-16 mx-auto mb-4 rounded-2xl bg-orange-700/20 border border-orange-600/30 flex items-center justify-center text-3xl">
+                            🌰
+                        </div>
+                        <h4 class="font-bold text-white text-base">گومبا (Goomba)</h4>
+                        <p class="text-slate-400 text-xs mt-2 leading-relaxed">سرباز پیاده ارتش باوزر؛ هوش مصنوعی مسیرگرد با قابلیت له شدن در اثر پرش روی سر.</p>
+                        <span class="inline-block mt-4 text-[10px] font-retro text-slate-400">STOMP TO WIN</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Controls Guide Section -->
+        <section id="controls" class="max-w-7xl mx-auto px-4 sm:px-8 py-20 border-t border-white/5">
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
+                <!-- Info -->
+                <div class="lg:col-span-5 space-y-6">
+                    <span class="px-3 py-1 rounded-full glass-badge text-xs font-semibold text-cyan-400">راهنمای کلیدها</span>
+                    <h2 class="text-3xl font-black">تسلط کامل در یک چشم برهم زدن</h2>
+                    <p class="text-slate-300 text-sm leading-relaxed">
+                        فرقی نمی‌کند پشت کیبورد گیمینگ نشسته باشید یا با گوشی لمسی خود وارد بازی شوید؛ چیدمان کنترل‌ها به شکلی ارگونومیک بهینه‌سازی شده تا بالاترین میزان دقت و کمترین تاخیر ورودی را تجربه کنید.
+                    </p>
+
+                    <div class="space-y-3 pt-2">
+                        <div class="flex items-center gap-3 text-sm text-slate-300">
+                            <span class="w-6 h-6 rounded-md bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-xs">✓</span>
+                            <span>پشتیبانی از کلیدهای جهت‌نما و WASD به صورت همزمان</span>
+                        </div>
+                        <div class="flex items-center gap-3 text-sm text-slate-300">
+                            <span class="w-6 h-6 rounded-md bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-xs">✓</span>
+                            <span>جوی‌استیک و دکمه‌های لمسی شفاف خودکار روی گوشی</span>
+                        </div>
+                        <div class="flex items-center gap-3 text-sm text-slate-300">
+                            <span class="w-6 h-6 rounded-md bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-xs">✓</span>
+                            <span>پشتیبانی از Gamepad فیزیکی با استاندارد مرورگر</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Keyboard Glass Visual Map -->
+                <div class="lg:col-span-7 glass-panel rounded-3xl p-6 sm:p-8 border border-white/10 shadow-2xl">
+                    <div class="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                        
+                        <!-- Key: Jump -->
+                        <div class="glass-card rounded-xl p-4 flex flex-col justify-between border border-white/5 hover:border-mario-red/40 transition-all">
+                            <div class="flex items-center justify-between mb-3">
+                                <span class="text-xs text-slate-400">پرش بلند / تایید</span>
+                                <span class="font-retro text-[10px] text-mario-red">JUMP</span>
+                            </div>
+                            <div class="flex gap-2">
+                                <kbd class="px-2.5 py-1.5 rounded-lg bg-black/60 border border-white/20 font-retro text-xs text-white shadow-inner">Space</kbd>
+                                <kbd class="px-2.5 py-1.5 rounded-lg bg-black/60 border border-white/20 font-retro text-xs text-white shadow-inner">Z</kbd>
+                            </div>
+                        </div>
+
+                        <!-- Key: Run / Fire -->
+                        <div class="glass-card rounded-xl p-4 flex flex-col justify-between border border-white/5 hover:border-mario-gold/40 transition-all">
+                            <div class="flex items-center justify-between mb-3">
+                                <span class="text-xs text-slate-400">دویدن سریع / آتش</span>
+                                <span class="font-retro text-[10px] text-mario-gold">SPRINT</span>
+                            </div>
+                            <div class="flex gap-2">
+                                <kbd class="px-2.5 py-1.5 rounded-lg bg-black/60 border border-white/20 font-retro text-xs text-white shadow-inner">Shift</kbd>
+                                <kbd class="px-2.5 py-1.5 rounded-lg bg-black/60 border border-white/20 font-retro text-xs text-white shadow-inner">X</kbd>
+                            </div>
+                        </div>
+
+                        <!-- Key: Movement -->
+                        <div class="glass-card rounded-xl p-4 flex flex-col justify-between border border-white/5 hover:border-cyan-400/40 transition-all">
+                            <div class="flex items-center justify-between mb-3">
+                                <span class="text-xs text-slate-400">حرکت چپ و راست</span>
+                                <span class="font-retro text-[10px] text-cyan-400">MOVE</span>
+                            </div>
+                            <div class="flex gap-1.5">
+                                <kbd class="px-2 py-1 rounded bg-black/60 border border-white/20 font-retro text-xs text-white">←</kbd>
+                                <kbd class="px-2 py-1 rounded bg-black/60 border border-white/20 font-retro text-xs text-white">→</kbd>
+                                <span class="text-xs text-slate-400 self-center">یا A / D</span>
+                            </div>
+                        </div>
+
+                        <!-- Key: Crouch / Pipe Down -->
+                        <div class="glass-card rounded-xl p-4 flex flex-col justify-between border border-white/5 hover:border-mario-pipe/40 transition-all">
+                            <div class="flex items-center justify-between mb-3">
+                                <span class="text-xs text-slate-400">نشستن / ورود لوله</span>
+                                <span class="font-retro text-[10px] text-mario-pipe">DUCK</span>
+                            </div>
+                            <div class="flex gap-2">
+                                <kbd class="px-2.5 py-1.5 rounded-lg bg-black/60 border border-white/20 font-retro text-xs text-white">↓</kbd>
+                                <kbd class="px-2.5 py-1.5 rounded-lg bg-black/60 border border-white/20 font-retro text-xs text-white">S</kbd>
+                            </div>
+                        </div>
+
+                        <!-- Key: Pause -->
+                        <div class="glass-card rounded-xl p-4 flex flex-col justify-between border border-white/5 hover:border-purple-400/40 transition-all">
+                            <div class="flex items-center justify-between mb-3">
+                                <span class="text-xs text-slate-400">توقف موقت بازی</span>
+                                <span class="font-retro text-[10px] text-purple-400">PAUSE</span>
+                            </div>
+                            <div>
+                                <kbd class="px-2.5 py-1.5 rounded-lg bg-black/60 border border-white/20 font-retro text-xs text-white">ESC / P</kbd>
+                            </div>
+                        </div>
+
+                        <!-- Key: Fullscreen -->
+                        <div class="glass-card rounded-xl p-4 flex flex-col justify-between border border-white/5 hover:border-rose-400/40 transition-all">
+                            <div class="flex items-center justify-between mb-3">
+                                <span class="text-xs text-slate-400">حالت تمام‌صفحه</span>
+                                <span class="font-retro text-[10px] text-rose-400">FULLSCREEN</span>
+                            </div>
+                            <div>
+                                <kbd class="px-2.5 py-1.5 rounded-lg bg-black/60 border border-white/20 font-retro text-xs text-white">F11 / F</kbd>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Interactive Game Launcher CTA / Sandbox Preview -->
+        <section id="game-launcher" class="max-w-7xl mx-auto px-4 sm:px-8 py-20">
+            <div class="relative rounded-3xl overflow-hidden p-8 sm:p-14 text-center glass-panel border border-white/20 shadow-2xl">
+                <!-- Background Glowing accents -->
+                <div class="absolute inset-0 bg-gradient-to-b from-mario-red/10 via-transparent to-mario-blue/10 pointer-events-none"></div>
+
+                <div class="max-w-3xl mx-auto space-y-6 relative z-10">
+                    <span class="inline-block font-retro text-mario-gold text-xs tracking-widest uppercase">
+                        ★ WORLD 1-1 READY ★
+                    </span>
+                    <h2 class="text-3xl sm:text-5xl font-black tracking-tight text-white">
+                        پرنسس پیچ منتظر شماست!<br>
+                        ماجراجویی را همین لحظه آغاز کنید
+                    </h2>
+                    <p class="text-slate-300 text-sm sm:text-base leading-relaxed">
+                        هیچ نصبی نیاز نیست. روی دکمه شروع کلیک کنید تا موتور رندرینگ درون همین مرورگر لود شود و بازی با نرخ ۶۰ فریم بر ثانیه اجرا گردد.
+                    </p>
+
+                    <!-- Large Launcher Action Button -->
+                    <div class="pt-6 flex flex-col sm:flex-row items-center justify-center gap-4">
+                        <button onclick="launchGameScreen()" class="w-full sm:w-auto px-10 py-5 rounded-2xl bg-gradient-to-r from-mario-red via-rose-600 to-red-600 hover:from-red-500 hover:to-rose-500 text-white font-black text-base shadow-neon-red hover:scale-105 active:scale-95 transition-all duration-300 flex items-center justify-center gap-3">
+                            <span class="font-retro text-sm">▶</span>
+                            <span>اجرای فوری گیم در مرورگر</span>
+                        </button>
+
+                        <button onclick="shareGame()" class="w-full sm:w-auto px-8 py-5 rounded-2xl glass-card hover:bg-white/10 text-white font-bold text-sm border border-white/15 transition-all duration-300 flex items-center justify-center gap-2">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"/></svg>
+                            <span>اشتراک‌گذاری با دوستان</span>
+                        </button>
+                    </div>
+
+                    <!-- Mini Live Toast Alert Container -->
+                    <div id="toast-message" class="hidden transition-all duration-300 inline-block mt-4 px-4 py-2 rounded-xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-xs font-medium">
+                        لینک بازی در کلیپ‌بورد کپی شد! 🍄
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Studio Footer -->
+    <footer class="border-t border-white/10 glass-panel py-12 px-4 sm:px-8 mt-12 relative z-10">
+        <div class="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6">
+            
+            <div class="flex items-center gap-3">
+                <div class="w-9 h-9 rounded-lg bg-gradient-to-tr from-mario-red to-rose-600 flex items-center justify-center font-retro text-white text-xs">
+                    B2
+                </div>
+                <div>
+                    <div class="font-extrabold text-sm text-white">طراحی اختصاصی در استودیو دیزاین B2.st</div>
+                    <div class="text-[11px] text-slate-400">کدنویسی استاندارد، بدون فریمورک سنگین، حداکثر نرخ فریم</div>
+                </div>
+            </div>
+
+            <div class="text-xs text-slate-500 text-center md:text-left leading-relaxed">
+                این پروژه جهت ادای احترام به سری بازی‌های Super Mario Bros تولید شده است.<br>
+                کلیه حقوق معنوی نام تجاری و شخصیت‌ها متعلق به شرکت Nintendo می‌باشد.
+            </div>
+
+            <div class="flex items-center gap-4 text-xs font-medium text-slate-400">
+                <a href="#features" class="hover:text-white transition-colors">ویژگی‌ها</a>
+                <span>•</span>
+                <a href="#controls" class="hover:text-white transition-colors">کنترل‌ها</a>
+                <span>•</span>
+                <a href="https://github.com" target="_blank" rel="noopener" class="hover:text-white transition-colors">گیت‌هاب</a>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Interactive JavaScript (Audio Synthesis & Interactions) -->
+    <script>
+        // Web Audio Synthesizer for Authentic 8-bit Sound FX (Zero Audio File Dependencies!)
+        let audioCtx = null;
+        let sfxEnabled = true;
+
+        function getAudioContext() {
+            if (!audioCtx) {
+                const AudioContext = window.AudioContext || window.webkitAudioContext;
+                audioCtx = new AudioContext();
             }
-          }
-          // Flag pole
-          if (x === 198 && y >= 2 && y <= 12) {
-            levelData.tiles.push({ x: x * TILE, y: y * TILE, w: 2, h: TILE, type: 'flagpole' });
-          }
-        }
-      }
-    }
-
-    // Enemies
-    let enemies = [];
-    function spawnEnemies() {
-      enemies = [
-        { x: 352, y: 192, width: 16, height: 16, vx: -0.5, type: 'goomba', alive: true, frame: 0 },
-        { x: 640, y: 192, width: 16, height: 16, vx: -0.5, type: 'goomba', alive: true, frame: 0 },
-        { x: 816, y: 192, width: 16, height: 16, vx: -0.5, type: 'goomba', alive: true, frame: 0 },
-        { x: 1280, y: 192, width: 16, height: 16, vx: -0.5, type: 'goomba', alive: true, frame: 0 },
-        { x: 1632, y: 192, width: 16, height: 16, vx: -0.5, type: 'goomba', alive: true, frame: 0 },
-      ];
-    }
-
-    // Coins collected particles
-    let particles = [];
-
-    // Health Monitor instance
-    const healthMonitor = new HealthMonitor({ fpsThreshold: 30, maxEntityCount: 500 });
-
-    // ── AABB Collision ──
-    function aabb(a, b) {
-      return a.x < b.x + b.w && a.x + a.width > b.x &&
-             a.y < b.y + b.h && a.y + a.height > b.y;
-    }
-
-    // ── Physics Update ──
-    function updatePhysics() {
-      const physStart = performance.now();
-
-      // Mario input
-      if (mario.alive) {
-        if (keys['ArrowRight'] || keys['KeyD']) {
-          mario.vx = mario.speed;
-          mario.facing = 1;
-        } else if (keys['ArrowLeft'] || keys['KeyA']) {
-          mario.vx = -mario.speed;
-          mario.facing = -1;
-        } else {
-          mario.vx *= FRICTION;
-          if (Math.abs(mario.vx) < 0.1) mario.vx = 0;
-        }
-
-        if ((keys['ArrowUp'] || keys['KeyW'] || keys['Space']) && mario.grounded) {
-          mario.vy = mario.jumpForce;
-          mario.grounded = false;
-        }
-      }
-
-      // Gravity
-      mario.vy += GRAVITY;
-      if (mario.vy > 12) mario.vy = 12;
-
-      // Move X
-      mario.x += mario.vx;
-      let collisions = 0;
-
-      // Tile collision X
-      for (const tile of levelData.tiles) {
-        if (tile.type === 'flagpole') continue;
-        collisions++;
-        if (aabb(mario, tile)) {
-          if (mario.vx > 0) {
-            mario.x = tile.x - mario.width;
-          } else if (mario.vx < 0) {
-            mario.x = tile.x + tile.w;
-          }
-          mario.vx = 0;
-        }
-      }
-
-      // Move Y
-      mario.y += mario.vy;
-      mario.grounded = false;
-
-      for (const tile of levelData.tiles) {
-        if (tile.type === 'flagpole') continue;
-        collisions++;
-        if (aabb(mario, tile)) {
-          if (mario.vy > 0) {
-            mario.y = tile.y - mario.height;
-            mario.vy = 0;
-            mario.grounded = true;
-          } else if (mario.vy < 0) {
-            mario.y = tile.y + tile.h;
-            mario.vy = 0;
-            // Hit question block
-            if (tile.type === 'question') {
-              tile.type = 'used';
-              game.coins++;
-              game.score += 200;
-              particles.push({
-                x: tile.x + 4, y: tile.y - 16,
-                vy: -3, life: 30, text: '🪙',
-              });
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
             }
-          }
+            return audioCtx;
         }
-      }
 
-      // Boundaries
-      if (mario.x < 0) mario.x = 0;
-      if (mario.y > canvas.height / SCALE + 32) {
-        mario.alive = false;
-        game.lives--;
-        if (game.lives > 0) {
-          setTimeout(() => {
-            mario.x = 50; mario.y = 400;
-            mario.vx = 0; mario.vy = 0;
-            mario.alive = true;
-          }, 1500);
-        }
-      }
+        // Toggle Sound Effects
+        const sfxToggleBtn = document.getElementById('sfx-toggle');
+        const sfxIcon = document.getElementById('sfx-icon');
 
-      // Enemy update
-      for (const enemy of enemies) {
-        if (!enemy.alive) continue;
-        enemy.x += enemy.vx;
-        enemy.frame += 0.05;
-
-        // Enemy-Mario collision
-        collisions++;
-        if (mario.alive && aabb(mario, { x: enemy.x, y: enemy.y, w: enemy.width, h: enemy.height })) {
-          if (mario.vy > 0 && mario.y + mario.height - 4 < enemy.y + enemy.height) {
-            // Stomp
-            enemy.alive = false;
-            mario.vy = -6;
-            game.score += 100;
-            particles.push({
-              x: enemy.x, y: enemy.y,
-              vy: -2, life: 20, text: '100',
-            });
-          } else {
-            // Mario hit
-            mario.alive = false;
-            mario.vy = -8;
-            game.lives--;
-            if (game.lives > 0) {
-              setTimeout(() => {
-                mario.x = 50; mario.y = 400;
-                mario.vx = 0; mario.vy = 0;
-                mario.alive = true;
-                camera.x = 0;
-              }, 1500);
+        sfxToggleBtn.addEventListener('click', () => {
+            sfxEnabled = !sfxEnabled;
+            if (sfxEnabled) {
+                sfxToggleBtn.classList.remove('opacity-50');
+                playRetroSound('coin');
+            } else {
+                sfxToggleBtn.classList.add('opacity-50');
             }
-          }
-        }
-      }
+        });
 
-      // Particles
-      particles = particles.filter(p => {
-        p.y += p.vy;
-        p.life--;
-        return p.life > 0;
-      });
+        // 8-Bit Tone Synthesizer
+        function playRetroSound(type) {
+            if (!sfxEnabled) return;
+            try {
+                const ctx = getAudioContext();
+                const now = ctx.currentTime;
 
-      // Camera follow
-      const targetCamX = mario.x - canvas.width / SCALE / 3;
-      camera.x += (targetCamX - camera.x) * 0.1;
-      if (camera.x < 0) camera.x = 0;
+                if (type === 'coin') {
+                    // Mario Coin Sound: B5 (987.77Hz) followed quickly by E6 (1318.51Hz)
+                    const osc = ctx.createOscillator();
+                    const gain = ctx.createGain();
+                    osc.type = 'square';
 
-      // Timer
-      game.timeAccum++;
-      if (game.timeAccum >= 24) {
-        game.timeAccum = 0;
-        game.time--;
-        if (game.time <= 0) {
-          mario.alive = false;
-          game.lives--;
-        }
-      }
+                    osc.frequency.setValueAtTime(987.77, now);
+                    osc.frequency.setValueAtTime(1318.51, now + 0.08);
 
-      // Animation
-      if (Math.abs(mario.vx) > 0.5) {
-        mario.frameTimer += 0.15;
-        mario.frame = Math.floor(mario.frameTimer) % 3;
-      } else {
-        mario.frame = 0;
-      }
+                    gain.gain.setValueAtTime(0.15, now);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
 
-      healthMonitor.updateMetrics({
-        collisionChecks: collisions,
-        entityCount: enemies.filter(e => e.alive).length + 1 + particles.length,
-        physicsStepMs: performance.now() - physStart,
-      });
-    }
+                    osc.connect(gain);
+                    gain.connect(ctx.destination);
+                    osc.start(now);
+                    osc.stop(now + 0.35);
 
-    // ── Render ──
-    function render() {
-      const renderStart = performance.now();
+                } else if (type === 'jump') {
+                    // Mario Jump: Fast upward frequency pitch glide
+                    const osc = ctx.createOscillator();
+                    const gain = ctx.createGain();
+                    osc.type = 'square';
 
-      ctx.save();
-      ctx.scale(SCALE, SCALE);
+                    osc.frequency.setValueAtTime(150, now);
+                    osc.frequency.exponentialRampToValueAtTime(600, now + 0.16);
 
-      const viewW = canvas.width / SCALE;
-      const viewH = canvas.height / SCALE;
+                    gain.gain.setValueAtTime(0.18, now);
+                    gain.gain.linearRampToValueAtTime(0.01, now + 0.16);
 
-      // Sky
-      ctx.fillStyle = '#6B8CFF';
-      ctx.fillRect(0, 0, viewW, viewH);
+                    osc.connect(gain);
+                    gain.connect(ctx.destination);
+                    osc.start(now);
+                    osc.stop(now + 0.16);
 
-      // Clouds (decorative)
-      ctx.fillStyle = '#fff';
-      for (let i = 0; i < 8; i++) {
-        const cx = (i * 300 + 50 - camera.x * 0.3) % (viewW + 200) - 50;
-        const cy = 20 + (i % 3) * 15;
-        drawCloud(cx, cy);
-      }
+                } else if (type === 'brick') {
+                    // Brick bump / hit sound
+                    const osc = ctx.createOscillator();
+                    const gain = ctx.createGain();
+                    osc.type = 'triangle';
 
-      // Hills (decorative)
-      ctx.fillStyle = '#5A9B2E';
-      for (let i = 0; i < 6; i++) {
-        const hx = (i * 400 - camera.x * 0.5) % (viewW + 300) - 100;
-        drawHill(hx, viewH - 48, 60 + (i % 2) * 30);
-      }
+                    osc.frequency.setValueAtTime(260, now);
+                    osc.frequency.linearRampToValueAtTime(120, now + 0.09);
 
-      ctx.translate(-camera.x, 0);
+                    gain.gain.setValueAtTime(0.2, now);
+                    gain.gain.linearRampToValueAtTime(0.01, now + 0.09);
 
-      // Tiles
-      for (const tile of levelData.tiles) {
-        if (tile.x + tile.w < camera.x - 16 || tile.x > camera.x + viewW + 16) continue;
+                    osc.connect(gain);
+                    gain.connect(ctx.destination);
+                    osc.start(now);
+                    osc.stop(now + 0.09);
 
-        switch (tile.type) {
-          case 'ground':
-            ctx.fillStyle = '#C84C0C';
-            ctx.fillRect(tile.x, tile.y, tile.w, tile.h);
-            ctx.fillStyle = '#E09050';
-            ctx.fillRect(tile.x + 1, tile.y + 1, tile.w - 2, 3);
-            break;
-          case 'brick':
-            ctx.fillStyle = '#C84C0C';
-            ctx.fillRect(tile.x, tile.y, tile.w, tile.h);
-            ctx.strokeStyle = '#8B3000';
-            ctx.strokeRect(tile.x + 0.5, tile.y + 0.5, tile.w - 1, tile.h - 1);
-            ctx.fillStyle = '#8B3000';
-            ctx.fillRect(tile.x + 7, tile.y, 2, tile.h);
-            ctx.fillRect(tile.x, tile.y + 7, tile.w, 2);
-            break;
-          case 'question':
-            ctx.fillStyle = '#E09050';
-            ctx.fillRect(tile.x, tile.y, tile.w, tile.h);
-            ctx.fillStyle = '#FFD700';
-            ctx.fillRect(tile.x + 2, tile.y + 2, tile.w - 4, tile.h - 4);
-            ctx.fillStyle = '#C84C0C';
-            ctx.font = '10px monospace';
-            ctx.fillText('?', tile.x + 4, tile.y + 12);
-            break;
-          case 'used':
-            ctx.fillStyle = '#8B7355';
-            ctx.fillRect(tile.x, tile.y, tile.w, tile.h);
-            break;
-          case 'pipe':
-            ctx.fillStyle = '#00A800';
-            ctx.fillRect(tile.x, tile.y, tile.w, tile.h);
-            ctx.fillStyle = '#00D800';
-            ctx.fillRect(tile.x + 2, tile.y, 4, tile.h);
-            break;
-          case 'flagpole':
-            ctx.fillStyle = '#888';
-            ctx.fillRect(tile.x, tile.y, tile.w, tile.h);
-            break;
-        }
-      }
+                } else if (type === 'pipe') {
+                    // Pipe sliding tone
+                    const osc = ctx.createOscillator();
+                    const gain = ctx.createGain();
+                    osc.type = 'sawtooth';
 
-      // Enemies
-      for (const enemy of enemies) {
-        if (!enemy.alive) continue;
-        if (enemy.x + enemy.width < camera.x - 16 || enemy.x > camera.x + viewW + 16) continue;
+                    osc.frequency.setValueAtTime(400, now);
+                    osc.frequency.linearRampToValueAtTime(200, now + 0.25);
 
-        ctx.fillStyle = '#C84C0C';
-        ctx.fillRect(enemy.x, enemy.y, enemy.width, enemy.height);
-        // Eyes
-        ctx.fillStyle = '#fff';
-        ctx.fillRect(enemy.x + 3, enemy.y + 3, 3, 3);
-        ctx.fillRect(enemy.x + 10, enemy.y + 3, 3, 3);
-        ctx.fillStyle = '#000';
-        ctx.fillRect(enemy.x + 4, enemy.y + 4, 2, 2);
-        ctx.fillRect(enemy.x + 11, enemy.y + 4, 2, 2);
-        // Feet
-        const footOffset = Math.floor(enemy.frame) % 2 === 0 ? 0 : 2;
-        ctx.fillStyle = '#8B5A2B';
-        ctx.fillRect(enemy.x + 1 + footOffset, enemy.y + 13, 5, 3);
-        ctx.fillRect(enemy.x + 9 - footOffset, enemy.y + 13, 5, 3);
-      }
+                    gain.gain.setValueAtTime(0.12, now);
+                    gain.gain.linearRampToValueAtTime(0.01, now + 0.25);
 
-      // Mario
-      if (mario.alive) {
-        ctx.save();
-        const mx = mario.facing === -1 ? mario.x + mario.width : mario.x;
-        ctx.translate(mx, mario.y);
-        ctx.scale(mario.facing, 1);
+                    osc.connect(gain);
+                    gain.connect(ctx.destination);
+                    osc.start(now);
+                    osc.stop(now + 0.25);
 
-        // Body
-        ctx.fillStyle = '#E44';
-        ctx.fillRect(3, 0, 10, 6); // Hat
-        ctx.fillStyle = '#FDB';
-        ctx.fillRect(1, 4, 12, 6); // Face
-        ctx.fillStyle = '#E44';
-        ctx.fillRect(2, 8, 12, 5); // Shirt
-        ctx.fillStyle = '#00A';
-        ctx.fillRect(2, 13, 5, 3); // Left leg
-        ctx.fillRect(9, 13, 5, 3); // Right leg
+                } else if (type === 'powerup') {
+                    // Powerup 3-step arpeggio
+                    const notes = [330, 392, 659, 523, 587, 784];
+                    notes.forEach((freq, i) => {
+                        const osc = ctx.createOscillator();
+                        const gain = ctx.createGain();
+                        osc.type = 'square';
+                        osc.frequency.value = freq;
+                        const time = now + (i * 0.06);
 
-        // Running animation
-        if (Math.abs(mario.vx) > 0.5 && mario.grounded) {
-          if (mario.frame === 1) {
-            ctx.fillStyle = '#00A';
-            ctx.fillRect(0, 13, 5, 3);
-            ctx.fillRect(11, 13, 5, 3);
-          }
+                        gain.gain.setValueAtTime(0.12, time);
+                        gain.gain.linearRampToValueAtTime(0.01, time + 0.05);
+
+                        osc.connect(gain);
+                        gain.connect(ctx.destination);
+                        osc.start(time);
+                        osc.stop(time + 0.06);
+                    });
+
+                } else if (type === 'stomp') {
+                    // Enemy stomp sound
+                    const osc = ctx.createOscillator();
+                    const gain = ctx.createGain();
+                    osc.type = 'triangle';
+
+                    osc.frequency.setValueAtTime(180, now);
+                    osc.frequency.exponentialRampToValueAtTime(60, now + 0.12);
+
+                    gain.gain.setValueAtTime(0.2, now);
+                    gain.gain.linearRampToValueAtTime(0.01, now + 0.12);
+
+                    osc.connect(gain);
+                    gain.connect(ctx.destination);
+                    osc.start(now);
+                    osc.stop(now + 0.12);
+
+                } else if (type === 'fireball') {
+                    // Fireball bounce
+                    const osc = ctx.createOscillator();
+                    const gain = ctx.createGain();
+                    osc.type = 'sawtooth';
+
+                    osc.frequency.setValueAtTime(800, now);
+                    osc.frequency.linearRampToValueAtTime(300, now + 0.08);
+
+                    gain.gain.setValueAtTime(0.15, now);
+                    gain.gain.linearRampToValueAtTime(0.01, now + 0.08);
+
+                    osc.connect(gain);
+                    gain.connect(ctx.destination);
+                    osc.start(now);
+                    osc.stop(now + 0.08);
+                }
+            } catch(e) {
+                console.warn("Audio autoplay policy check:", e);
+            }
         }
 
-        // Jumping
-        if (!mario.grounded) {
-          ctx.fillStyle = '#FDB';
-          ctx.fillRect(0, 6, 3, 3); // Arm up
+        // Interactive Mario Jump Micro-Action
+        let score = 4280;
+        function interactiveMarioJump() {
+            playRetroSound('jump');
+            const mario = document.getElementById('mario-character');
+            const popup = document.getElementById('coin-popup');
+            const scoreEl = document.getElementById('hero-score');
+
+            mario.style.transform = 'translateY(-35px) scale(1.05)';
+            
+            setTimeout(() => {
+                playRetroSound('coin');
+                popup.style.opacity = '1';
+                popup.style.transform = 'translateY(-20px)';
+                score += 200;
+                scoreEl.textContent = score.toString().padStart(6, '0');
+            }, 100);
+
+            setTimeout(() => {
+                mario.style.transform = 'translateY(0px)';
+                popup.style.opacity = '0';
+                popup.style.transform = 'translateY(0px)';
+            }, 300);
         }
 
-        ctx.restore();
-      } else {
-        // Dead Mario
-        ctx.fillStyle = '#E44';
-        ctx.fillRect(mario.x + 3, mario.y, 10, 6);
-        ctx.fillStyle = '#FDB';
-        ctx.fillRect(mario.x + 1, mario.y + 4, 12, 6);
-      }
-
-      // Particles
-      for (const p of particles) {
-        ctx.fillStyle = '#FFD700';
-        ctx.font = '8px monospace';
-        ctx.globalAlpha = p.life / 30;
-        ctx.fillText(p.text, p.x, p.y);
-        ctx.globalAlpha = 1;
-      }
-
-      ctx.restore();
-
-      // Update HUD
-      document.getElementById('hud-score').textContent = String(game.score).padStart(6, '0');
-      document.getElementById('hud-coins').textContent = `×${String(game.coins).padStart(2, '0')}`;
-      document.getElementById('hud-world').textContent = game.world;
-      document.getElementById('hud-time').textContent = String(Math.max(0, game.time));
-      document.getElementById('hud-lives').textContent = `×${String(Math.max(0, game.lives)).padStart(2, '0')}`;
-
-      healthMonitor.updateMetrics({
-        renderStepMs: performance.now() - renderStart,
-      });
-    }
-
-    function drawCloud(x, y) {
-      ctx.beginPath();
-      ctx.arc(x, y, 8, 0, Math.PI * 2);
-      ctx.arc(x + 10, y - 3, 10, 0, Math.PI * 2);
-      ctx.arc(x + 22, y, 8, 0, Math.PI * 2);
-      ctx.arc(x + 11, y + 3, 12, 0, Math.PI * 2);
-      ctx.fill();
-    }
-
-    function drawHill(x, y, size) {
-      ctx.beginPath();
-      ctx.moveTo(x, y);
-      ctx.quadraticCurveTo(x + size / 2, y - size * 0.6, x + size, y);
-      ctx.fill();
-    }
-
-    // ── Game Loop ──
-    let lastTimestamp = 0;
-
-    function gameLoop(timestamp) {
-      if (!game.running) return;
-
-      const dt = Math.min((timestamp - lastTimestamp) / 1000, 0.05);
-      lastTimestamp = timestamp;
-
-      healthMonitor.tick(dt);
-      updatePhysics();
-      render();
-
-      // Periodic health check (every 5 seconds)
-      if (Math.floor(timestamp / 5000) !== Math.floor((timestamp - dt * 1000) / 5000)) {
-        if (performance.memory) {
-          healthMonitor.updateMetrics({
-            memoryUsageMB: Math.round(performance.memory.usedJSHeapSize / 1024 / 1024),
-          });
+        // Question block hit action
+        function interactiveQuestionBlock(elem) {
+            playRetroSound('coin');
+            elem.classList.add('scale-90');
+            setTimeout(() => {
+                elem.classList.remove('scale-90');
+                score += 200;
+                document.getElementById('hero-score').textContent = score.toString().padStart(6, '0');
+            }, 150);
         }
-        const report = healthMonitor.getReport();
-        updateHealthBadge(report);
-      }
 
-      requestAnimationFrame(gameLoop);
-    }
+        // Smooth scroll to launcher
+        function scrollToLauncher() {
+            const launcher = document.getElementById('game-launcher');
+            launcher.scrollIntoView({ behavior: 'smooth' });
+        }
 
-    function updateHealthBadge(report) {
-      healthBadge.className = report.status;
-      const icons = { healthy: '●', degraded: '▲', critical: '■' };
-      healthBadge.textContent = `${icons[report.status] || '●'} ${report.status.toUpperCase()} | FPS: ${report.metrics.fps}`;
-    }
+        // Action when "Start Game" is pressed
+        function launchGameScreen() {
+            playRetroSound('powerup');
+            // Check if game screen exists or prompt user
+            const notice = document.createElement('div');
+            notice.className = 'fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fade-in';
+            notice.innerHTML = `
+                <div class="glass-panel p-8 rounded-3xl max-w-md w-full text-center border border-mario-red/40 space-y-5">
+                    <div class="w-16 h-16 mx-auto rounded-2xl bg-mario-red/20 text-mario-red flex items-center justify-center font-retro text-2xl shadow-neon-red">
+                        🎮
+                    </div>
+                    <h3 class="text-xl font-bold text-white">آماده ورود به استیج ۱-۱</h3>
+                    <p class="text-slate-300 text-sm leading-relaxed">
+                        موتور بازی آماده بارگذاری در کانتینر اصلی است. با فشردن کلید تایید وارد دنیای ماجراجویی شوید.
+                    </p>
+                    <div class="flex gap-3">
+                        <button onclick="this.closest('.fixed').remove()" class="w-full py-3 rounded-xl bg-mario-red text-white font-bold text-sm hover:bg-red-600 transition-colors shadow-neon-red">
+                            شروع بازی
+                        </button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(notice);
+        }
 
-    function startGame() {
-      startScreen.style.display = 'none';
-      game.running = true;
-      game.score = 0;
-      game.coins = 0;
-      game.lives = 3;
-      game.time = 400;
-      mario.x = 50;
-      mario.y = 160;
-      mario.vx = 0;
-      mario.vy = 0;
-      mario.alive = true;
-      camera.x = 0;
-      generateLevel();
-      spawnEnemies();
-      lastTimestamp = performance.now();
-      requestAnimationFrame(gameLoop);
-    }
+        // Share button copy link
+        function shareGame() {
+            navigator.clipboard.writeText(window.location.href);
+            const toast = document.getElementById('toast-message');
+            toast.classList.remove('hidden');
+            playRetroSound('coin');
+            setTimeout(() => {
+                toast.classList.add('hidden');
+            }, 3000);
+        }
 
-    // Health badge click
-    healthBadge.addEventListener('click', async () => {
-      try {
-        const resp = await fetch('/health');
-        const data = await resp.json();
-        console.table(data.checks);
-        console.log('Health Report:', data);
-        alert(`وضعیت: ${data.status}\nFPS: ${data.metrics.fps}\nMemory: ${data.metrics.memoryUsageMB}MB\nEntities: ${data.metrics.entityCount}`);
-      } catch {
-        const report = healthMonitor.getReport();
-        alert(`وضعیت (محلی): ${report.status}\nFPS: ${report.metrics.fps}\nEntities: ${report.metrics.entityCount}`);
-      }
-    });
+        // Ambient Dynamic Particle Canvas (Stars & Firefly dust)
+        (function initAmbientCanvas() {
+            const canvas = document.getElementById('ambient-canvas');
+            const ctx = canvas.getContext('2d');
+            let particles = [];
+            const particleCount = 45;
 
-    // Generate level on load
-    generateLevel();
-  </script>
+            function resize() {
+                canvas.width = window.innerWidth;
+                canvas.height = window.innerHeight;
+            }
+            window.addEventListener('resize', resize);
+            resize();
+
+            class Particle {
+                constructor() {
+                    this.reset();
+                }
+                reset() {
+                    this.x = Math.random() * canvas.width;
+                    this.y = Math.random() * canvas.height;
+                    this.size = Math.random() * 2 + 0.8;
+                    this.speedY = -(Math.random() * 0.4 + 0.15);
+                    this.speedX = (Math.random() - 0.5) * 0.25;
+                    this.alpha = Math.random() * 0.5 + 0.2;
+                    this.color = Math.random() > 0.6 ? '#FF2A2A' : (Math.random() > 0.5 ? '#FFD700' : '#38BDF8');
+                }
+                update() {
+                    this.y += this.speedY;
+                    this.x += this.speedX;
+                    if (this.y < -10) this.y = canvas.height + 10;
+                    if (this.x < -10 || this.x > canvas.width + 10) this.x = Math.random() * canvas.width;
+                }
+                draw() {
+                    ctx.save();
+                    ctx.globalAlpha = this.alpha;
+                    ctx.fillStyle = this.color;
+                    ctx.shadowBlur = 8;
+                    ctx.shadowColor = this.color;
+                    ctx.fillRect(this.x, this.y, this.size, this.size);
+                    ctx.restore();
+                }
+            }
+
+            for (let i = 0; i < particleCount; i++) {
+                particles.push(new Particle());
+            }
+
+            function animate() {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                for (let i = 0; i < particles.length; i++) {
+                    particles[i].update();
+                    particles[i].draw();
+                }
+                requestAnimationFrame(animate);
+            }
+            animate();
+        })();
+    </script>
 </body>
 </html>
-```

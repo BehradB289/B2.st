@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <!-- سخت‌گیرانه‌ترین سیاست امنیتی برای بازی تک‌صفحه‌ای جهت جلوگیری از XSS و Injection -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' data:; connect-src 'self';">
+    <title>B2.st Studio - Super Mario Engine</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        body {
+            background-color: #0f172a;
+            color: #f8fafc;
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            overflow: hidden;
+        }
+        #game-container {
+            position: relative;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7);
+            border: 4px solid #334155;
+            border-radius: 12px;
+            overflow: hidden;
+            background: #5c94fc;
+        }
+        canvas {
+            display: block;
+            image-rendering: -moz-crisp-edges;
+            image-rendering: -webkit-crisp-edges;
+            image-rendering: pixelated;
+            image-rendering: crisp-edges;
+        }
+        #ui-overlay {
+            position: absolute;
+            top: 10px;
+            left: 20px;
+            right: 20px;
+            display: flex;
+            justify-content: space-between;
+            font-size: 16px;
+            font-weight: 800;
+            text-shadow: 2px 2px 0 #000;
+            pointer-events: none;
+            font-family: 'Courier New', Courier, monospace;
+            direction: ltr;
+        }
+        .hud-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        #screen-overlay {
+            position: absolute;
+            inset: 0;
+            background: rgba(15, 23, 42, 0.85);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 20;
+            backdrop-filter: blur(4px);
+        }
+        #screen-overlay.hidden {
+            display: none;
+        }
+        .btn-action {
+            background: #ef4444;
+            color: #fff;
+            border: 2px solid #fff;
+            padding: 12px 28px;
+            font-size: 18px;
+            font-weight: 700;
+            border-radius: 8px;
+            cursor: pointer;
+            box-shadow: 0 4px 0 #991b1b;
+            transition: all 0.1s ease;
+            margin-top: 15px;
+        }
+        .btn-action:hover {
+            background: #dc2626;
+            transform: translateY(2px);
+            box-shadow: 0 2px 0 #991b1b;
+        }
+        .instructions {
+            margin-top: 15px;
+            font-size: 13px;
+            color: #cbd5e1;
+            text-align: center;
+            line-height: 1.6;
+            direction: rtl;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="game-container">
+        <canvas id="gameCanvas" width="800" height="450"></canvas>
+        
+        <div id="ui-overlay">
+            <div class="hud-item">
+                <span>MARIO</span>
+                <span id="score-display">000000</span>
+            </div>
+            <div class="hud-item">
+                <span>COINS</span>
+                <span id="coins-display">x00</span>
+            </div>
+            <div class="hud-item">
+                <span>WORLD</span>
+                <span>1-1</span>
+            </div>
+            <div class="hud-item">
+                <span>TIME</span>
+                <span id="time-display">400</span>
+            </div>
+            <div class="hud-item">
+                <span>LIVES</span>
+                <span id="lives-display">x3</span>
+            </div>
+        </div>
+
+        <div id="screen-overlay">
+            <h1 id="overlay-title" style="font-size: 36px; margin-bottom: 10px; color: #fbbf24;">SUPER MARIO</h1>
+            <p id="overlay-subtitle" style="font-size: 16px; color: #94a3b8;">استودیو امنیتی و بازی‌سازی B2.st</p>
+            <button id="start-btn" class="btn-action">شروع بازی (Press ENTER)</button>
+            <div class="instructions">
+                کلیدهای جهت‌نما یا A/D: حرکت افقی | کلید W، Space یا فلش بالا: پرش<br>
+                کلید Shift: دویدن سریع | نابودی قارچ‌ها: پرش روی سر دشمن
+            </div>
+        </div>
+    </div>
+
+    <script type="module" src="./src/main.js"></script>
+</body>
+</html>

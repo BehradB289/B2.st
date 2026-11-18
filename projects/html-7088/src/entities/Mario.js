@@ -1,87 +1,122 @@
 import { Entity } from './Entity.js';
 
-export const MARIO_CONSTANTS = {
-  WALK_ACCEL: 380,
-  MAX_WALK_SPEED: 140,
-  RUN_ACCEL: 520,
-  MAX_RUN_SPEED: 210,
-  JUMP_IMPULSE: -420,
-  STOMP_BOUNCE: -230
-};
+'use strict';
 
 export class Mario extends Entity {
-  constructor(x = 0, y = 0) {
-    super(x, y, 16, 16);
-    this.type = 'mario';
-    this.score = 0;
-    this.coins = 0;
-    this.lives = 3;
-    this.state = 'idle'; // 'idle' | 'running' | 'jumping' | 'falling' | 'dead'
-    this.facing = 1; // 1 = right, -1 = left
-    this.invulnerableTimer = 0;
-  }
-
-  jump() {
-    if (this.isGrounded) {
-      this.vel.y = MARIO_CONSTANTS.JUMP_IMPULSE;
-      this.isGrounded = false;
-      this.state = 'jumping';
-      return true;
+    constructor(x, y) {
+        super(x, y, 28, 38);
+        this.moveSpeed = 220;
+        this.runSpeed = 340;
+        this.jumpForce = 520;
+        this.gravity = 1450;
+        this.facingRight = true;
+        this.isJumping = false;
+        this.isDead = false;
+        this.deathTimer = 0;
     }
-    return false;
-  }
 
-  bounce() {
-    this.vel.y = MARIO_CONSTANTS.STOMP_BOUNCE;
-    this.isGrounded = false;
-    this.state = 'jumping';
-  }
+    update(dt, input, level, audio) {
+        if (this.isDead) {
+            this.deathTimer += dt;
+            this.vy += this.gravity * 0.8 * dt;
+            this.y += this.vy * dt;
+            return;
+        }
 
-  moveLeft(dt, running = false) {
-    const accel = running ? MARIO_CONSTANTS.RUN_ACCEL : MARIO_CONSTANTS.WALK_ACCEL;
-    const maxSpeed = running ? MARIO_CONSTANTS.MAX_RUN_SPEED : MARIO_CONSTANTS.MAX_WALK_SPEED;
-    this.vel.x = Math.max(-maxSpeed, this.vel.x - accel * dt);
-    this.facing = -1;
-  }
+        const speed = input.keys.run ? this.runSpeed : this.moveSpeed;
 
-  moveRight(dt, running = false) {
-    const accel = running ? MARIO_CONSTANTS.RUN_ACCEL : MARIO_CONSTANTS.WALK_ACCEL;
-    const maxSpeed = running ? MARIO_CONSTANTS.MAX_RUN_SPEED : MARIO_CONSTANTS.MAX_WALK_SPEED;
-    this.vel.x = Math.min(maxSpeed, this.vel.x + accel * dt);
-    this.facing = 1;
-  }
+        // شتاب و حرکت افقی
+        if (input.keys.left) {
+            this.vx = -speed;
+            this.facingRight = false;
+        } else if (input.keys.right) {
+            this.vx = speed;
+            this.facingRight = true;
+        } else {
+            this.vx = 0;
+        }
 
-  addScore(pts) {
-    this.score += pts;
-  }
+        // پرش
+        if (input.keys.jump && this.isGrounded && !this.isJumping) {
+            this.vy = -this.jumpForce;
+            this.isGrounded = false;
+            this.isJumping = true;
+            if (audio) audio.playJump();
+        }
 
-  addCoins(amount = 1) {
-    this.coins += amount;
-    if (this.coins >= 100) {
-      this.lives += 1;
-      this.coins -= 100;
+        // قطع پرش در صورت رها کردن دکمه برای کنترل ارتفاع
+        if (!input.keys.jump && this.vy < -200) {
+            this.vy = -200;
+        }
+
+        // اعمال گرانش
+        this.vy += this.gravity * dt;
+        if (this.vy > 900) this.vy = 900; // محدودیت سرعت سقوط (Terminal Velocity)
+
+        // جابجایی افقی و بررسی برخورد با تایل‌ها
+        this.x += this.vx * dt;
+        level.resolveHorizontalCollisions(this);
+
+        // جابجایی عمودی و بررسی برخورد با تایل‌ها
+        this.y += this.vy * dt;
+        this.isGrounded = false;
+        level.resolveVerticalCollisions(this, audio);
+
+        if (this.isGrounded) {
+            this.isJumping = false;
+        }
+
+        // سقوط در دره‌ها (Fall out of bounds)
+        if (this.y > 550 && !this.isDead) {
+            this.die(audio);
+        }
     }
-  }
 
-  takeDamage() {
-    if (this.invulnerableTimer > 0) return;
-    this.lives -= 1;
-    this.invulnerableTimer = 1.5;
-    if (this.lives <= 0) {
-      this.isAlive = false;
-      this.state = 'dead';
+    die(audio) {
+        if (this.isDead) return;
+        this.isDead = true;
+        this.vx = 0;
+        this.vy = -450;
+        if (audio) audio.playGameOver();
     }
-  }
 
-  updateState() {
-    if (!this.isAlive) {
-      this.state = 'dead';
-    } else if (!this.isGrounded) {
-      this.state = this.vel.y < 0 ? 'jumping' : 'falling';
-    } else if (Math.abs(this.vel.x) > 10) {
-      this.state = 'running';
-    } else {
-      this.state = 'idle';
+    render(ctx, cameraX) {
+        const renderX = Math.round(this.x - cameraX);
+        const renderY = Math.round(this.y);
+
+        ctx.save();
+        ctx.translate(renderX, renderY);
+
+        if (!this.facingRight) {
+            ctx.scale(-1, 1);
+            ctx.translate(-this.width, 0);
+        }
+
+        // رندر برداری پیکسلی ماریو (بدون وابستگی به ایمیج خارجی جهت پایداری ۱۰۰٪)
+        // کلاه و پیراهن (قرمز)
+        ctx.fillStyle = this.isDead ? '#64748b' : '#ef4444';
+        ctx.fillRect(4, 0, 20, 8); // کلاه
+        ctx.fillRect(6, 12, 16, 12); // تنه
+
+        // چهره (کرم / پوست)
+        ctx.fillStyle = '#fde047';
+        ctx.fillRect(8, 6, 14, 8);
+
+        // سبیل و مو (قهوه‌ای)
+        ctx.fillStyle = '#78350f';
+        ctx.fillRect(16, 8, 6, 4);
+
+        // شلوار سرهمی (آبی)
+        ctx.fillStyle = '#2563eb';
+        ctx.fillRect(6, 22, 16, 10);
+        ctx.fillRect(4, 18, 4, 8);
+        ctx.fillRect(20, 18, 4, 8);
+
+        // کفش‌ها (قهوه‌ای تیره)
+        ctx.fillStyle = '#451a03';
+        ctx.fillRect(4, 32, 8, 6);
+        ctx.fillRect(16, 32, 8, 6);
+
+        ctx.restore();
     }
-  }
 }

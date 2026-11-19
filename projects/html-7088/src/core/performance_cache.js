@@ -1,95 +1,113 @@
 /**
- * Intelligent In-Memory Performance Cache & Rate Limiter Engine
+ * Intelligent In-Memory Cache (LRU + TTL) & Token Bucket Rate Limiter
  * Studio: B2.st
+ * Author: Senior Full-Stack Agent
  * 
- * Provides:
- * 1. High-speed LRU + TTL In-Memory Key-Value Caching
- * 2. Token-Bucket Algorithm Rate Limiter for game actions, physics bursts, and audio
- * 3. Memoization wrapper for high-frequency mathematical or rendering operations
- * 4. Cache telemetry & hit/miss metrics
+ * High-performance, zero-dependency caching layer engineered for HTML5 60FPS gaming.
+ * Features:
+ * - O(1) LRU eviction policy using ES6 Map order semantics
+ * - Millisecond-precision TTL expiration with lazy & active purging
+ * - Canvas Offscreen Bitmap pre-rendering cache for dynamic sprite compilation
+ * - Deterministic Token Bucket Rate Limiter for input actions and sound throttling
+ * - Runtime performance telemetry (Hit ratio, miss rate, eviction counters)
  */
 
 export class PerformanceCache {
     /**
      * @param {Object} options
-     * @param {number} [options.maxEntries=512] Maximum cache capacity before LRU eviction
-     * @param {number} [options.defaultTTL=15000] Time-to-live in milliseconds
-     * @param {boolean} [options.enableTelemetry=true] Track hits, misses, and evictions
+     * @param {number} [options.maxEntries=200] - Max keys per cache namespace
+     * @param {number} [options.defaultTTL=30000] - Default TTL in milliseconds
+     * @param {string} [options.namespace='default'] - Scope identifier
      */
     constructor(options = {}) {
-        this.maxEntries = options.maxEntries || 512;
-        this.defaultTTL = options.defaultTTL || 15000;
-        this.enableTelemetry = options.enableTelemetry !== false;
-
-        // Map maintains insertion/access order for LRU implementation
+        this.maxEntries = options.maxEntries || 200;
+        this.defaultTTL = options.defaultTTL || 30000;
+        this.namespace = options.namespace || 'default';
+        
+        // Map preserves insertion order, ideal for O(1) LRU operations
         this.store = new Map();
-
-        // Metrics
-        this.hits = 0;
-        this.misses = 0;
-        this.evictions = 0;
-        this.createdTimestamp = Date.now();
+        
+        // Performance metrics
+        this.stats = {
+            hits: 0,
+            misses: 0,
+            evictions: 0,
+            sets: 0,
+            lastPurgeTime: performance.now()
+        };
     }
 
     /**
-     * Store item in cache with optional custom TTL
-     * @param {string} key
-     * @param {*} value
-     * @param {number} [ttl] Custom TTL in ms (0 = permanent until LRU eviction)
+     * Cache an item with custom or default TTL
+     * @param {string} key 
+     * @param {*} value 
+     * @param {number} [ttl] - TTL in ms (optional)
+     * @returns {PerformanceCache}
      */
     set(key, value, ttl = this.defaultTTL) {
+        const now = performance.now();
+
+        // If key already exists, refresh LRU position by re-inserting
         if (this.store.has(key)) {
             this.store.delete(key);
         } else if (this.store.size >= this.maxEntries) {
-            // Evict oldest item (First key in iterator)
+            // Evict least recently used (first item in Map iterator)
             const oldestKey = this.store.keys().next().value;
             this.store.delete(oldestKey);
-            if (this.enableTelemetry) this.evictions++;
+            this.stats.evictions++;
         }
 
-        const expiresAt = ttl > 0 ? Date.now() + ttl : Infinity;
-        this.store.set(key, { value, expiresAt });
-        return value;
+        this.store.set(key, {
+            value,
+            expiry: ttl > 0 ? now + ttl : Infinity,
+            createdAt: now,
+            accessCount: 0
+        });
+
+        this.stats.sets++;
+        return this;
     }
 
     /**
-     * Retrieve item from cache with TTL validation & LRU reordering
-     * @param {string} key
+     * Retrieve an item. Re-orders entry to most-recently-used position.
+     * @param {string} key 
      * @returns {*|null}
      */
     get(key) {
-        if (!this.store.has(key)) {
-            if (this.enableTelemetry) this.misses++;
+        const record = this.store.get(key);
+
+        if (!record) {
+            this.stats.misses++;
             return null;
         }
 
-        const entry = this.store.get(key);
-        const now = Date.now();
+        const now = performance.now();
 
-        if (entry.expiresAt <= now) {
-            // Expired entry
+        // Lazy TTL Check
+        if (now > record.expiry) {
             this.store.delete(key);
-            if (this.enableTelemetry) this.misses++;
+            this.stats.misses++;
             return null;
         }
 
-        // Re-insert to refresh LRU status
+        // Refresh LRU position (delete & set at end)
+        record.accessCount++;
         this.store.delete(key);
-        this.store.set(key, entry);
+        this.store.set(key, record);
 
-        if (this.enableTelemetry) this.hits++;
-        return entry.value;
+        this.stats.hits++;
+        return record.value;
     }
 
     /**
-     * Checks existence without updating LRU or metrics
-     * @param {string} key
+     * Check existence without altering LRU order or hit statistics
+     * @param {string} key 
      * @returns {boolean}
      */
     has(key) {
-        if (!this.store.has(key)) return false;
-        const entry = this.store.get(key);
-        if (entry.expiresAt <= Date.now()) {
+        const record = this.store.get(key);
+        if (!record) return false;
+        if (performance.now() > record.expiry) {
             this.store.delete(key);
             return false;
         }
@@ -97,8 +115,8 @@ export class PerformanceCache {
     }
 
     /**
-     * Delete explicit key
-     * @param {string} key
+     * Remove explicit key
+     * @param {string} key 
      * @returns {boolean}
      */
     delete(key) {
@@ -106,114 +124,185 @@ export class PerformanceCache {
     }
 
     /**
-     * Clear all cached items
+     * Clear all cached items in this instance
      */
     clear() {
         this.store.clear();
+        this.stats.hits = 0;
+        this.stats.misses = 0;
+        this.stats.evictions = 0;
+        this.stats.sets = 0;
     }
 
     /**
-     * Periodic house-keeping to remove stale keys
-     * @returns {number} Number of cleaned items
+     * Active purge of expired items to reclaim memory without waiting for access
      */
     purgeExpired() {
-        const now = Date.now();
-        let purged = 0;
-        for (const [key, entry] of this.store.entries()) {
-            if (entry.expiresAt <= now) {
+        const now = performance.now();
+        for (const [key, record] of this.store.entries()) {
+            if (now > record.expiry) {
                 this.store.delete(key);
-                purged++;
             }
         }
-        return purged;
+        this.stats.lastPurgeTime = now;
     }
 
     /**
-     * Memoizes an expensive function computation with TTL caching
-     * @param {Function} fn
-     * @param {Function} [keyResolver] Function to derive cache key from arguments
+     * Cache-aside helper or offscreen Canvas rendering accelerator.
+     * Generates and caches dynamic sprite canvases once.
+     * @param {string} key 
+     * @param {number} width 
+     * @param {number} height 
+     * @param {Function} drawFn - (offscreenCtx) => void
+     * @param {number} [ttl]
+     * @returns {HTMLCanvasElement}
+     */
+    getOrRenderCanvas(key, width, height, drawFn, ttl = this.defaultTTL) {
+        let canvas = this.get(key);
+        if (canvas) {
+            return canvas;
+        }
+
+        // Create detached offscreen canvas
+        canvas = document.createElement('canvas');
+        canvas.width = Math.max(1, Math.floor(width));
+        canvas.height = Math.max(1, Math.floor(height));
+        const ctx = canvas.getContext('2d', { alpha: true });
+        
+        // Pixel-art optimization
+        ctx.imageSmoothingEnabled = false;
+
+        // Render to offscreen canvas
+        drawFn(ctx);
+
+        this.set(key, canvas, ttl);
+        return canvas;
+    }
+
+    /**
+     * Memoize pure mathematical computations or collision queries
+     * @param {Function} fn 
+     * @param {Function} [keyResolver] 
      * @param {number} [ttl]
      * @returns {Function}
      */
-    memoize(fn, keyResolver = (...args) => JSON.stringify(args), ttl = this.defaultTTL) {
-        return (...args) => {
-            const cacheKey = keyResolver(...args);
-            const cached = this.get(cacheKey);
-            if (cached !== null) {
-                return cached;
+    memoize(fn, keyResolver = null, ttl = this.defaultTTL) {
+        const cache = this;
+        return function (...args) {
+            const cacheKey = keyResolver ? keyResolver(...args) : JSON.stringify(args);
+            const cachedResult = cache.get(cacheKey);
+            if (cachedResult !== null) {
+                return cachedResult;
             }
-            const result = fn(...args);
-            this.set(cacheKey, result, ttl);
-            return result;
+            const computedResult = fn.apply(this, args);
+            cache.set(cacheKey, computedResult, ttl);
+            return computedResult;
         };
     }
 
     /**
-     * Get performance telemetry data
+     * Diagnostics snapshot
+     * @returns {Object}
      */
-    getStats() {
-        const total = this.hits + this.misses;
-        const hitRate = total > 0 ? ((this.hits / total) * 100).toFixed(1) : '0.0';
+    getTelemetry() {
+        const totalRequests = this.stats.hits + this.stats.misses;
+        const hitRatio = totalRequests > 0 ? (this.stats.hits / totalRequests * 100).toFixed(2) + '%' : '0.00%';
         return {
+            namespace: this.namespace,
             size: this.store.size,
             maxEntries: this.maxEntries,
-            hits: this.hits,
-            misses: this.misses,
-            evictions: this.evictions,
-            hitRate: `${hitRate}%`
+            hits: this.stats.hits,
+            misses: this.stats.misses,
+            hitRatio,
+            evictions: this.stats.evictions,
+            totalSets: this.stats.sets
         };
     }
 }
 
 /**
- * Token-Bucket Rate Limiter
- * Ensures critical game actions (sound triggers, heavy particle emitters, jump inputs)
- * do not overload execution threads or browser frame budgets.
+ * Token Bucket & Sliding Window Rate Limiter
+ * Guards high-frequency game events (Jumps, Fireballs, Collision SFX, Network/Inputs)
  */
 export class RateLimiter {
-    /**
-     * @param {number} capacity Max tokens in the bucket
-     * @param {number} refillRate Tokens added per second
-     */
-    constructor(capacity = 10, refillRate = 5) {
-        this.capacity = capacity;
-        this.refillRate = refillRate;
+    constructor() {
         this.buckets = new Map();
+        this.cooldowns = new Map();
+        this.throttledEvents = 0;
     }
 
     /**
-     * Consume token for a given action key
-     * @param {string} actionKey
-     * @param {number} [cost=1]
-     * @returns {boolean} True if action allowed, False if throttled
+     * Token Bucket rate limiter (allows controlled bursts with steady continuous replenishment)
+     * @param {string} actionKey - Distinct action identifier
+     * @param {number} maxTokens - Bucket burst capacity
+     * @param {number} refillRatePerSec - Tokens replenished per second
+     * @returns {boolean} - True if allowed, false if rate limit exceeded
      */
-    allow(actionKey, cost = 1) {
-        const now = Date.now();
+    consume(actionKey, maxTokens = 1.0, refillRatePerSec = 2.0) {
+        const now = performance.now();
         let bucket = this.buckets.get(actionKey);
 
         if (!bucket) {
-            bucket = { tokens: this.capacity, lastRefill: now };
+            bucket = { tokens: maxTokens - 1.0, lastRefill: now };
             this.buckets.set(actionKey, bucket);
-        }
-
-        // Refill tokens according to elapsed time
-        const elapsedSec = (now - bucket.lastRefill) / 1000;
-        bucket.tokens = Math.min(this.capacity, bucket.tokens + elapsedSec * this.refillRate);
-        bucket.lastRefill = now;
-
-        if (bucket.tokens >= cost) {
-            bucket.tokens -= cost;
             return true;
         }
 
+        // Refill tokens based on elapsed delta
+        const deltaSec = (now - bucket.lastRefill) / 1000;
+        bucket.tokens = Math.min(maxTokens, bucket.tokens + (deltaSec * refillRatePerSec));
+        bucket.lastRefill = now;
+
+        if (bucket.tokens >= 1.0) {
+            bucket.tokens -= 1.0;
+            return true;
+        }
+
+        this.throttledEvents++;
         return false;
     }
 
     /**
-     * Reset specific bucket
-     * @param {string} actionKey
+     * Sliding Window Debounce/Throttle
+     * Ensures minimum millisecond interval between occurrences
+     * @param {string} key 
+     * @param {number} intervalMs 
+     * @returns {boolean}
      */
-    reset(actionKey) {
-        this.buckets.delete(actionKey);
+    throttle(key, intervalMs) {
+        const now = performance.now();
+        const lastCall = this.cooldowns.get(key) || 0;
+
+        if (now - lastCall >= intervalMs) {
+            this.cooldowns.set(key, now);
+            return true;
+        }
+
+        this.throttledEvents++;
+        return false;
+    }
+
+    /**
+     * Reset rate limiter registers
+     */
+    reset() {
+        this.buckets.clear();
+        this.cooldowns.clear();
+        this.throttledEvents = 0;
     }
 }
+
+// Global Singleton instances for cross-engine consumption
+export const globalSpriteCache = new PerformanceCache({
+    namespace: 'sprites_prebaked',
+    maxEntries: 128,
+    defaultTTL: 0 // In-memory sprite bitmaps live for session duration
+});
+
+export const globalPhysicsCache = new PerformanceCache({
+    namespace: 'spatial_cache',
+    maxEntries: 300,
+    defaultTTL: 100 // Short TTL for dynamic spatial calculations
+});
+
+export const globalActionLimiter = new RateLimiter();

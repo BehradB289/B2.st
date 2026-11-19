@@ -1,164 +1,187 @@
 /**
  * @file validator.js
- * @description ماژول جامع اعتبارسنجی ساختار داده و گارد دفاعی در برابر خطاهای Null/Undefined و تخریب تایپ‌ها در موتور بازی ماریو.
- * @author B2.st Studio - 10-Layer Cybersecurity & Debugging Division
+ * @module B2st/Security/Validator
+ * @description سیستم اعتبارسنجی ۱۰ لایه و محافظت در برابر مقادیر Null / Undefined و سرریز نوع داده
+ * طراحی شده توسط استودیو B2.st برای موتور بازی ماریو (HTML5 Canvas/WebGL)
  */
 
-// مقادیر پیش‌فرض ایزوله‌شده و غیرقابل تغییر (Immutable Fallbacks) جهت جلوگیری از Prototype Pollution
-const SAFE_FALLBACKS = Object.freeze({
-    VECTOR: Object.freeze({ x: 0, y: 0 }),
-    BOUNDING_BOX: Object.freeze({ x: 0, y: 0, width: 0, height: 0 }),
-    INPUT_STATE: Object.freeze({ left: false, right: false, up: false, down: false, jump: false, run: false }),
-    DEFAULT_DT: 1 / 60,
-    MAX_DT: 0.1
+'use strict';
+
+/**
+ * پیکربندی مقادیر آستانه و تنظیمات ایمنی موتور فیزیک
+ */
+const SECURITY_POLICY = Object.freeze({
+    MAX_DELTA_TIME: 0.1, // جلوگیری از پدیده Spiral of Death در لگ‌های فریم
+    MIN_DELTA_TIME: 0.0001,
+    MAX_CANVAS_DIMENSION: 16384,
+    SAFE_COORDINATE_LIMIT: 1000000,
+    ALLOWED_INPUT_KEYS: new Set([
+        'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown',
+        'KeyA', 'KeyD', 'KeyW', 'KeyS',
+        'Space', 'ShiftLeft', 'ControlLeft', 'Escape', 'Enter'
+    ])
 });
 
-// کلیدهای مسدود شده جهت جلوگیری از تزریق به آبجکت و آلودگی پروتوتایپ (Security Hardening)
-const BLOCKED_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
+/**
+ * لایه ۱: اعتبارسنجی اولیه تهی‌بودگی (Null / Undefined Guard)
+ */
+export function isNil(value) {
+    return value === null || value === undefined;
+}
 
-export const Validator = {
-    /**
-     * بررسی تعریف شدن متغیر و عدم برابری با null یا undefined
-     * @param {*} value
-     * @returns {boolean}
-     */
-    isDefined(value) {
-        return value !== null && value !== undefined;
-    },
+export function isDefined(value) {
+    return value !== null && value !== undefined;
+}
 
-    /**
-     * بررسی امنیت عددی (جلوگیری از رخنه NaN، Infinity و مقادیر غیرعددی)
-     * @param {*} value
-     * @param {boolean} allowNegative
-     * @returns {boolean}
-     */
-    isSafeNumber(value, allowNegative = true) {
-        if (typeof value !== 'number' || Number.isNaN(value) || !Number.isFinite(value)) {
-            return false;
-        }
-        return allowNegative ? true : value >= 0;
-    },
+/**
+ * لایه ۲: اعتبارسنجی ایمن اعداد (Safe Number & Anti-NaN Guard)
+ */
+export function isSafeNumber(value) {
+    return typeof value === 'number' && Number.isFinite(value) && !Number.isNaN(value);
+}
 
-    /**
-     * بررسی نوع آبجکت معتبر (مستقل از آرایه و null)
-     * @param {*} obj
-     * @returns {boolean}
-     */
-    isPlainObject(obj) {
-        return this.isDefined(obj) && typeof obj === 'object' && !Array.isArray(obj);
-    },
+export function clampNumber(value, min, max, fallback = 0) {
+    if (!isSafeNumber(value)) return fallback;
+    const safeMin = isSafeNumber(min) ? min : Number.MIN_SAFE_INTEGER;
+    const safeMax = isSafeNumber(max) ? max : Number.MAX_SAFE_INTEGER;
+    return Math.min(Math.max(value, safeMin), safeMax);
+}
 
-    /**
-     * پالایش و گارد اعتبارسنجی بردار دو بعدی فیزیک (موقعیت، سرعت، شتاب)
-     * @param {*} vec
-     * @param {Object} fallback
-     * @returns {{x: number, y: number}}
-     */
-    sanitizeVector2D(vec, fallback = SAFE_FALLBACKS.VECTOR) {
-        if (!this.isPlainObject(vec)) {
-            console.warn('[B2.st-Guard] بردار فیزیکی نامعتبر یا Null شناسایی شد. اعمال Fallback امن.', vec);
-            return { ...fallback };
-        }
-
-        return {
-            x: this.isSafeNumber(vec.x) ? vec.x : fallback.x,
-            y: this.isSafeNumber(vec.y) ? vec.y : fallback.y
-        };
-    },
-
-    /**
-     * اعتبارسنجی کادر برخورد (Bounding Box / Hitbox) برای محاسبات برخورد
-     * @param {*} box
-     * @param {Object} fallback
-     * @returns {{x: number, y: number, width: number, height: number}}
-     */
-    sanitizeBoundingBox(box, fallback = SAFE_FALLBACKS.BOUNDING_BOX) {
-        if (!this.isPlainObject(box)) {
-            console.error('[B2.st-Guard] کادر برخورد (Hitbox) تعریف‌نشده است. ایزوله‌سازی موقعیت.', box);
-            return { ...fallback };
-        }
-
-        return {
-            x: this.isSafeNumber(box.x) ? box.x : fallback.x,
-            y: this.isSafeNumber(box.y) ? box.y : fallback.y,
-            width: this.isSafeNumber(box.width, false) ? box.width : fallback.width,
-            height: this.isSafeNumber(box.height, false) ? box.height : fallback.height
-        };
-    },
-
-    /**
-     * اعتبارسنجی Delta Time جهت جلوگیری از پرش‌های فیزیکی ناشی از لگ یا فریز تب مرورگر (Spiral of Death)
-     * @param {*} dt
-     * @returns {number}
-     */
-    sanitizeDeltaTime(dt) {
-        if (!this.isSafeNumber(dt, false) || dt === 0) {
-            return SAFE_FALLBACKS.DEFAULT_DT;
-        }
-        // اگر کلاینت لگ شدیدی داشت، حداکثر گام زمانی کلمپ می‌شود
-        return Math.min(dt, SAFE_FALLBACKS.MAX_DT);
-    },
-
-    /**
-     * اعتبارسنجی ساختار موجودیت‌ها (Mario, Enemies, Collectibles)
-     * @param {*} entity
-     * @returns {boolean}
-     */
-    validateEntityStructure(entity) {
-        if (!this.isPlainObject(entity)) return false;
-
-        // بررسی صریح فیلدهای الزامی موجودیت برای جلوگیری از اجرای لاجیک روی رفرنس خالی
-        const hasId = typeof entity.id === 'string' || typeof entity.id === 'number';
-        const hasPos = this.isPlainObject(entity.pos) && this.isSafeNumber(entity.pos.x) && this.isSafeNumber(entity.pos.y);
-        const hasVel = this.isPlainObject(entity.vel) && this.isSafeNumber(entity.vel.x) && this.isSafeNumber(entity.vel.y);
-        const hasSize = this.isSafeNumber(entity.width, false) && this.isSafeNumber(entity.height, false);
-
-        if (!hasId || !hasPos || !hasVel || !hasSize) {
-            console.error('[B2.st-Guard] موجودیت فاقد ساختار استاندارد فیزیک است:', entity);
-            return false;
-        }
-
-        return true;
-    },
-
-    /**
-     * گارد اعتبارسنجی ورودی‌های کنترلر صفحه کلید
-     * @param {*} inputState
-     * @returns {Object}
-     */
-    sanitizeInputState(inputState) {
-        if (!this.isPlainObject(inputState)) {
-            return { ...SAFE_FALLBACKS.INPUT_STATE };
-        }
-
-        const sanitized = {};
-        for (const key of Object.keys(SAFE_FALLBACKS.INPUT_STATE)) {
-            sanitized[key] = typeof inputState[key] === 'boolean' ? inputState[key] : false;
-        }
-        return sanitized;
-    },
-
-    /**
-     * اسکن ساختارهای داینامیک یا داده‌های ورودی سرور/JSON برای مقابله با Prototype Pollution
-     * @param {Object} target
-     * @returns {Object}
-     */
-    sanitizePayload(target) {
-        if (!this.isPlainObject(target)) return {};
-
-        const cleanObject = {};
-        for (const [key, value] of Object.entries(target)) {
-            if (BLOCKED_KEYS.has(key)) {
-                console.warn(`[B2.st-Security] کلید غیرمجاز امنیتی مسدود شد: ${key}`);
-                continue;
-            }
-
-            if (this.isPlainObject(value)) {
-                cleanObject[key] = this.sanitizePayload(value);
-            } else {
-                cleanObject[key] = value;
-            }
-        }
-        return cleanObject;
+/**
+ * لایه ۳: پاک‌سازی و اعتبارسنجی دلتا تایم (Delta-Time Sanitizer)
+ * جلوگیری از عبور ماریو از دیوارها در اثر پرش زمانی (Tunneling Bug)
+ */
+export function sanitizeDeltaTime(dt, fallback = 0.0166) {
+    if (!isSafeNumber(dt) || dt <= 0) {
+        return fallback;
     }
-};
+    return Math.min(Math.max(dt, SECURITY_POLICY.MIN_DELTA_TIME), SECURITY_POLICY.MAX_DELTA_TIME);
+}
+
+/**
+ * لایه ۴: اعتبارسنجی ساختار آبجکت و جلوگیری از حملات Prototype Pollution
+ */
+export function isPlainObject(value) {
+    if (isNil(value) || typeof value !== 'object' || Array.isArray(value)) {
+        return false;
+    }
+    const proto = Object.getPrototypeOf(value);
+    return proto === null || proto === Object.prototype;
+}
+
+/**
+ * لایه ۵: اعتبارسنجی بردار ۲ بعدی (Vector2D Guard)
+ * مورد استفاده در موقعیت، سرعت (Velocity) و شتاب ماریو و انمی‌ها
+ */
+export function validateVector2D(vec, fallback = { x: 0, y: 0 }) {
+    const safeFallback = {
+        x: isSafeNumber(fallback?.x) ? fallback.x : 0,
+        y: isSafeNumber(fallback?.y) ? fallback.y : 0
+    };
+
+    if (isNil(vec) || typeof vec !== 'object') {
+        return safeFallback;
+    }
+
+    return {
+        x: isSafeNumber(vec.x) ? clampNumber(vec.x, -SECURITY_POLICY.SAFE_COORDINATE_LIMIT, SECURITY_POLICY.SAFE_COORDINATE_LIMIT) : safeFallback.x,
+        y: isSafeNumber(vec.y) ? clampNumber(vec.y, -SECURITY_POLICY.SAFE_COORDINATE_LIMIT, SECURITY_POLICY.SAFE_COORDINATE_LIMIT) : safeFallback.y
+    };
+}
+
+/**
+ * لایه ۶: اعتبارسنجی کادر برخورد (AABB Bounding Box)
+ * تضمین جلوگیری از خطاهای کرش در الگوریتم‌های Collision Detection
+ */
+export function validateBoundingBox(box) {
+    if (!isPlainObject(box)) {
+        return { x: 0, y: 0, width: 0, height: 0, isValid: false };
+    }
+
+    const x = isSafeNumber(box.x) ? box.x : 0;
+    const y = isSafeNumber(box.y) ? box.y : 0;
+    const width = isSafeNumber(box.width) && box.width >= 0 ? box.width : 0;
+    const height = isSafeNumber(box.height) && box.height >= 0 ? box.height : 0;
+
+    return {
+        x,
+        y,
+        width,
+        height,
+        isValid: width > 0 && height > 0
+    };
+}
+
+/**
+ * لایه ۷: اعتبارسنجی ایندکس‌ها و شبکه کاشی‌ها (Tilemap Matrix Safety)
+ * جلوگیری از رخداد خطای خروج از حافظه و TypeError در رندر مپ
+ */
+export function validateTileAccess(grid, row, col) {
+    if (!Array.isArray(grid)) return null;
+    if (!Number.isInteger(row) || row < 0 || row >= grid.length) return null;
+    
+    const rowData = grid[row];
+    if (!Array.isArray(rowData)) return null;
+    if (!Number.isInteger(col) || col < 0 || col >= rowData.length) return null;
+
+    return rowData[col];
+}
+
+/**
+ * لایه ۸: گارد اعتبارسنجی وضعیت انتیتی (Entity Integrity Validator)
+ * برای ماریو، قارچ، سکه و دشمنان (Goomba / Koopa)
+ */
+export function validateEntityState(entity) {
+    if (!isPlainObject(entity)) {
+        throw new TypeError('[B2.st Shield] داده انتیتی نامعتبر بوده یا تهی است.');
+    }
+
+    // نرمال‌سازی پوزیشن و ابعاد
+    entity.pos = validateVector2D(entity.pos, { x: 0, y: 0 });
+    entity.vel = validateVector2D(entity.vel, { x: 0, y: 0 });
+    entity.size = validateVector2D(entity.size, { x: 16, y: 16 });
+
+    // وضعیت‌های منطقی حیاتی
+    entity.isGrounded = Boolean(entity.isGrounded);
+    entity.isDead = Boolean(entity.isDead);
+    entity.type = typeof entity.type === 'string' && entity.type.trim().length > 0 ? entity.type : 'unknown';
+
+    return entity;
+}
+
+/**
+ * لایه ۹: اعتبارسنجی ورودی‌های کاربر (Input Sanitizer)
+ * حذف کلیدهای نامعتبر و رفتارهای مخرب احتمالی
+ */
+export function sanitizeInputKey(rawCode) {
+    if (typeof rawCode !== 'string') return null;
+    const sanitized = rawCode.trim();
+    return SECURITY_POLICY.ALLOWED_INPUT_KEYS.has(sanitized) ? sanitized : null;
+}
+
+/**
+ * لایه ۱۰: بازرسی سلامت کانتکست گرافیکی (Canvas Context Guard)
+ */
+export function assertRenderingContext(ctx) {
+    if (isNil(ctx) || typeof ctx.drawImage !== 'function' || typeof ctx.clearRect !== 'function') {
+        throw new Error('[B2.st Shield] CanvasRenderingContext2D نامعتبر است یا تخریب شده است.');
+    }
+    return true;
+}
+
+// آبجکت فریز شده برای جلوگیری از Tampering و Monkey Patching در لایه ران‌تایم
+export default Object.freeze({
+    isNil,
+    isDefined,
+    isSafeNumber,
+    clampNumber,
+    sanitizeDeltaTime,
+    isPlainObject,
+    validateVector2D,
+    validateBoundingBox,
+    validateTileAccess,
+    validateEntityState,
+    sanitizeInputKey,
+    assertRenderingContext,
+    SECURITY_POLICY
+});

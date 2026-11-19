@@ -3,19 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <!-- پچ امنیتی: اعمال سخت‌گیرانه سیاست‌های توزیع محتوا (CSP) -->
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self' data:; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self';">
-    <title>Super Mario - B2.st Hardened Edition</title>
+    <title>B2.st Super Mario - Memory Optimized Edition</title>
     <style>
-        * {
-            box-sizing: border-box;
-            user-select: none;
-        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
         body {
-            margin: 0;
-            padding: 0;
             background: #11141a;
-            color: #fff;
+            color: #ecf0f1;
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             display: flex;
             flex-direction: column;
@@ -26,257 +19,312 @@
         }
         #game-container {
             position: relative;
-            border: 4px solid #30363d;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.8);
+            border: 3px solid #2c3e50;
             border-radius: 8px;
             background: #5c94fc;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.7);
         }
         canvas {
             display: block;
-            background: #5c94fc;
+            image-rendering: pixelated;
         }
-        #ui-overlay {
+        #hud {
             position: absolute;
             top: 10px;
             left: 10px;
             right: 10px;
             display: flex;
             justify-content: space-between;
-            font-size: 16px;
             font-weight: bold;
-            color: #fff;
-            text-shadow: 2px 2px 0px #000;
+            font-size: 14px;
+            text-shadow: 1px 1px 2px #000;
+            pointer-events: none;
+            direction: ltr;
         }
-        #controls-panel {
-            margin-top: 15px;
-            background: #161b22;
-            padding: 15px 25px;
-            border-radius: 6px;
-            border: 1px solid #30363d;
+        #telemetry-bar {
+            margin-top: 12px;
             display: flex;
-            gap: 15px;
-            align-items: center;
-        }
-        input[type="text"] {
-            background: #0d1117;
-            border: 1px solid #30363d;
-            padding: 8px 12px;
-            color: #58a6ff;
-            border-radius: 4px;
-            outline: none;
-        }
-        input[type="text"]:focus {
-            border-color: #1f6feb;
-        }
-        button {
-            background: #238636;
-            color: #fff;
-            border: none;
+            gap: 20px;
+            font-family: monospace;
+            background: #1a222d;
             padding: 8px 16px;
-            border-radius: 4px;
-            cursor: pointer;
-            font-weight: bold;
-            transition: background 0.2s ease;
+            border-radius: 6px;
+            border: 1px solid #34495e;
+            font-size: 13px;
         }
-        button:hover {
-            background: #2ea043;
-        }
-        #sec-status {
-            font-size: 12px;
-            color: #3fb950;
+        .stat-val { color: #2ecc71; font-weight: bold; }
+        .stat-alert { color: #e74c3c; font-weight: bold; }
+        .controls {
             margin-top: 8px;
-            display: flex;
-            align-items: center;
-            gap: 6px;
-        }
-        .shield-dot {
-            width: 8px;
-            height: 8px;
-            background: #3fb950;
-            border-radius: 50%;
-            display: inline-block;
-            box-shadow: 0 0 6px #3fb950;
+            font-size: 12px;
+            color: #95a5a6;
         }
     </style>
-    <!-- گارد امنیتی OWASP در لایه صفر ران‌تایم باید نخستین اسکریپت لود شونده باشد -->
-    <script src="src/security/owasp_guard.js"></script>
 </head>
 <body>
 
     <div id="game-container">
         <canvas id="marioCanvas" width="640" height="360"></canvas>
-        <div id="ui-overlay">
-            <div>MARIO: <span id="player-display">PLAYER 1</span></div>
-            <div>COINS: <span id="coin-score">00</span></div>
-            <div>SCORE: <span id="game-score">000000</span></div>
-            <div>WORLD: <span>1-1</span></div>
+        <div id="hud">
+            <div>MARIO: <span id="score-disp">000000</span></div>
+            <div>COINS: <span id="coins-disp">x00</span></div>
+            <div>WORLD: 1-1</div>
+            <div>STATUS: <span id="state-disp" style="color:#2ecc71;">ONLINE</span></div>
         </div>
     </div>
 
-    <div id="controls-panel">
-        <label for="player-name">نام بازیکن (ایمن‌شده):</label>
-        <input type="text" id="player-name" maxlength="20" placeholder="نام بازیکن...">
-        <button id="save-btn">بروزرسانی پروفایل</button>
-        <button id="cloud-sync-btn">همگام‌سازی ابری</button>
+    <div id="telemetry-bar">
+        <div>Active Timers: <span id="timers-cnt" class="stat-val">0</span></div>
+        <div>Listeners: <span id="listeners-cnt" class="stat-val">0</span></div>
+        <div>Active Entities: <span id="entities-cnt" class="stat-val">0</span></div>
+        <div>Pool Recycles: <span id="recycles-cnt" class="stat-val">0</span></div>
     </div>
 
-    <div id="sec-status">
-        <span class="shield-dot"></span>
-        <span>B2.st OWASP Protection Guard: کامپوننت‌های امنیتی فعال می‌باشند.</span>
+    <div class="controls">
+        کلیدها: پیکان‌های چپ/راست یا A/D (حرکت) | Space یا W (پرش) | R (ریست تمیز محیط)
     </div>
 
-    <script>
-        // ==========================================
-        // پیاده‌سازی لاجیک سبک بازی ماریو (Safe Client Execution)
-        // ==========================================
+    <script type="module">
+        import { MemoryGuard } from './src/core/memory_guard.js';
+
+        // مقداردهی اولیه سیستم محافظ حافظه با سقف ۲۵۰ مگابایت
+        const guard = new MemoryGuard({ maxMemoryMB: 250 });
         const canvas = document.getElementById('marioCanvas');
         const ctx = canvas.getContext('2d');
 
-        const playerDisplay = document.getElementById('player-display');
-        const coinScore = document.getElementById('coin-score');
-        const gameScore = document.getElementById('game-score');
-        const playerNameInput = document.getElementById('player-name');
-        const saveBtn = document.getElementById('save-btn');
-        const syncBtn = document.getElementById('cloud-sync-btn');
+        // رجیستر کردن Object Pool برای ذرات (Particles) و دشمن‌ها جهت جلوگیری از Allocations مکرر
+        guard.registerPool('particles', 
+            () => ({ x: 0, y: 0, vx: 0, vy: 0, life: 0, active: false }),
+            (p) => { p.x = 0; p.y = 0; p.vx = 0; p.vy = 0; p.life = 0; p.active = false; },
+            64
+        );
 
-        let score = 0;
-        let coins = 0;
+        guard.registerPool('enemies',
+            () => ({ x: 0, y: 0, vx: -1.2, width: 24, height: 24, isDead: false, type: 'goomba' }),
+            (e) => { e.x = 0; e.y = 0; e.vx = -1.2; e.isDead = false; },
+            16
+        );
 
-        const mario = {
-            x: 50,
-            y: 280,
-            width: 24,
-            height: 32,
-            dx: 0,
-            dy: 0,
-            gravity: 0.6,
-            jumpPower: -12,
-            grounded: true,
-            color: '#d62411'
+        // وضعیت پایدار بازی
+        const gameState = {
+            mario: {
+                x: 60,
+                y: 280,
+                vx: 0,
+                vy: 0,
+                width: 24,
+                height: 32,
+                grounded: true,
+                score: 0,
+                coins: 0
+            },
+            keys: { left: false, right: false, jump: false },
+            gravity: 0.55,
+            floorY: 304,
+            entities: [],
+            particles: [],
+            rafId: null
         };
 
-        const ground = { y: 312, height: 48 };
-
-        // کنترل‌ها
-        const keys = {};
-        window.addEventListener('keydown', (e) => { keys[e.code] = true; });
-        window.addEventListener('keyup', (e) => { keys[e.code] = false; });
-
-        function updateMario() {
-            if (keys['ArrowRight'] || keys['KeyD']) {
-                mario.dx = 3;
-            } else if (keys['ArrowLeft'] || keys['KeyA']) {
-                mario.dx = -3;
-            } else {
-                mario.dx = 0;
+        // لایه ورودی: اتصال امن و بدون نشت رویدادهای کیبورد
+        guard.bindEvent(window, 'keydown', (e) => {
+            if (e.code === 'ArrowRight' || e.code === 'KeyD') gameState.keys.right = true;
+            if (e.code === 'ArrowLeft' || e.code === 'KeyA') gameState.keys.left = true;
+            if ((e.code === 'Space' || e.code === 'ArrowUp' || e.code === 'KeyW') && gameState.mario.grounded) {
+                gameState.mario.vy = -11.5;
+                gameState.mario.grounded = false;
+                spawnJumpSpark(gameState.mario.x + 12, gameState.mario.y + 32);
             }
+            if (e.code === 'KeyR') resetLevel();
+        }, {}, 'input');
 
-            if ((keys['ArrowUp'] || keys['KeyW'] || keys['Space']) && mario.grounded) {
-                mario.dy = mario.jumpPower;
-                mario.grounded = false;
+        guard.bindEvent(window, 'keyup', (e) => {
+            if (e.code === 'ArrowRight' || e.code === 'KeyD') gameState.keys.right = false;
+            if (e.code === 'ArrowLeft' || e.code === 'KeyA') gameState.keys.left = false;
+        }, {}, 'input');
+
+        function spawnJumpSpark(x, y) {
+            for (let i = 0; i < 4; i++) {
+                const p = guard.acquire('particles');
+                p.x = x;
+                p.y = y;
+                p.vx = (Math.random() - 0.5) * 4;
+                p.vy = -Math.random() * 2 - 1;
+                p.life = 15;
+                p.active = true;
+                gameState.particles.push(p);
             }
-
-            mario.dy += mario.gravity;
-            mario.x += mario.dx;
-            mario.y += mario.dy;
-
-            // برخورد با زمین
-            if (mario.y + mario.height >= ground.y) {
-                mario.y = ground.y - mario.height;
-                mario.dy = 0;
-                mario.grounded = true;
-            }
-
-            // محدودسازی صفحه
-            if (mario.x < 0) mario.x = 0;
-            if (mario.x + mario.width > canvas.width) mario.x = canvas.width - mario.width;
         }
 
-        function render() {
-            // آسمان
+        // اسپاون پریودیک دشمنان از طریق استخر بدون نشت تایمر
+        function startEnemySpawner() {
+            guard.safeSetInterval(() => {
+                if (gameState.entities.length < 8) {
+                    const enemy = guard.acquire('enemies');
+                    enemy.x = canvas.width + 20;
+                    enemy.y = gameState.floorY - 24;
+                    enemy.vx = -(Math.random() * 0.8 + 1.0);
+                    gameState.entities.push(enemy);
+                }
+            }, 3000, 'spawner');
+        }
+
+        function resetLevel() {
+            // پاک‌سازی تمام پروسه‌های موقت بدون اختلال در ورودی‌های پایه
+            guard.clearGroup('spawner');
+            
+            // بازگرداندن اشیاء به استخرها
+            for (let i = 0; i < gameState.entities.length; i++) {
+                guard.release('enemies', gameState.entities[i]);
+            }
+            gameState.entities.length = 0;
+
+            for (let i = 0; i < gameState.particles.length; i++) {
+                guard.release('particles', gameState.particles[i]);
+            }
+            gameState.particles.length = 0;
+
+            gameState.mario.x = 60;
+            gameState.mario.y = gameState.floorY - gameState.mario.height;
+            gameState.mario.vx = 0;
+            gameState.mario.vy = 0;
+            gameState.mario.grounded = true;
+
+            startEnemySpawner();
+        }
+
+        // حلقه پردازش با صفر تخصیص حافظه حین اجرا (Zero Runtime Allocations)
+        function update() {
+            const m = gameState.mario;
+
+            // فیزیک ماریو
+            if (gameState.keys.right) m.vx = 3.2;
+            else if (gameState.keys.left) m.vx = -3.2;
+            else m.vx *= 0.8;
+
+            m.x += m.vx;
+            m.y += m.vy;
+
+            if (m.y + m.height < gameState.floorY) {
+                m.vy += gameState.gravity;
+                m.grounded = false;
+            } else {
+                m.y = gameState.floorY - m.height;
+                m.vy = 0;
+                m.grounded = true;
+            }
+
+            if (m.x < 0) m.x = 0;
+            if (m.x > canvas.width - m.width) m.x = canvas.width - m.width;
+
+            // بروزرسانی و هرس فوق‌سریع ذرات با O(1) FastCull
+            for (let i = 0; i < gameState.particles.length; i++) {
+                const p = gameState.particles[i];
+                p.x += p.vx;
+                p.y += p.vy;
+                p.life--;
+                if (p.life <= 0) p.active = false;
+            }
+
+            guard.fastCull(gameState.particles, (p) => {
+                if (!p.active) {
+                    guard.release('particles', p);
+                    return false;
+                }
+                return true;
+            });
+
+            // بروزرسانی و برخورد با دشمنان
+            for (let i = 0; i < gameState.entities.length; i++) {
+                const en = gameState.entities[i];
+                en.x += en.vx;
+
+                // تست برخورد AABB
+                if (m.x < en.x + en.width &&
+                    m.x + m.width > en.x &&
+                    m.y < en.y + en.height &&
+                    m.y + m.height > en.y) {
+                    
+                    // برخورد از بالا (کشتن دشمن)
+                    if (m.vy > 0 && m.y + m.height - m.vy <= en.y + 12) {
+                        en.isDead = true;
+                        m.vy = -7.0;
+                        m.score += 100;
+                        spawnJumpSpark(en.x + 12, en.y + 12);
+                    } else {
+                        // ریست در صورت آسیب
+                        resetLevel();
+                        return;
+                    }
+                }
+
+                if (en.x < -40) en.isDead = true;
+            }
+
+            // هرس دشمنان مرده و بازگشت به استخر
+            guard.fastCull(gameState.entities, (en) => {
+                if (en.isDead) {
+                    guard.release('enemies', en);
+                    return false;
+                }
+                return true;
+            });
+
+            // Telemetry UI Sync
+            const stats = guard.getStats();
+            document.getElementById('timers-cnt').textContent = stats.activeIntervals + stats.activeTimeouts;
+            document.getElementById('listeners-cnt').textContent = stats.trackedListeners;
+            document.getElementById('entities-cnt').textContent = gameState.entities.length + gameState.particles.length;
+            document.getElementById('recycles-cnt').textContent = stats.metrics.reclaimedObjects;
+            document.getElementById('score-disp').textContent = String(m.score).padStart(6, '0');
+        }
+
+        // رندرینگ بهینه با کشیدن مستقیم پریمیتیوها
+        function draw() {
             ctx.fillStyle = '#5c94fc';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-            // زمین چمن و خاک
-            ctx.fillStyle = '#9b4b00';
-            ctx.fillRect(0, ground.y, canvas.width, ground.height);
-            ctx.fillStyle = '#00a800';
-            ctx.fillRect(0, ground.y, canvas.width, 8);
+            // زمین
+            ctx.fillStyle = '#9b4802';
+            ctx.fillRect(0, gameState.floorY, canvas.width, canvas.height - gameState.floorY);
+            ctx.fillStyle = '#22b14c';
+            ctx.fillRect(0, gameState.floorY, canvas.width, 6);
 
-            // ترسیم ماریو
-            ctx.fillStyle = mario.color;
-            ctx.fillRect(mario.x, mario.y, mario.width, mario.height);
+            // ماریو (رندر سبک بدون Allocations)
+            ctx.fillStyle = '#d63031';
+            ctx.fillRect(gameState.mario.x, gameState.mario.y, gameState.mario.width, gameState.mario.height);
+            ctx.fillStyle = '#0984e3';
+            ctx.fillRect(gameState.mario.x + 4, gameState.mario.y + 14, gameState.mario.width - 8, 12);
 
-            // کلاه ماریو
-            ctx.fillStyle = '#d62411';
-            ctx.fillRect(mario.x + (mario.dx >= 0 ? 4 : -4), mario.y - 4, mario.width, 6);
-
-            // المان‌های پس‌زمینه (ابرهای پیکسلی)
-            ctx.fillStyle = '#ffffff';
-            ctx.beginPath();
-            ctx.arc(120, 80, 20, 0, Math.PI * 2);
-            ctx.arc(140, 80, 25, 0, Math.PI * 2);
-            ctx.arc(160, 80, 20, 0, Math.PI * 2);
-            ctx.fill();
-        }
-
-        function gameLoop() {
-            updateMario();
-            render();
-            requestAnimationFrame(gameLoop);
-        }
-
-        // ==========================================
-        // بخش تست‌های ایمن‌سازی شده با B2Secure
-        // ==========================================
-
-        saveBtn.addEventListener('click', () => {
-            const rawInput = playerNameInput.value;
-
-            // استفاده از موتور اعتبارسنجی B2Secure به جای درج بی‌پروای ورودی در DOM
-            if (window.B2Secure && !window.B2Secure.verifySafeString(rawInput, 'Player Name UI')) {
-                alert('هشدار امنیتی: نام کاربری حاوی کدهای مخرب یا غیرمجاز است.');
-                return;
+            // دشمنان
+            ctx.fillStyle = '#795548';
+            for (let i = 0; i < gameState.entities.length; i++) {
+                const en = gameState.entities[i];
+                ctx.fillRect(en.x, en.y, en.width, en.height);
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(en.x + 3, en.y + 4, 4, 4);
+                ctx.fillRect(en.x + 11, en.y + 4, 4, 4);
+                ctx.fillStyle = '#795548';
             }
 
-            // پاکسازی ضد XSS
-            const safeName = window.B2Secure ? window.B2Secure.sanitize(rawInput) : rawInput;
-            
-            // دستکاری امن المنت
-            playerDisplay.textContent = safeName.toUpperCase() || 'PLAYER 1';
-        });
-
-        syncBtn.addEventListener('click', async () => {
-            // تست فایروال ترافیک شبکه (ارسال امن توکن و پیلود بدون ریسک نشت و SQLi)
-            const sampleScoreData = {
-                player: playerDisplay.textContent,
-                score: score,
-                sessionToken: 'b2_mario_auth_sample_secret_key'
-            };
-
-            // ذخیره امن توکن در والت حافظه
-            window.B2Secure.vault.set('session_auth', sampleScoreData.sessionToken);
-
-            try {
-                // شبیه‌سازی درخواست شبکه (توسط فایروال شبکه owasp_guard تحت نظر قرار می‌گیرد)
-                const response = await fetch('/api/v1/sync_score', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${window.B2Secure.vault.get('session_auth')}`
-                    },
-                    body: JSON.stringify({
-                        score: sampleScoreData.score,
-                        query: "UPDATE leaderboard SET high_score = 100 WHERE id = 1" // اگر دستکاری مخرب شود فایروال بلاک می‌کند
-                    })
-                });
-            } catch (err) {
-                console.log('[Safe Rejection Notice] درخواست ناامن توسط ماژول فایروال رهگیری گردید:', err.message);
+            // ذرات
+            ctx.fillStyle = '#ffeaa7';
+            for (let i = 0; i < gameState.particles.length; i++) {
+                const p = gameState.particles[i];
+                ctx.fillRect(p.x, p.y, 3, 3);
             }
-        });
+        }
 
-        // شروع حلقه بازی
-        gameLoop();
+        // حلقه اصلی تحت نظارت MemoryGuard
+        function loop() {
+            update();
+            draw();
+            gameState.rafId = guard.safeRAF(loop, 'main_loop');
+        }
+
+        // شروع امن
+        startEnemySpawner();
+        loop();
     </script>
 </body>
 </html>

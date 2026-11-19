@@ -23,6 +23,7 @@ projects/html-7088/
 ├── config/test_runner.js
 ├── docker-compose.yml
 ├── docs/ARCHITECTURE.md
+├── docs/DATABASE_ARCHITECTURE.md
 ├── docs/DATABASE_SCHEMA.md
 ├── docs/DEBUG_SYNTAX.md
 ├── docs/DEPLOYMENT.md
@@ -46,12 +47,14 @@ projects/html-7088/
 ├── src/core/memory_guard.js
 ├── src/core/performance_cache.js
 ├── src/db/database_layer.js
+├── src/db/migrations.js
 ├── src/db/migrations/migration_runner.js
 ├── src/db/migrations/migrations.js
 ├── src/db/models/base_model.js
 ├── src/db/models/high_score_model.js
 ├── src/db/models/save_state_model.js
 ├── src/db/models/settings_model.js
+├── src/db/schema.js
 ├── src/db/security/crypto_vault.js
 ├── src/db/transaction_lock.js
 ├── src/docker-compose.dev.yml
@@ -80,6 +83,7 @@ projects/html-7088/
 ├── src/entities/goomba.js
 ├── src/entities/mario.js
 ├── src/game.js
+├── src/levels/Level.js
 ├── src/levels/Level1.js
 ├── src/levels/SpriteSheet.js
 ├── src/levels/TileMap.js
@@ -97,6 +101,7 @@ projects/html-7088/
 ├── src/world/Level.js
 ├── src/world/TileMap.js
 ├── tests/collision.test.js
+├── tests/database.test.js
 ├── tests/database_layer.test.js
 ├── tests/integration.test.js
 ├── tests/physics.test.js

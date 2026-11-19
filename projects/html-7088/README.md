@@ -22,6 +22,7 @@ projects/html-7088/
 ├── config/game_config.js
 ├── config/health.json
 ├── config/nginx.conf
+├── config/settings.default.js
 ├── config/test_runner.js
 ├── docker-compose.yml
 ├── docs/ARCHITECTURE.md
@@ -60,11 +61,14 @@ projects/html-7088/
 ├── src/db/migrations.js
 ├── src/db/migrations/migration_runner.js
 ├── src/db/migrations/migrations.js
+├── src/db/migrator.js
 ├── src/db/models/base_model.js
 ├── src/db/models/high_score_model.js
 ├── src/db/models/save_state_model.js
 ├── src/db/models/settings_model.js
 ├── src/db/schema.js
+├── src/db/schemas.js
+├── src/db/security.js
 ├── src/db/security/crypto_vault.js
 ├── src/db/transaction_lock.js
 ├── src/docker-compose.dev.yml

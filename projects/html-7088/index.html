@@ -3,20 +3,20 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <!-- سخت‌گیری امنیتی با Content Security Policy -->
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline';">
-    <title>بازی سوپر ماریو | استودیو B2.st</title>
+    <title>Super Mario - B2.st Crash-Proof Engine</title>
+    <!-- لایه دفاعی قبل از هر اسکریپت دیگر لود می‌شود -->
+    <script src="src/core/error_shield.js"></script>
     <style>
         * {
             box-sizing: border-box;
+            user-select: none;
             margin: 0;
             padding: 0;
-            user-select: none;
         }
         body {
-            background-color: #121212;
-            color: #ffffff;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: #111;
+            color: #fff;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             display: flex;
             flex-direction: column;
             align-items: center;
@@ -24,58 +24,306 @@
             min-height: 100vh;
             overflow: hidden;
         }
-        header {
-            margin-bottom: 12px;
-            text-align: center;
-        }
-        h1 {
-            font-size: 1.3rem;
-            color: #ff3e3e;
-            letter-spacing: 1px;
-        }
-        .canvas-wrapper {
+        #game-container {
             position: relative;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.7);
-            border: 4px solid #333333;
-            border-radius: 6px;
-            background: #000;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.8), 0 0 20px rgba(0, 255, 128, 0.2);
+            border: 3px solid #333;
+            border-radius: 8px;
+            background: #5c94fc;
+            overflow: hidden;
         }
         canvas {
             display: block;
             image-rendering: pixelated;
         }
-        footer {
+        #ui-bar {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            right: 10px;
+            display: flex;
+            justify-content: space-between;
+            font-size: 18px;
+            font-weight: bold;
+            text-shadow: 2px 2px #000;
+            pointer-events: none;
+        }
+        #shield-status {
+            margin-top: 15px;
+            font-size: 13px;
+            color: #00ff88;
+            background: rgba(0,0,0,0.6);
+            padding: 8px 15px;
+            border-radius: 20px;
+            border: 1px solid #00aa55;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            background: #00ff88;
+            border-radius: 50%;
+            box-shadow: 0 0 8px #00ff88;
+            animation: pulse 1.5s infinite;
+        }
+        @keyframes pulse {
+            0% { opacity: 0.4; }
+            50% { opacity: 1; }
+            100% { opacity: 0.4; }
+        }
+        .controls {
             margin-top: 10px;
-            font-size: 0.8rem;
-            color: #777777;
+            font-size: 12px;
+            color: #888;
         }
     </style>
 </head>
 <body>
-    <header>
-        <h1>B2.st Mario Security Engine</h1>
-    </header>
 
-    <div class="canvas-wrapper">
-        <canvas id="gameCanvas" width="640" height="480"></canvas>
+    <div id="game-container">
+        <div id="ui-bar">
+            <div>MARIO <span id="score">000000</span></div>
+            <div>COINS: <span id="coins">x00</span></div>
+            <div>SHIELD: <span style="color: #00ff88;">ARMED</span></div>
+        </div>
+        <canvas id="gameCanvas" width="640" height="360"></canvas>
     </div>
 
-    <footer>
-        توسعه داده شده بر پایه استاندارد ایمن ES6 Modules توسط واحد امنیت B2.st
-    </footer>
+    <div id="shield-status">
+        <span class="status-dot"></span>
+        سپر دفاعی B2.st فعال است: محافظت در برابر Unhandled Rejection و فریز گیم‌لوپ
+    </div>
 
-    <!-- راه‌اندازی ماژولار موتور بازی -->
-    <script type="module">
-        import { GameEngine } from "./src/engine/GameEngine.js";
+    <div class="controls">
+        حرکت: کلیدهای فلش چپ/راست یا A/D | پرش: Space یا W | تست کرش تصادفی: کلید K
+    </div>
 
-        window.addEventListener("DOMContentLoaded", () => {
-            try {
-                const engine = new GameEngine("gameCanvas");
-                engine.start();
-            } catch (err) {
-                console.error("[B2.st Engine Boot Failed]:", err);
+    <script>
+        // تایید لود پایدار ErrorShield
+        if (typeof window.ErrorShield === 'undefined') {
+            console.error("FATAL: ErrorShield engine missing!");
+        }
+
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // بازی ماریو ایمن‌سازی شده
+        class SafeMarioGame {
+            constructor() {
+                this.score = 0;
+                this.coins = 0;
+                this.gravity = 0.65;
+                
+                this.cameraX = 0;
+                
+                this.player = {
+                    x: 50,
+                    y: 200,
+                    width: 24,
+                    height: 32,
+                    vx: 0,
+                    vy: 0,
+                    speed: 4,
+                    jumpForce: -12.5,
+                    grounded: false,
+                    color: '#ff2200'
+                };
+
+                this.keys = {};
+                this.platforms = [
+                    { x: 0, y: 320, width: 2000, height: 40 },
+                    { x: 200, y: 240, width: 90, height: 20, type: 'brick' },
+                    { x: 340, y: 200, width: 90, height: 20, type: 'brick' },
+                    { x: 480, y: 240, width: 120, height: 20, type: 'brick' },
+                    { x: 700, y: 260, width: 150, height: 20, type: 'brick' }
+                ];
+
+                this.enemies = [
+                    { x: 300, y: 300, width: 22, height: 20, vx: -1.2, alive: true },
+                    { x: 550, y: 220, width: 22, height: 20, vx: -1.2, alive: true },
+                    { x: 750, y: 300, width: 22, height: 20, vx: 1.5, alive: true }
+                ];
+
+                this.init();
             }
-        });
+
+            async init() {
+                // تست اجرای متد غیرهمگام از طریق سپر safeAsync
+                await window.ErrorShield.safeAsync(async () => {
+                    await this.loadMockAssets();
+                }, null, 'AssetInitialization');
+
+                this.bindInput();
+                this.startResilientLoop();
+            }
+
+            // شبیه‌سازی بارگذاری غیرهمگام با امکان شکست و مدیریت آن
+            async loadMockAssets() {
+                return new Promise((resolve) => {
+                    setTimeout(() => {
+                        resolve(true);
+                    }, 100);
+                });
+            }
+
+            bindInput() {
+                window.addEventListener('keydown', (e) => {
+                    this.keys[e.code] = true;
+
+                    // تریگر عمدی یک خطای Unhandled Promise جهت تست عملکرد لایه ۱
+                    if (e.code === 'KeyK') {
+                        this.simulateFatalAsyncError();
+                    }
+                });
+
+                window.addEventListener('keyup', (e) => {
+                    this.keys[e.code] = false;
+                });
+            }
+
+            // شبیه‌ساز پرتاب خطای Promise کنترل نشده
+            simulateFatalAsyncError() {
+                console.warn("[TEST] شبیه‌سازی رخ‌داد استثنای مدیریت‌نشده در پرامیس...");
+                new Promise((_, reject) => {
+                    reject(new Error("MANUAL_CORRUPT_PROMISE: شبیه‌سازی خطای حافظه استودیو B2.st"));
+                });
+            }
+
+            update(timestamp) {
+                // کنترل حرکت چپ و راست
+                if (this.keys['ArrowRight'] || this.keys['KeyD']) {
+                    this.player.vx = this.player.speed;
+                } else if (this.keys['ArrowLeft'] || this.keys['KeyA']) {
+                    this.player.vx = -this.player.speed;
+                } else {
+                    this.player.vx *= 0.75;
+                }
+
+                // پرش
+                if ((this.keys['Space'] || this.keys['ArrowUp'] || this.keys['KeyW']) && this.player.grounded) {
+                    this.player.vy = this.player.jumpForce;
+                    this.player.grounded = false;
+                }
+
+                // اعمال فیزیک جاذبه
+                this.player.vy += this.gravity;
+                this.player.x += this.player.vx;
+                this.player.y += this.player.vy;
+
+                // برخورد با پلتفرم‌ها
+                this.player.grounded = false;
+                for (const plat of this.platforms) {
+                    if (
+                        this.player.x < plat.x + plat.width &&
+                        this.player.x + this.player.width > plat.x &&
+                        this.player.y + this.player.height >= plat.y &&
+                        this.player.y + this.player.height <= plat.y + 15 &&
+                        this.player.vy >= 0
+                    ) {
+                        this.player.grounded = true;
+                        this.player.vy = 0;
+                        this.player.y = plat.y - this.player.height;
+                    }
+                }
+
+                // هوش مصنوعی دشمنان (Goombas)
+                for (const enemy of this.enemies) {
+                    if (!enemy.alive) continue;
+                    enemy.x += enemy.vx;
+                    if (enemy.x < 100 || enemy.x > 900) enemy.vx *= -1;
+
+                    // برخورد با ماریو
+                    if (
+                        this.player.x < enemy.x + enemy.width &&
+                        this.player.x + this.player.width > enemy.x &&
+                        this.player.y < enemy.y + enemy.height &&
+                        this.player.y + this.player.height > enemy.y
+                    ) {
+                        if (this.player.vy > 0 && this.player.y + this.player.height - this.player.vy <= enemy.y + 10) {
+                            // له شدن دشمن
+                            enemy.alive = false;
+                            this.player.vy = this.player.jumpForce * 0.6;
+                            this.score += 200;
+                            document.getElementById('score').innerText = String(this.score).padStart(6, '0');
+                        } else {
+                            // برخورد از بغل (ریسپاون ماریو)
+                            this.player.x = 50;
+                            this.player.y = 200;
+                            this.player.vx = 0;
+                            this.player.vy = 0;
+                        }
+                    }
+                }
+
+                // کنترل دوربین
+                this.cameraX = this.player.x - 180;
+                if (this.cameraX < 0) this.cameraX = 0;
+            }
+
+            render() {
+                ctx.save();
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+                // آسمان و پس‌زمینه
+                ctx.translate(-this.cameraX, 0);
+
+                // رندر پلتفرم‌ها
+                for (const plat of this.platforms) {
+                    ctx.fillStyle = plat.type === 'brick' ? '#b84418' : '#00a800';
+                    ctx.fillRect(plat.x, plat.y, plat.width, plat.height);
+                    ctx.strokeStyle = '#000';
+                    ctx.lineWidth = 2;
+                    ctx.strokeRect(plat.x, plat.y, plat.width, plat.height);
+                }
+
+                // رندر دشمنان
+                for (const enemy of this.enemies) {
+                    if (!enemy.alive) continue;
+                    ctx.fillStyle = '#8b4513';
+                    ctx.fillRect(enemy.x, enemy.y, enemy.width, enemy.height);
+                    // چشم‌های گومبا
+                    ctx.fillStyle = '#fff';
+                    ctx.fillRect(enemy.x + 3, enemy.y + 4, 4, 4);
+                    ctx.fillRect(enemy.x + 13, enemy.y + 4, 4, 4);
+                }
+
+                // رندر ماریو
+                ctx.fillStyle = this.player.color;
+                ctx.fillRect(this.player.x, this.player.y, this.player.width, this.player.height);
+                
+                // کلاه و لباس ماریو
+                ctx.fillStyle = '#0022cc';
+                ctx.fillRect(this.player.x, this.player.y + 16, this.player.width, 16);
+                ctx.fillStyle = '#ffcc99'; // صورت
+                ctx.fillRect(this.player.x + 4, this.player.y + 4, 16, 10);
+
+                ctx.restore();
+            }
+
+            // لایه محافظ لوپ ماریو
+            startResilientLoop() {
+                const safeCycle = window.ErrorShield.protectGameLoop(
+                    (ts) => this.update(ts),
+                    () => this.render()
+                );
+
+                const loop = (timestamp) => {
+                    safeCycle(timestamp);
+                    requestAnimationFrame(loop);
+                };
+
+                requestAnimationFrame(loop);
+            }
+        }
+
+        // راه‌اندازی با مانیتورینگ بلوک ضد کرش
+        try {
+            new SafeMarioGame();
+        } catch (bootError) {
+            console.error('[B2.st CORE] خطای مهلک در راه‌اندازی اولیه:', bootError);
+        }
     </script>
 </body>
 </html>

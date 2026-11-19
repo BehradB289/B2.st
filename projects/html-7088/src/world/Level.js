@@ -1,106 +1,97 @@
 /**
- * B2.st Studio - Level Matrix & Map Bounds Security
- * مدیریت ساختار تایل‌های نقشه و برطرف‌سازی خطاهای Null Pointer مرزها
+ * @file Level.js
+ * @description ماتریس استیج و تشخیص دقیق بلاک‌های بازی
  */
-"use strict";
-
-import { Guardian } from "../security/Guardian.js";
 
 export class Level {
     constructor() {
         this.tileSize = 32;
-        this.cols = 70;
-        this.rows = 15;
-        this.map = [];
-        this.buildLevel();
+        this.gravity = 1100;
+        this.width = 100 * this.tileSize;
+        this.height = 400;
+
+        // نقشه‌برداری ساده بلاک‌های محیطی: 0: خالی, 1: زمین, 2: آجر, 3: سوال (بونوس)
+        this.tiles = [];
+        this._buildWorld();
     }
 
-    buildLevel() {
-        // ایجاد نقشه با مقداردهی اولیه امن
-        for (let r = 0; r < this.rows; r++) {
-            this.map[r] = new Array(this.cols).fill(0);
-        }
+    _buildWorld() {
+        const rows = Math.ceil(this.height / this.tileSize);
+        const cols = Math.ceil(this.width / this.tileSize);
 
-        // ایجاد زمین (تایل 1: زمین جامد)
-        for (let c = 0; c < this.cols; c++) {
-            this.map[13][c] = 1;
-            this.map[14][c] = 1;
-        }
-
-        // ایجاد موانع و جعبه‌های کلاسیک ماریو
-        this.map[9][10] = 2; // تایل 2: جعبه اسرارآمیز
-        this.map[9][11] = 1; // تایل آجری
-        this.map[9][12] = 2;
-        this.map[9][13] = 1;
-        this.map[5][12] = 2;
-
-        // لوله‌های سبز (Pipes)
-        this.map[12][20] = 3;
-        this.map[11][20] = 3;
-        this.map[12][28] = 3;
-        this.map[11][28] = 3;
-        this.map[10][28] = 3;
-
-        // گودال (Pitfalls) برای اعتبارسنجی سقوط و عدم دسترسی نامعتبر
-        this.map[13][35] = 0;
-        this.map[14][35] = 0;
-        this.map[13][36] = 0;
-        this.map[14][36] = 0;
-
-        // پله‌های پایانی
-        for (let i = 0; i < 5; i++) {
-            for (let j = 0; j <= i; j++) {
-                this.map[12 - j][50 + i] = 1;
+        for (let y = 0; y < rows; y++) {
+            this.tiles[y] = [];
+            for (let x = 0; x < cols; x++) {
+                if (y >= rows - 2) {
+                    // دو ردیف آخر کف زمین است
+                    this.tiles[y][x] = 1;
+                } else if (y === rows - 5 && (x % 7 === 0 || x % 7 === 1)) {
+                    // پلتفرم‌های آجری معلق
+                    this.tiles[y][x] = (x % 2 === 0) ? 2 : 3;
+                } else {
+                    this.tiles[y][x] = 0;
+                }
             }
         }
     }
 
     /**
-     * استعلام نوع تایل با پشتیبانی از سیستم بررسی امن محدوده (Boundary Safe Check)
+     * بررسی برخورد بر اساس مختصات پیکسلی
+     * @param {number} x 
+     * @param {number} y 
+     * @returns {number} نوع تایل برخورد کرده
      */
-    getTile(col, row) {
-        if (row < 0 || row >= this.rows || col < 0 || col >= this.cols) {
-            return 0; // در خارج از مرزها تایل پوچ فرض می‌شود
+    getTileAt(x, y) {
+        const col = Math.floor(x / this.tileSize);
+        const row = Math.floor(y / this.tileSize);
+
+        if (row < 0 || row >= this.tiles.length || col < 0 || col >= this.tiles[0].length) {
+            return 0;
         }
-        return this.map[row]?.[col] ?? 0;
+
+        return this.tiles[row][col];
     }
 
-    isSolid(col, row) {
-        const tile = this.getTile(col, row);
-        return tile === 1 || tile === 2 || tile === 3;
-    }
-
+    /**
+     * رندر تایل‌ها در ویوپورت دوربین
+     * @param {CanvasRenderingContext2D} ctx 
+     * @param {number} cameraX 
+     */
     render(ctx, cameraX) {
         const startCol = Math.max(0, Math.floor(cameraX / this.tileSize));
-        const endCol = Math.min(this.cols, startCol + Math.ceil(ctx.canvas.width / this.tileSize) + 1);
+        const endCol = Math.min(
+            this.tiles[0].length,
+            Math.ceil((cameraX + ctx.canvas.width) / this.tileSize) + 1
+        );
 
-        for (let r = 0; r < this.rows; r++) {
-            for (let c = startCol; c < endCol; c++) {
-                const tile = this.map[r][c];
-                const x = Math.floor(c * this.tileSize - cameraX);
-                const y = Math.floor(r * this.tileSize);
+        for (let y = 0; y < this.tiles.length; y++) {
+            for (let x = startCol; x < endCol; x++) {
+                const type = this.tiles[y][x];
+                if (type === 0) continue;
 
-                if (tile === 1) {
-                    // زمین و آجر قهوه‌ای
-                    ctx.fillStyle = "#C84C0C";
-                    ctx.fillRect(x, y, this.tileSize, this.tileSize);
-                    ctx.strokeStyle = "#000000";
+                const drawX = Math.floor(x * this.tileSize - cameraX);
+                const drawY = y * this.tileSize;
+
+                if (type === 1) {
+                    // زمین سبز
+                    ctx.fillStyle = '#10b981';
+                    ctx.fillRect(drawX, drawY, this.tileSize, this.tileSize);
+                    ctx.strokeStyle = '#065f46';
                     ctx.lineWidth = 1;
-                    ctx.strokeRect(x, y, this.tileSize, this.tileSize);
-                } else if (tile === 2) {
+                    ctx.strokeRect(drawX, drawY, this.tileSize, this.tileSize);
+                } else if (type === 2) {
+                    // آجر
+                    ctx.fillStyle = '#b45309';
+                    ctx.fillRect(drawX, drawY, this.tileSize, this.tileSize);
+                    ctx.fillStyle = '#78350f';
+                    ctx.fillRect(drawX + 2, drawY + 2, this.tileSize - 4, this.tileSize - 4);
+                } else if (type === 3) {
                     // جعبه شانس
-                    ctx.fillStyle = "#FCB42C";
-                    ctx.fillRect(x, y, this.tileSize, this.tileSize);
-                    ctx.fillStyle = "#000000";
-                    ctx.font = "bold 16px monospace";
-                    ctx.fillText("?", x + 10, y + 22);
-                    ctx.strokeRect(x, y, this.tileSize, this.tileSize);
-                } else if (tile === 3) {
-                    // لوله سبز
-                    ctx.fillStyle = "#00A800";
-                    ctx.fillRect(x, y, this.tileSize, this.tileSize);
-                    ctx.strokeStyle = "#004000";
-                    ctx.strokeRect(x, y, this.tileSize, this.tileSize);
+                    ctx.fillStyle = '#f59e0b';
+                    ctx.fillRect(drawX, drawY, this.tileSize, this.tileSize);
+                    ctx.fillStyle = '#ffffff';
+                    ctx.font = '16px monospace';
+                    ctx.fillText('?', drawX + 11, drawY + 22);
                 }
             }
         }

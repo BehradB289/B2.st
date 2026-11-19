@@ -1,0 +1,25 @@
+{
+  "serviceName": "b2st-mario-engine",
+  "environment": "production",
+  "version": "1.4.0",
+  "thresholds": {
+    "heapMemoryCriticalPercent": 90,
+    "heapMemoryWarningPercent": 75,
+    "eventLoopLagWarningMs": 45,
+    "eventLoopLagCriticalMs": 120,
+    "minimumFpsThreshold": 30,
+    "targetFps": 60
+  },
+  "server": {
+    "defaultPort": 8080,
+    "host": "0.0.0.0",
+    "enableCors": true,
+    "requestTimeoutMs": 5000
+  },
+  "endpoints": {
+    "health": "/health",
+    "liveness": "/health/live",
+    "readiness": "/health/ready",
+    "telemetry": "/health/telemetry"
+  }
+}

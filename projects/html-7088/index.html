@@ -2,10 +2,8 @@
 <html lang="fa" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline';">
-    <title>Super Mario - B2.st Secure Engine</title>
+    <title>B2.st Mario - Protected by Anti-Crash Engine</title>
     <style>
         * {
             box-sizing: border-box;
@@ -14,8 +12,8 @@
             user-select: none;
         }
         body {
-            background-color: #0f172a;
-            color: #f8fafc;
+            background: #11141a;
+            color: #ecf0f1;
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
             display: flex;
             flex-direction: column;
@@ -24,56 +22,197 @@
             min-height: 100vh;
             overflow: hidden;
         }
-        #game-container {
+        #viewport-container {
             position: relative;
-            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7);
-            border: 4px solid #334155;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.7), 0 0 1px #00ff66;
+            border: 2px solid #2c3e50;
             border-radius: 8px;
-            background-color: #5c94fc;
             overflow: hidden;
+            background: #5c94fc;
         }
         canvas {
             display: block;
             image-rendering: pixelated;
         }
-        .ui-panel {
+        #shield-hud {
             position: absolute;
             top: 10px;
             left: 10px;
-            right: 10px;
-            display: flex;
-            justify-content: space-between;
-            font-size: 18px;
-            font-weight: 800;
-            color: #ffffff;
-            text-shadow: 2px 2px #000000;
+            font-family: monospace;
+            font-size: 11px;
+            background: rgba(10, 15, 25, 0.85);
+            padding: 6px 12px;
+            border-radius: 4px;
+            border-left: 3px solid #00ff66;
             pointer-events: none;
-            direction: ltr;
+            color: #a0aec0;
         }
-        .controls-hint {
-            margin-top: 14px;
-            color: #94a3b8;
+        .shield-val {
+            color: #00ff66;
+            font-weight: bold;
+        }
+        #controls-hint {
+            margin-top: 15px;
             font-size: 13px;
-            direction: rtl;
+            color: #7f8c8d;
+        }
+        .key {
+            background: #2c3e50;
+            color: #fff;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: monospace;
         }
     </style>
 </head>
 <body>
 
-    <div id="game-container">
-        <canvas id="gameCanvas" width="640" height="400"></canvas>
-        <div class="ui-panel">
-            <div id="mario-score">MARIO: 000000</div>
-            <div id="mario-coins">COINS: 00</div>
-            <div id="mario-world">WORLD: 1-1</div>
-            <div id="mario-lives">LIVES: 3</div>
+    <div id="viewport-container">
+        <canvas id="gameCanvas" width="640" height="360"></canvas>
+        <div id="shield-hud">
+            <div>سپر دفاعی B2.st: <span class="shield-val">فعال (۱۰ لایه)</span></div>
+            <div>خطاهای مهارشده ناهمگام: <span id="shield-async-traps" class="shield-val">0</span></div>
+            <div>فریم ریت: <span id="shield-fps" class="shield-val">60</span> FPS</div>
         </div>
     </div>
 
-    <div class="controls-hint">
-        کنترل‌ها: جهت‌های چپ / راست یا A / D برای حرکت | Space / W یا جهت بالا برای پرش
+    <div id="controls-hint">
+        کنترل‌ها: <span class="key">A</span> / <span class="key">D</span> یا <span class="key">←</span> / <span class="key">→</span> برای حرکت | <span class="key">W</span> / <span class="key">Space</span> برای پرش | کلید <span class="key">T</span> برای شبیه‌سازی تست خطای بحرانی Async
     </div>
 
-    <script type="module" src="./src/index.js"></script>
+    <!-- بارگذاری موتور محافظت قبل از بارگذاری منطق بازی -->
+    <script src="src/core/error_shield.js"></script>
+    
+    <script>
+        // ۱. فعال‌سازی موتور امنیتی B2.st در سطح ریشه
+        const Shield = window.B2ErrorShield.init({
+            silentMode: false,
+            autoRecoverCanvas: true
+        });
+
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const asyncTrapsElem = document.getElementById('shield-async-traps');
+        const fpsElem = document.getElementById('shield-fps');
+
+        let lastFrameTime = performance.now();
+        let frameCount = 0;
+        let fpsTimer = performance.now();
+
+        // وضعیت پایدار ماریو
+        const mario = {
+            x: 50,
+            y: 280,
+            width: 24,
+            height: 32,
+            vx: 0,
+            vy: 0,
+            speed: 3.5,
+            jumpStrength: -11,
+            grounded: false,
+            color: '#e74c3c'
+        };
+
+        const keys = { left: false, right: false, up: false };
+
+        // محافظت از لیسنرهای ورودی با لایه ۵
+        Shield.safeEventListener(window, 'keydown', (e) => {
+            if (e.code === 'KeyD' || e.code === 'ArrowRight') keys.right = true;
+            if (e.code === 'KeyA' || e.code === 'ArrowLeft') keys.left = true;
+            if ((e.code === 'KeyW' || e.code === 'Space' || e.code === 'ArrowUp') && mario.grounded) {
+                mario.vy = mario.jumpStrength;
+                mario.grounded = false;
+            }
+
+            // تست تعمدی تزریق ارور Unhandled Rejection و بررسی سپر ضد کرش
+            if (e.code === 'KeyT') {
+                simulateBrokenAsyncJob();
+            }
+        });
+
+        Shield.safeEventListener(window, 'keyup', (e) => {
+            if (e.code === 'KeyD' || e.code === 'ArrowRight') keys.right = false;
+            if (e.code === 'KeyA' || e.code === 'ArrowLeft') keys.left = false;
+        });
+
+        // تست عمدی Promise خراب بدون Catch (سپر لایه ۱ فوراً آن را خنثی خواهد کرد)
+        async function simulateBrokenAsyncJob() {
+            return new Promise((_, reject) => {
+                setTimeout(() => {
+                    reject(new Error("شبیه‌سازی خطای کرش‌کننده استریم صوت/تصویر بدون Catch!"));
+                }, 10);
+            });
+        }
+
+        // ۲. حلقه امن فیزیک و رندر محافظت‌شده توسط safeRAF (لایه‌های ۳، ۶ و ۷)
+        function gameLoop(timestamp) {
+            // محاسبه FPS
+            frameCount++;
+            if (timestamp - fpsTimer >= 1000) {
+                fpsElem.textContent = frameCount;
+                frameCount = 0;
+                fpsTimer = timestamp;
+                asyncTrapsElem.textContent = Shield.telemetry.getAll().length;
+            }
+
+            // پاک‌سازی صحنه
+            ctx.fillStyle = '#5c94fc';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // زمین
+            ctx.fillStyle = '#c84c0c';
+            ctx.fillRect(0, 312, canvas.width, 48);
+            ctx.fillStyle = '#00aa00';
+            ctx.fillRect(0, 312, canvas.width, 8);
+
+            // اعمال فیزیک با رصدگر انحراف مختصات (Layer 6)
+            if (keys.right) mario.vx = mario.speed;
+            else if (keys.left) mario.vx = -mario.speed;
+            else mario.vx *= 0.8;
+
+            mario.vy += 0.55; // گرانش
+            mario.x += mario.vx;
+            mario.y += mario.vy;
+
+            // برخورد به زمین
+            if (mario.y >= 280) {
+                mario.y = 280;
+                mario.vy = 0;
+                mario.grounded = true;
+            }
+
+            // مرزبندی صفحه
+            if (mario.x < 0) mario.x = 0;
+            if (mario.x > canvas.width - mario.width) mario.x = canvas.width - mario.width;
+
+            // ضدعفونی‌سازی مختصات ماریو برای جلوگیری از نشت مقادیر غیرمجاز NaN به Canvas
+            Shield.sanitizePhysicsCoordinates(mario);
+
+            // رسم ماریو
+            ctx.fillStyle = mario.color;
+            ctx.fillRect(mario.x, mario.y, mario.width, mario.height);
+            // کلاه ماریو
+            ctx.fillStyle = '#b71515';
+            ctx.fillRect(mario.x + (mario.vx >= 0 ? 4 : -4), mario.y, mario.width, 8);
+
+            // فراخوانی فریم بعدی در محفظه ضد کرش
+            Shield.safeRAF(gameLoop, (error) => {
+                // فال‌بک در صورتی که پردازش یک فریم با خطا مواجه شود
+                mario.y = 280;
+                mario.vy = 0;
+            });
+        }
+
+        // ریست اضطراری در شرایط بحرانی
+        window.addEventListener('b2:mario:emergency_reset', () => {
+            mario.x = 50;
+            mario.y = 280;
+            mario.vx = 0;
+            mario.vy = 0;
+        });
+
+        // شروع امن لوپ
+        Shield.safeRAF(gameLoop);
+    </script>
 </body>
 </html>

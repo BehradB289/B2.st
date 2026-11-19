@@ -1,79 +1,47 @@
 /**
- * @file GameLoop.js
- * @description Fixed-timestep game loop with variable rendering and periodic cache maintenance.
+ * B2.st Studio - Mario Game Engine
+ * Fixed Timestep High-Precision Game Loop
+ * @module src/engine/GameLoop
  */
+
 export class GameLoop {
-  /**
-   * @param {Function} updateFn (dt) => void
-   * @param {Function} renderFn (interpolation) => void
-   * @param {PerformanceCache} cache Engine cache instance
-   */
-  constructor(updateFn, renderFn, cache) {
+  constructor(updateFn, renderFn, timestep = 1 / 60) {
     this.updateFn = updateFn;
     this.renderFn = renderFn;
-    this.cache = cache;
-
-    this.targetFPS = 60;
-    this.fixedDelta = 1 / 60;
-    this.accumulator = 0;
+    this.timestep = timestep;
+    this.accumulatedTime = 0;
     this.lastTime = 0;
+    this.animationFrameId = null;
     this.isRunning = false;
-
-    // Diagnostics
-    this.fps = 0;
-    this.framesCount = 0;
-    this.fpsTimer = 0;
-    this.maintenanceTimer = 0;
-
-    this._tick = this._tick.bind(this);
   }
 
   start() {
     if (this.isRunning) return;
     this.isRunning = true;
     this.lastTime = performance.now();
-    requestAnimationFrame(this._tick);
+    const frame = (currentTime) => {
+      if (!this.isRunning) return;
+      let deltaTime = (currentTime - this.lastTime) / 1000;
+      if (deltaTime > 0.1) deltaTime = 0.1; // Panic clamp
+
+      this.accumulatedTime += deltaTime;
+      while (this.accumulatedTime >= this.timestep) {
+        this.updateFn(this.timestep);
+        this.accumulatedTime -= this.timestep;
+      }
+
+      this.renderFn();
+      this.lastTime = currentTime;
+      this.animationFrameId = requestAnimationFrame(frame);
+    };
+
+    this.animationFrameId = requestAnimationFrame(frame);
   }
 
   stop() {
     this.isRunning = false;
-  }
-
-  _tick(currentTime) {
-    if (!this.isRunning) return;
-
-    let delta = (currentTime - this.lastTime) / 1000;
-    if (delta > 0.25) delta = 0.25; // Clamp huge lag spikes
-    this.lastTime = currentTime;
-
-    this.accumulator += delta;
-
-    // Diagnostics FPS computation
-    this.fpsTimer += delta;
-    this.framesCount++;
-    if (this.fpsTimer >= 1.0) {
-      this.fps = this.framesCount;
-      this.framesCount = 0;
-      this.fpsTimer -= 1.0;
+    if (this.animationFrameId) {
+      cancelAnimationFrame(this.animationFrameId);
     }
-
-    // Periodic maintenance on cache (prunes dead TTL entries every 5 seconds)
-    this.maintenanceTimer += delta;
-    if (this.maintenanceTimer >= 5.0) {
-      if (this.cache) this.cache.pruneExpired();
-      this.maintenanceTimer = 0;
-    }
-
-    // Deterministic fixed physics updates
-    while (this.accumulator >= this.fixedDelta) {
-      this.updateFn(this.fixedDelta);
-      this.accumulator -= this.fixedDelta;
-    }
-
-    // Render with remaining fraction
-    const alpha = this.accumulator / this.fixedDelta;
-    this.renderFn(alpha);
-
-    requestAnimationFrame(this._tick);
   }
 }

@@ -22,6 +22,7 @@ projects/html-7088/
 ├── config/game_config.js
 ├── config/health.json
 ├── config/nginx.conf
+├── config/server.config.js
 ├── config/settings.default.js
 ├── config/test_runner.js
 ├── docker-compose.yml
@@ -125,6 +126,7 @@ projects/html-7088/
 ├── src/vitest.config.js
 ├── src/world/Level.js
 ├── src/world/TileMap.js
+├── tests/cli.test.js
 ├── tests/collision.test.js
 ├── tests/database.test.js
 ├── tests/database_layer.test.js

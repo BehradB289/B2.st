@@ -1,32 +1,37 @@
 {
-  "name": "@b2st/mario-canvas-ecs",
-  "version": "1.4.0",
-  "description": "NES Classic Mario Engine - Modular ECS Canvas2D Game with CLI and Health Monitor",
-  "main": "src/cli.js",
+  "name": "b2st-mario-html5",
+  "version": "1.0.0",
+  "description": "Hardened HTML5 Mario Engine - Standardized by Studio B2.st",
+  "main": "server.js",
   "type": "module",
-  "bin": {
-    "b2st-mario": "./src/cli.js",
-    "mario-cli": "./src/cli.js"
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
   },
   "scripts": {
-    "start": "node src/cli.js serve",
-    "health": "node src/cli.js health",
-    "status": "node src/cli.js status",
-    "test": "node src/cli.js test",
-    "lint:levels": "node src/cli.js inspect-levels"
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "security:audit": "npm audit --audit-level=high",
+    "lint": "eslint . --ext .js"
   },
   "keywords": [
     "mario",
-    "game-engine",
-    "ecs",
-    "canvas2d",
-    "b2st",
-    "cli",
-    "health-check"
+    "html5-game",
+    "canvas",
+    "b2st-security",
+    "hardened"
   ],
-  "author": "B2.st Studio",
+  "author": "Cyber Security Division - Studio B2.st",
   "license": "MIT",
-  "engines": {
-    "node": ">=18.0.0"
-  }
+  "dependencies": {
+    "cors": "2.8.5",
+    "dotenv": "16.4.5",
+    "express": "4.19.2",
+    "express-rate-limit": "7.2.0",
+    "helmet": "7.1.0"
+  },
+  "devDependencies": {
+    "eslint": "8.57.0"
+  },
+  "private": true
 }

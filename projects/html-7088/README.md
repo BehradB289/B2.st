@@ -20,10 +20,12 @@ projects/html-7088/
 ├── config/env_config.js
 ├── config/game.config.js
 ├── config/game_config.js
+├── config/health.json
 ├── config/nginx.conf
 ├── config/test_runner.js
 ├── docker-compose.yml
 ├── docs/ARCHITECTURE.md
+├── docs/CLI_AND_HEALTH_CHECK.md
 ├── docs/DATABASE_ARCHITECTURE.md
 ├── docs/DATABASE_SCHEMA.md
 ├── docs/DEBUG_SYNTAX.md
@@ -44,9 +46,11 @@ projects/html-7088/
 ├── scripts/healthcheck.sh
 ├── scripts/rollback.sh
 ├── src/.dockerignore
+├── src/cli.js
 ├── src/core/Engine.js
 ├── src/core/InputHandler.js
 ├── src/core/error_shield.js
+├── src/core/health_monitor.js
 ├── src/core/memory_guard.js
 ├── src/core/performance_cache.js
 ├── src/db/database_layer.js
@@ -111,6 +115,7 @@ projects/html-7088/
 ├── tests/collision.test.js
 ├── tests/database.test.js
 ├── tests/database_layer.test.js
+├── tests/health_monitor.test.js
 ├── tests/integration.test.js
 ├── tests/level.test.js
 ├── tests/physics.test.js

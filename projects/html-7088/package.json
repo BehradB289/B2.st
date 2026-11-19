@@ -1,22 +1,32 @@
 {
-  "name": "b2st-super-mario",
-  "version": "1.0.0",
-  "description": "Modular NES Super Mario Bros engine with Canvas 2D, ECS architecture and automated integration test pipeline.",
+  "name": "@b2st/mario-canvas-ecs",
+  "version": "1.4.0",
+  "description": "NES Classic Mario Engine - Modular ECS Canvas2D Game with CLI and Health Monitor",
+  "main": "src/cli.js",
   "type": "module",
-  "main": "src/engine/PhysicsEngine.js",
+  "bin": {
+    "b2st-mario": "./src/cli.js",
+    "mario-cli": "./src/cli.js"
+  },
   "scripts": {
-    "test": "node tests/integration.test.js",
-    "start": "npx serve public"
+    "start": "node src/cli.js serve",
+    "health": "node src/cli.js health",
+    "status": "node src/cli.js status",
+    "test": "node src/cli.js test",
+    "lint:levels": "node src/cli.js inspect-levels"
   },
   "keywords": [
     "mario",
     "game-engine",
-    "canvas2d",
     "ecs",
-    "physics-aabb",
-    "integration-tests",
-    "retro-nes"
+    "canvas2d",
+    "b2st",
+    "cli",
+    "health-check"
   ],
   "author": "B2.st Studio",
-  "license": "MIT"
+  "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0"
+  }
 }

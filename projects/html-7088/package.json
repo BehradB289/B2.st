@@ -1,14 +1,25 @@
 {
-  "name": "b2-retro-mario-engine",
+  "name": "@b2.st/mario-canvas-engine",
   "version": "1.0.0",
-  "description": "High-performance modular NES Mario engine with In-Memory Cache and Rate Limiter",
+  "description": "Modular NES-style Mario 2D Game Engine and OpenAPI Telemetry Service for Studio B2.st",
   "type": "module",
   "main": "src/main.js",
   "scripts": {
-    "start": "npx serve .",
-    "test": "node tests/physics.test.js"
+    "start": "npx serve -l 3000 .",
+    "test": "node tests/run-tests.js"
   },
-  "keywords": ["mario", "canvas2d", "game-engine", "ecs", "cache", "rate-limiter"],
-  "author": "B2.st Studio",
-  "license": "MIT"
+  "keywords": [
+    "mario",
+    "canvas",
+    "game-engine",
+    "nes",
+    "retro",
+    "swagger",
+    "openapi"
+  ],
+  "author": "Studio B2.st",
+  "license": "MIT",
+  "devDependencies": {
+    "serve": "^14.2.4"
+  }
 }

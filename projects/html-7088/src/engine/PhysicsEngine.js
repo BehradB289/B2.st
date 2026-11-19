@@ -1,120 +1,123 @@
+import { GAME_CONFIG } from '../../config/game.config.js';
+
 /**
- * Core Physics and Collision Resolution Engine (Swept AABB)
- * Studio: B2.st
+ * 2D AABB Physics Engine
+ * Separates axis resolution (Horizontal first, Vertical second)
+ * to avoid corner tunneling and ghost wall collisions.
  */
-
-import { PHYSICS } from '../../config/constants.js';
-
 export class PhysicsEngine {
-  constructor(tileMap, gravity = PHYSICS.GRAVITY) {
-    this.tileMap = tileMap;
-    this.gravity = gravity;
-    this.maxFallSpeed = PHYSICS.MAX_FALL_SPEED;
+  constructor(config = GAME_CONFIG) {
+    this.gravity = config.GRAVITY;
+    this.terminalVelocity = config.TERMINAL_VELOCITY;
+    this.friction = config.FRICTION;
   }
 
-  updateEntity(entity, dt) {
-    if (!entity.isAlive && entity.type !== 'mario') return;
+  applyGravity(entity, dt) {
+    if (entity.isStatic || !entity.hasGravity) return;
 
-    // Apply horizontal motion
-    entity.position.x += entity.velocity.x * dt;
-    this.resolveTileCollisionX(entity);
+    entity.vel.y += this.gravity * dt;
+    if (entity.vel.y > this.terminalVelocity) {
+      entity.vel.y = this.terminalVelocity;
+    }
+  }
 
-    // Apply gravity and vertical motion
-    entity.velocity.y = Math.min(entity.velocity.y + this.gravity * dt, this.maxFallSpeed);
-    entity.position.y += entity.velocity.y * dt;
+  applyFriction(entity, dt) {
+    if (entity.isStatic || !entity.isGrounded) return;
+
+    if (entity.accelX === 0) {
+      if (entity.vel.x > 0) {
+        entity.vel.x = Math.max(0, entity.vel.x - this.friction * dt);
+      } else if (entity.vel.x < 0) {
+        entity.vel.x = Math.min(0, entity.vel.x + this.friction * dt);
+      }
+    }
+  }
+
+  updateEntityKinematics(entity, dt) {
+    this.applyGravity(entity, dt);
+    this.applyFriction(entity, dt);
+  }
+
+  resolveTileMapCollisions(entity, tileMap, dt) {
+    if (entity.isStatic) return;
+
+    // 1. Horizontal Motion & Collision Resolution
+    entity.pos.x += entity.vel.x * dt;
+    let bounds = entity.getBounds();
+    let solidTiles = tileMap.getSolidTilesInAABB(bounds);
+
+    for (const tile of solidTiles) {
+      if (entity.vel.x > 0) {
+        entity.pos.x = tile.x - entity.size.x;
+        entity.vel.x = 0;
+        entity.onWallHit?.('RIGHT');
+      } else if (entity.vel.x < 0) {
+        entity.pos.x = tile.x + tile.width;
+        entity.vel.x = 0;
+        entity.onWallHit?.('LEFT');
+      }
+      bounds = entity.getBounds();
+    }
+
+    // 2. Vertical Motion & Collision Resolution
+    entity.pos.y += entity.vel.y * dt;
+    bounds = entity.getBounds();
+    solidTiles = tileMap.getSolidTilesInAABB(bounds);
+
     entity.isGrounded = false;
-    this.resolveTileCollisionY(entity);
-  }
 
-  resolveTileCollisionX(entity) {
-    if (!this.tileMap) return;
-    const ts = this.tileMap.tileSize;
-    const startRow = Math.floor(entity.position.y / ts);
-    const endRow = Math.floor((entity.position.y + entity.height - 0.05) / ts);
-
-    if (entity.velocity.x > 0) {
-      const col = Math.floor((entity.position.x + entity.width) / ts);
-      for (let r = startRow; r <= endRow; r++) {
-        if (this.tileMap.isSolid(col, r)) {
-          entity.position.x = col * ts - entity.width;
-          if (typeof entity.reverseDirection === 'function') {
-            entity.reverseDirection();
-          } else {
-            entity.velocity.x = 0;
-          }
-          break;
-        }
+    for (const tile of solidTiles) {
+      if (entity.vel.y > 0) {
+        // Landing on floor/tile top
+        entity.pos.y = tile.y - entity.size.y;
+        entity.vel.y = 0;
+        entity.isGrounded = true;
+      } else if (entity.vel.y < 0) {
+        // Hitting ceiling / block underside
+        entity.pos.y = tile.y + tile.height;
+        entity.vel.y = GAME_CONFIG.HEAD_BUMP_REBOUND;
+        entity.onHeadBump?.(tile);
       }
-    } else if (entity.velocity.x < 0) {
-      const col = Math.floor(entity.position.x / ts);
-      for (let r = startRow; r <= endRow; r++) {
-        if (this.tileMap.isSolid(col, r)) {
-          entity.position.x = (col + 1) * ts;
-          if (typeof entity.reverseDirection === 'function') {
-            entity.reverseDirection();
-          } else {
-            entity.velocity.x = 0;
-          }
-          break;
-        }
-      }
+      bounds = entity.getBounds();
     }
   }
 
-  resolveTileCollisionY(entity) {
-    if (!this.tileMap) return;
-    const ts = this.tileMap.tileSize;
-    const startCol = Math.floor(entity.position.x / ts);
-    const endCol = Math.floor((entity.position.x + entity.width - 0.05) / ts);
+  resolveDynamicPair(entityA, entityB) {
+    if (!entityA.active || !entityB.active) return null;
 
-    if (entity.velocity.y >= 0) {
-      // Falling down: test ground collision
-      const row = Math.floor((entity.position.y + entity.height) / ts);
-      for (let c = startCol; c <= endCol; c++) {
-        if (this.tileMap.isSolid(c, row)) {
-          entity.position.y = row * ts - entity.height;
-          entity.velocity.y = 0;
-          entity.isGrounded = true;
-          break;
-        }
-      }
-    } else if (entity.velocity.y < 0) {
-      // Jumping up: test ceiling collision
-      const row = Math.floor(entity.position.y / ts);
-      for (let c = startCol; c <= endCol; c++) {
-        if (this.tileMap.isSolid(c, row)) {
-          entity.position.y = (row + 1) * ts;
-          entity.velocity.y = 0;
-          this.tileMap.interactTile(c, row, entity);
-          break;
-        }
-      }
+    const boxA = entityA.getBounds();
+    const boxB = entityB.getBounds();
+
+    if (!boxA.intersects(boxB)) {
+      return null;
     }
+
+    // Check stomping condition:
+    // Entity A falling from top onto Entity B
+    const aBottom = boxA.bottom;
+    const bTop = boxB.top;
+    const dy = aBottom - bTop;
+
+    const isStomp = (
+      entityA.vel.y > 0 &&
+      dy <= 12 &&
+      entityA.pos.y < entityB.pos.y
+    );
+
+    return {
+      type: isStomp ? 'STOMP' : 'HORIZONTAL_CONTACT',
+      entityA,
+      entityB,
+      dy
+    };
   }
 
-  resolveEntityToEntity(player, entities) {
-    if (!player.isAlive) return;
-    const playerBox = player.getBounds();
-
+  step(entities, tileMap, dt) {
     for (const entity of entities) {
-      if (entity === player || !entity.isAlive || entity.markedForRemoval) continue;
-
-      const entityBox = entity.getBounds();
-      if (!playerBox.intersects(entityBox)) continue;
-
-      if (entity.type === 'goomba') {
-        // Stomp condition: player is descending and player's bottom is near top of goomba
-        const isDescending = player.velocity.y > 0;
-        const playerBottom = player.position.y + player.height;
-        const goombaTop = entity.position.y;
-
-        if (isDescending && playerBottom - player.velocity.y * 0.05 <= goombaTop + 10) {
-          entity.squash();
-          player.stomp();
-        } else {
-          player.takeDamage();
-        }
-      }
+      if (!entity.active) continue;
+      this.updateEntityKinematics(entity, dt);
+      this.resolveTileMapCollisions(entity, tileMap, dt);
+      entity.update(dt);
     }
   }
 }

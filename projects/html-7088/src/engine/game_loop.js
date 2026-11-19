@@ -1,77 +1,77 @@
 /**
- * Deterministic Game Loop
- * Fixed Timestep for Physics Simulation + Smooth Interpolated Render
- * Layer: Central Engine
+ * Fixed Timestep Game Loop with Accumulator & FPS Telemetry
  * Studio: B2.st
  */
+import { GAME_CONFIG } from '../../config/game_config.js';
 
 export class GameLoop {
-  /**
-   * @param {Function} updateFn - Called with fixed delta time
-   * @param {Function} renderFn - Called on animation frame
-   * @param {number} [targetFps=60]
-   */
-  constructor(updateFn, renderFn, targetFps = 60) {
-    this.updateFn = updateFn;
-    this.renderFn = renderFn;
-    this.fixedDeltaTime = 1 / targetFps;
+    /**
+     * @param {Function} updateFn (dt) => void
+     * @param {Function} renderFn (interpolation) => void
+     */
+    constructor(updateFn, renderFn) {
+        this.updateFn = updateFn;
+        this.renderFn = renderFn;
 
-    this.isRunning = false;
-    this.rafId = null;
-    this.lastTime = 0;
-    this.accumulator = 0;
+        this.fixedDelta = GAME_CONFIG.CANVAS.FIXED_DELTA;
+        this.maxAccumulatedTime = 0.25; // Prevents spiral of death on tab unfocus
 
-    // Performance telemetry
-    this.fps = 60;
-    this.frameCount = 0;
-    this.lastFpsUpdate = 0;
-  }
+        this.lastTime = 0;
+        this.accumulator = 0;
+        this.rafId = null;
+        this.isRunning = false;
 
-  start() {
-    if (this.isRunning) return;
-    this.isRunning = true;
-    this.lastTime = performance.now();
-    this.lastFpsUpdate = this.lastTime;
-    this.frameCount = 0;
-    this.rafId = requestAnimationFrame(this.tick.bind(this));
-  }
-
-  stop() {
-    this.isRunning = false;
-    if (this.rafId) {
-      cancelAnimationFrame(this.rafId);
-      this.rafId = null;
-    }
-  }
-
-  tick(currentTime) {
-    if (!this.isRunning) return;
-
-    let frameTime = (currentTime - this.lastTime) / 1000;
-    this.lastTime = currentTime;
-
-    // Prevent spiral of death on lag spikes (cap at 250ms)
-    if (frameTime > 0.25) {
-      frameTime = 0.25;
+        // Performance telemetry
+        this.fps = 60;
+        this.framesThisSecond = 0;
+        this.lastFpsUpdate = 0;
     }
 
-    this.accumulator += frameTime;
+    start() {
+        if (this.isRunning) return;
+        this.isRunning = true;
+        this.lastTime = performance.now();
+        this.lastFpsUpdate = this.lastTime;
+        this.framesThisSecond = 0;
 
-    while (this.accumulator >= this.fixedDeltaTime) {
-      this.updateFn(this.fixedDeltaTime);
-      this.accumulator -= this.fixedDeltaTime;
+        const loop = (currentTime) => {
+            if (!this.isRunning) return;
+
+            const frameTime = (currentTime - this.lastTime) / 1000;
+            this.lastTime = currentTime;
+
+            // Clamp maximum time step
+            this.accumulator += Math.min(frameTime, this.maxAccumulatedTime);
+
+            // Execute fixed updates
+            while (this.accumulator >= this.fixedDelta) {
+                this.updateFn(this.fixedDelta);
+                this.accumulator -= this.fixedDelta;
+            }
+
+            // Render with fractional alpha for interpolation
+            const alpha = this.accumulator / this.fixedDelta;
+            this.renderFn(alpha);
+
+            // FPS Calculation
+            this.framesThisSecond++;
+            if (currentTime - this.lastFpsUpdate >= 1000) {
+                this.fps = this.framesThisSecond;
+                this.framesThisSecond = 0;
+                this.lastFpsUpdate = currentTime;
+            }
+
+            this.rafId = requestAnimationFrame(loop);
+        };
+
+        this.rafId = requestAnimationFrame(loop);
     }
 
-    this.renderFn();
-
-    // FPS calculation
-    this.frameCount++;
-    if (currentTime - this.lastFpsUpdate >= 1000) {
-      this.fps = Math.round((this.frameCount * 1000) / (currentTime - this.lastFpsUpdate));
-      this.frameCount = 0;
-      this.lastFpsUpdate = currentTime;
+    stop() {
+        this.isRunning = false;
+        if (this.rafId) {
+            cancelAnimationFrame(this.rafId);
+            this.rafId = null;
+        }
     }
-
-    this.rafId = requestAnimationFrame(this.tick.bind(this));
-  }
 }

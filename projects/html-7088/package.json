@@ -1,25 +1,22 @@
 {
-  "name": "@b2.st/mario-canvas-engine",
+  "name": "b2st-super-mario",
   "version": "1.0.0",
-  "description": "Modular NES-style Mario 2D Game Engine and OpenAPI Telemetry Service for Studio B2.st",
+  "description": "Modular NES Super Mario Bros engine with Canvas 2D, ECS architecture and automated integration test pipeline.",
   "type": "module",
-  "main": "src/main.js",
+  "main": "src/engine/PhysicsEngine.js",
   "scripts": {
-    "start": "npx serve -l 3000 .",
-    "test": "node tests/run-tests.js"
+    "test": "node tests/integration.test.js",
+    "start": "npx serve public"
   },
   "keywords": [
     "mario",
-    "canvas",
     "game-engine",
-    "nes",
-    "retro",
-    "swagger",
-    "openapi"
+    "canvas2d",
+    "ecs",
+    "physics-aabb",
+    "integration-tests",
+    "retro-nes"
   ],
-  "author": "Studio B2.st",
-  "license": "MIT",
-  "devDependencies": {
-    "serve": "^14.2.4"
-  }
+  "author": "B2.st Studio",
+  "license": "MIT"
 }

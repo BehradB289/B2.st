@@ -1,39 +1,36 @@
 /**
- * B2.st Studio - Mario Game Engine
- * Configuration: Database, Storage Quotas & Security Salts
- * @module config/database.config
+ * @file database.config.js
+ * @description پیکربندی متمرکز لایه پایگاه داده محلی بازی سوپر ماریو (B2.st Studio)
  */
 
-export const DATABASE_CONFIG = Object.freeze({
-  NAME: 'B2ST_SUPER_MARIO_DB',
-  VERSION: 3,
-  STORAGE_QUOTA_ALERT_MB: 20,
-  INTEGRITY_SALT: 'B2st::Engine::SecureSalt::v3.81.4429',
-  STORES: Object.freeze({
-    MIGRATIONS: '_migrations',
-    PROFILES: 'player_profiles',
-    SAVE_STATES: 'save_states',
+export const DATABASE_CONFIG = {
+  DB_NAME: 'B2_Mario_Retro_DB',
+  DB_VERSION: 3,
+  
+  // نام جداول (Object Stores)
+  STORES: {
+    PROFILES: 'profiles',
+    GAME_SAVES: 'game_saves',
     HIGH_SCORES: 'high_scores',
-    SETTINGS: 'game_settings',
-    AUDIT_LOGS: 'security_audit_logs'
-  }),
-  DEFAULT_PROFILE_ID: 'mario_p1_default',
-  DEFAULT_SETTINGS: Object.freeze({
-    id: 'active_config',
-    masterVolume: 0.8,
-    sfxVolume: 0.9,
-    bgmVolume: 0.7,
-    crtFilterEnabled: true,
-    scanlines: true,
-    keyBindings: {
-      left: 'ArrowLeft',
-      right: 'ArrowRight',
-      jump: 'Space',
-      run: 'ShiftLeft',
-      down: 'ArrowDown',
-      pause: 'KeyP'
-    },
-    autoSaveIntervalMs: 15000,
-    antiTamperStrict: true
-  })
-});
+    SETTINGS: 'settings',
+    LEVEL_PROGRESS: 'level_progress',
+    AUDIT_LOGS: 'audit_logs'
+  },
+
+  // تنظیمات امنیتی و اعتبارسنجی یکپارچگی داده (Anti-Cheat / Anti-Tamper)
+  SECURITY: {
+    ENABLE_TAMPER_PROTECTION: true,
+    INTEGRITY_SALT: 'b2_retro_mario_secure_token_v3_2025',
+    HASH_ALGORITHM: 'SHA-256',
+    MAX_ALLOWABLE_SCORE_DELTA: 500000,
+    MAX_COINS: 99,
+    MAX_LIVES: 99
+  },
+
+  // محدودیت‌های سیستم
+  LIMITS: {
+    MAX_HIGH_SCORES_RECORDS: 100,
+    MAX_SAVED_SLOTS: 5,
+    QUERY_TIMEOUT_MS: 5000
+  }
+};

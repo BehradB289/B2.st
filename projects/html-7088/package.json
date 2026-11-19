@@ -1,33 +1,33 @@
 {
-  "name": "b2st-mario-html5",
-  "version": "1.0.0",
-  "description": "Modular NES Mario Engine with Lightweight ECS, Canvas 2D, Management CLI and Health Check Services",
+  "name": "mario-html5-secure-engine",
+  "version": "1.4.0",
+  "description": "Secure, deterministic Mario Web Game engine with hardened server environment",
+  "main": "server.js",
   "type": "module",
-  "main": "src/cli.js",
-  "bin": {
-    "mario-cli": "./src/cli.js"
+  "engines": {
+    "node": ">=18.18.0",
+    "npm": ">=9.0.0"
   },
   "scripts": {
-    "start": "node src/cli.js serve",
-    "serve": "node src/cli.js serve",
-    "cli": "node src/cli.js",
-    "health": "node src/cli.js health",
-    "test": "node src/cli.js test",
-    "validate:level": "node src/cli.js validate-level"
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "security:audit": "npm audit --audit-level=high",
+    "security:check-env": "node -e 'import(\"./config/env_config.js\")'",
+    "lint": "eslint . --ext .js --max-warnings=0"
   },
   "keywords": [
     "mario",
-    "game-engine",
-    "ecs",
-    "html5-canvas",
-    "cli",
-    "health-check",
-    "prometheus",
-    "nes"
+    "game",
+    "canvas",
+    "security-hardened",
+    "b2st-studio"
   ],
-  "author": "B2.st Studio",
+  "author": "B2.st Cyber Defense Lab",
   "license": "MIT",
-  "engines": {
-    "node": ">=18.0.0"
+  "dependencies": {
+    "dotenv": "^16.4.5"
+  },
+  "devDependencies": {
+    "eslint": "^8.57.0"
   }
 }

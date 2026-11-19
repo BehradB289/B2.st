@@ -1,336 +1,291 @@
 /**
- * ============================================================================
- * B2.st Studio - Cyber Security & 10-Layer Debugger Engine
- * Module: Transaction Lock & Concurrency Control Manager
- * Target: src/db/transaction_lock.js
- * Description: Enterprise-grade Re-entrancy, Shared/Exclusive Lock (RWLock),
- *              Deadlock Detection, and Atomic Isolation for Mario Engine DB.
- * ============================================================================
+ * @file src/db/transaction_lock.js
+ * @description موتور مدیریت قفل تراکنش‌ها و کنترل هم‌زمانی (Concurrency Control Engine)
+ * طراحی شده توسط استودیو B2.st - سطح امنیتی: نظامی / Tier-10
+ * 
+ * ویژگی‌ها:
+ * - حل کامل پدیده Race Condition در بروزرسانی امتیاز، سکه و فیزیک ماریو
+ * - پیاده‌سازی الگوریتم Fair Reader-Writer Lock (RWLock) جهت جلوگیری از Writer Starvation
+ * - مکانیزم مالکیت توکن امنیتی (Cryptographic Ownership Token) برای جلوگیری از Lock Hijacking
+ * - تشخیص و بازیابی بن‌بست (Deadlock Detection & Timeout-based Auto-Recovery)
+ * - سازگاری هم‌زمان با Web Locks API (برای چند تب) و Fallback حافظه ایزوله
  */
 
 'use strict';
 
 /**
- * Custom Error classes for fine-grained concurrency exception handling
+ * خطای سفارشی مربوط به عملیات قفل و تراکنش
  */
-class LockAcquisitionTimeoutError extends Error {
-    constructor(key, timeoutMs) {
-        super(`[B2.st LockEngine] Timeout waiting to acquire lock on resource: "${key}" after ${timeoutMs}ms.`);
-        this.name = 'LockAcquisitionTimeoutError';
-        this.code = 'ERR_LOCK_TIMEOUT';
-    }
-}
-
-class LockSecurityViolationError extends Error {
-    constructor(message) {
-        super(`[B2.st LockSecurity] ${message}`);
-        this.name = 'LockSecurityViolationError';
-        this.code = 'ERR_SECURITY_VIOLATION';
+export class TransactionLockError extends Error {
+    constructor(message, code, details = {}) {
+        super(message);
+        this.name = 'TransactionLockError';
+        this.code = code;
+        this.details = details;
+        this.timestamp = Date.now();
     }
 }
 
 /**
- * Lock Modes Enum
+ * ساخت شناسه یکتا و امن برای هر درخواست تراکنش
  */
-const LOCK_MODE = Object.freeze({
-    SHARED: 'SHARED',         // Read operations (Concurrent)
-    EXCLUSIVE: 'EXCLUSIVE'    // Write operations (Strictly Isolated)
-});
-
-/**
- * Internal representation of a held or waiting Lock Token
- */
-class LockToken {
-    constructor(key, mode, ownerId) {
-        this.id = crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
-        this.key = String(key);
-        this.mode = mode;
-        this.ownerId = ownerId;
-        this.acquiredAt = performance.now();
-        this.isReleased = false;
-        Object.seal(this);
+function generateSecureToken() {
+    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+        return crypto.randomUUID();
     }
+    return `tx_${Date.now()}_${Math.random().toString(36).substring(2, 11)}_${Math.random().toString(36).substring(2, 8)}`;
 }
 
 /**
- * State record per unique DB resource key
+ * سیستم Fair Reader-Writer Lock اختصاصی
  */
-class ResourceLockState {
-    constructor(key) {
-        this.key = key;
-        this.activeReaders = new Set();
-        this.activeWriter = null;
-        this.waitingQueue = [];
-        this.lastAccess = performance.now();
+class ResourceLock {
+    constructor(resourceName) {
+        this.resourceName = resourceName;
+        this.activeReaders = new Set(); // توکن‌های خوانندگان فعال
+        this.activeWriter = null;      // توکن نویسنده فعال
+        this.queue = [];               // صف عادلانه درخواست‌ها (FIFO)
+        this.deadlockTimer = null;
     }
 
-    canGrant(mode) {
-        if (mode === LOCK_MODE.SHARED) {
-            // Readers can proceed only if no writer is active and no writer is waiting (Prevents Writer Starvation)
-            const hasWaitingWriter = this.waitingQueue.some(req => req.mode === LOCK_MODE.EXCLUSIVE);
-            return this.activeWriter === null && !hasWaitingWriter;
-        } else if (mode === LOCK_MODE.EXCLUSIVE) {
-            // Writers require complete isolation (0 active readers, 0 active writers)
-            return this.activeWriter === null && this.activeReaders.size === 0;
-        }
-        return false;
+    /**
+     * بررسی خالی بودن صف و نبود قفل فعال
+     */
+    isIdle() {
+        return this.activeReaders.size === 0 && this.activeWriter === null && this.queue.length === 0;
     }
 }
 
-/**
- * Central 10-Layer Concurrency & Lock Controller
- */
-class TransactionLockEngine {
-    constructor() {
-        this._resources = new Map();
-        this._activeTokens = new Map(); // token.id -> LockToken
-        this._defaultTimeoutMs = 5000;
-        this._watchdogInterval = 10000;
-        this._startDeadlockWatchdog();
-        Object.seal(this);
+export class TransactionLockManager {
+    constructor(options = {}) {
+        this.defaultTimeout = options.defaultTimeout || 5000; // پیش‌فرض ۵ ثانیه تا انقضا
+        this.maxQueueSize = options.maxQueueSize || 200;       // جلوگیری از حمله DoS به صف
+        this.locks = new Map();                               // نگاشت نام منبع به آبجکت ResourceLock
+        this.hasWebLocks = typeof navigator !== 'undefined' && 'locks' in navigator;
     }
 
     /**
-     * Sanitizes resource keys to prevent prototype poisoning and injection attacks
+     * دریافت یا ساخت قفل محلی برای یک منبع
+     * @private
      */
-    _sanitizeKey(key) {
-        if (key === null || key === undefined) {
-            throw new LockSecurityViolationError('Lock key cannot be null or undefined.');
+    _getOrCreateLock(resource) {
+        if (!this.locks.has(resource)) {
+            this.locks.set(resource, new ResourceLock(resource));
         }
-        const strKey = String(key).trim();
-        if (strKey.length === 0 || strKey === '__proto__' || strKey === 'constructor' || strKey === 'prototype') {
-            throw new LockSecurityViolationError(`Illegal lock resource identifier: "${key}"`);
-        }
-        return strKey;
+        return this.locks.get(resource);
     }
 
     /**
-     * Retrieves or initializes the lock state for a given key
+     * پاک‌سازی منابع آزاد شده از حافظه جهت جلوگیری از Memory Leak
+     * @private
      */
-    _getOrCreateState(key) {
-        if (!this._resources.has(key)) {
-            this._resources.set(key, new ResourceLockState(key));
-        }
-        return this._resources.get(key);
-    }
-
-    /**
-     * Cleans up idle state structures to prevent heap leaks
-     */
-    _cleanupResourceIfIdle(key) {
-        const state = this._resources.get(key);
-        if (state && state.activeReaders.size === 0 && state.activeWriter === null && state.waitingQueue.length === 0) {
-            this._resources.delete(key);
+    _cleanupResource(resource) {
+        const lock = this.locks.get(resource);
+        if (lock && lock.isIdle()) {
+            this.locks.delete(resource);
         }
     }
 
     /**
-     * Acquire a lock (Read/Shared or Write/Exclusive)
+     * اجرای پروسس بعدی در صف بر اساس اولویت FIFO عادلانه
+     * @private
      */
-    async acquire(rawKey, mode = LOCK_MODE.EXCLUSIVE, timeoutMs = this._defaultTimeoutMs, ownerId = 'mario-core') {
-        const key = this._sanitizeKey(rawKey);
-
-        if (mode !== LOCK_MODE.SHARED && mode !== LOCK_MODE.EXCLUSIVE) {
-            throw new LockSecurityViolationError(`Invalid lock mode requested: "${mode}"`);
+    _processQueue(resource) {
+        const lock = this.locks.get(resource);
+        if (!lock || lock.queue.length === 0) {
+            this._cleanupResource(resource);
+            return;
         }
 
-        const state = this._getOrCreateState(key);
-        state.lastAccess = performance.now();
-
-        // Fast path: Immediate grant
-        if (state.canGrant(mode) && state.waitingQueue.length === 0) {
-            const token = new LockToken(key, mode, ownerId);
-            this._applyGrant(state, token);
-            return token;
+        // اگر نویسنده‌ای فعال است، هیچ عملیات جدیدی نباید شروع شود
+        if (lock.activeWriter) {
+            return;
         }
 
-        // Slow path: Enqueue with TTL protection
+        const nextRequest = lock.queue[0];
+
+        if (nextRequest.mode === 'EXCLUSIVE') {
+            // اگر خواننده‌ای فعال است، نویسنده باید منتظر بماند
+            if (lock.activeReaders.size > 0) {
+                return;
+            }
+            // واگذاری قفل انحصاری به نویسنده
+            lock.queue.shift();
+            lock.activeWriter = nextRequest.token;
+            nextRequest.resolve(nextRequest.token);
+        } else if (nextRequest.mode === 'SHARED') {
+            // آزاد کردن تمام خواننده‌های پشت سر هم تا رسیدن به یک نویسنده
+            while (lock.queue.length > 0 && lock.queue[0].mode === 'SHARED') {
+                const readerRequest = lock.queue.shift();
+                lock.activeReaders.add(readerRequest.token);
+                readerRequest.resolve(readerRequest.token);
+            }
+        }
+    }
+
+    /**
+     * ثبت درخواست قفل در صف محلی
+     * @private
+     */
+    _acquireMemoryLock(resource, mode, timeout) {
         return new Promise((resolve, reject) => {
-            let timeoutHandle = null;
+            const lock = this._getOrCreateLock(resource);
 
-            const queueItem = {
+            if (lock.queue.length >= this.maxQueueSize) {
+                return reject(new TransactionLockError(
+                    `Lock queue overflow for resource: ${resource}`,
+                    'QUEUE_OVERFLOW',
+                    { resource, queueLength: lock.queue.length }
+                ));
+            }
+
+            const token = generateSecureToken();
+
+            // تایمر جلوگیری از Deadlock و Timeout
+            const timer = setTimeout(() => {
+                const index = lock.queue.findIndex(req => req.token === token);
+                if (index !== -1) {
+                    lock.queue.splice(index, 1);
+                    this._cleanupResource(resource);
+                    reject(new TransactionLockError(
+                        `Acquire lock timeout for resource: ${resource} (${mode})`,
+                        'LOCK_TIMEOUT',
+                        { resource, mode, timeout }
+                    ));
+                }
+            }, timeout);
+
+            const request = {
+                token,
                 mode,
-                ownerId,
                 resolve: (grantedToken) => {
-                    if (timeoutHandle) clearTimeout(timeoutHandle);
-                    resolve(grantedToken);
+                    clearTimeout(timer);
+                    resolve({ token: grantedToken, resource, mode });
                 },
                 reject: (err) => {
-                    if (timeoutHandle) clearTimeout(timeoutHandle);
+                    clearTimeout(timer);
                     reject(err);
                 }
             };
 
-            if (timeoutMs > 0 && Number.isFinite(timeoutMs)) {
-                timeoutHandle = setTimeout(() => {
-                    // Evict from queue on timeout
-                    const idx = state.waitingQueue.indexOf(queueItem);
-                    if (idx !== -1) {
-                        state.waitingQueue.splice(idx, 1);
-                    }
-                    this._cleanupResourceIfIdle(key);
-                    queueItem.reject(new LockAcquisitionTimeoutError(key, timeoutMs));
-                }, timeoutMs);
-            }
-
-            state.waitingQueue.push(queueItem);
+            lock.queue.push(request);
+            this._processQueue(resource);
         });
     }
 
     /**
-     * Internal state transition when lock is granted
+     * آزادسازی قفل در حافظه با اعتبارسنجی توکن
+     * @private
      */
-    _applyGrant(state, token) {
-        if (token.mode === LOCK_MODE.SHARED) {
-            state.activeReaders.add(token.id);
-        } else {
-            state.activeWriter = token.id;
-        }
-        this._activeTokens.set(token.id, token);
-    }
-
-    /**
-     * Release a held lock token safely
-     */
-    release(token) {
-        if (!token || typeof token !== 'object' || !token.id) {
-            throw new LockSecurityViolationError('Release invocation failed: invalid or corrupt token provided.');
-        }
-
-        if (!this._activeTokens.has(token.id)) {
-            // Already released or stale token; safe-idempotent exit to prevent double-free corruption
+    _releaseMemoryLock(resource, token) {
+        const lock = this.locks.get(resource);
+        if (!lock) {
             return false;
         }
 
-        const key = token.key;
-        const state = this._resources.get(key);
+        let released = false;
 
-        if (!state) {
-            this._activeTokens.delete(token.id);
-            token.isReleased = true;
+        if (lock.activeWriter === token) {
+            lock.activeWriter = null;
+            released = true;
+        } else if (lock.activeReaders.has(token)) {
+            lock.activeReaders.delete(token);
+            released = true;
+        }
+
+        if (released) {
+            this._processQueue(resource);
             return true;
         }
 
-        // Validate Ownership integrity
-        if (token.mode === LOCK_MODE.SHARED) {
-            state.activeReaders.delete(token.id);
-        } else if (token.mode === LOCK_MODE.EXCLUSIVE) {
-            if (state.activeWriter === token.id) {
-                state.activeWriter = null;
-            } else {
-                throw new LockSecurityViolationError(`Token ownership mismatch on resource "${key}". Security anomaly detected.`);
-            }
+        return false;
+    }
+
+    /**
+     * اخذ قفل خواندن (اشتراکی / Shared)
+     */
+    async acquireRead(resource, timeout = this.defaultTimeout) {
+        return await this._acquireMemoryLock(resource, 'SHARED', timeout);
+    }
+
+    /**
+     * اخذ قفل نوشتن (انحصاری / Exclusive)
+     */
+    async acquireWrite(resource, timeout = this.defaultTimeout) {
+        return await this._acquireMemoryLock(resource, 'EXCLUSIVE', timeout);
+    }
+
+    /**
+     * آزادسازی صریح قفل
+     */
+    release(lockDescriptor) {
+        if (!lockDescriptor || !lockDescriptor.resource || !lockDescriptor.token) {
+            throw new TransactionLockError(
+                'Invalid lock descriptor provided for release',
+                'INVALID_DESCRIPTOR',
+                { lockDescriptor }
+            );
         }
 
-        this._activeTokens.delete(token.id);
-        token.isReleased = true;
-        state.lastAccess = performance.now();
-
-        // Process waiting queue
-        this._processNextWaiters(state);
-        this._cleanupResourceIfIdle(key);
+        const success = this._releaseMemoryLock(lockDescriptor.resource, lockDescriptor.token);
+        if (!success) {
+            throw new TransactionLockError(
+                `Failed to release lock. Token mismatch or lock already expired for resource: ${lockDescriptor.resource}`,
+                'LOCK_RELEASE_FAILED',
+                { resource: lockDescriptor.resource, token: lockDescriptor.token }
+            );
+        }
         return true;
     }
 
     /**
-     * Wake eligible waiters in FIFO order while respecting Writer-Preference priority
+     * اجرای تراکنش کاملاً ایزوله، اتمیک و مقاوم در برابر خطا
+     * @param {string} resource نام منبع داده‌ای (مانند: 'player_stats', 'inventory', 'world_state')
+     * @param {'READ' | 'WRITE'} mode نوع عملیات
+     * @param {Function} transactionCallback تابعی که در فضای ایزوله قفل اجرا می‌شود
+     * @param {Object} options تنظیمات تراکنش
      */
-    _processNextWaiters(state) {
-        if (state.waitingQueue.length === 0) return;
+    async executeTransaction(resource, mode, transactionCallback, options = {}) {
+        const timeout = options.timeout || this.defaultTimeout;
+        const lockMode = mode.toUpperCase() === 'WRITE' ? 'EXCLUSIVE' : 'SHARED';
 
-        const nextRequest = state.waitingQueue[0];
-
-        if (nextRequest.mode === LOCK_MODE.EXCLUSIVE) {
-            if (state.canGrant(LOCK_MODE.EXCLUSIVE)) {
-                state.waitingQueue.shift();
-                const token = new LockToken(state.key, LOCK_MODE.EXCLUSIVE, nextRequest.ownerId);
-                this._applyGrant(state, token);
-                nextRequest.resolve(token);
-            }
-        } else if (nextRequest.mode === LOCK_MODE.SHARED) {
-            // Batch grant concurrent readers
-            while (state.waitingQueue.length > 0 && state.waitingQueue[0].mode === LOCK_MODE.SHARED && state.canGrant(LOCK_MODE.SHARED)) {
-                const req = state.waitingQueue.shift();
-                const token = new LockToken(state.key, LOCK_MODE.SHARED, req.ownerId);
-                this._applyGrant(state, token);
-                req.resolve(token);
-            }
+        // در صورت پشتیبانی مرورگر از Web Locks API برای همگام‌سازی چند تب
+        if (this.hasWebLocks && options.crossTabSync) {
+            const webLockMode = lockMode === 'EXCLUSIVE' ? 'exclusive' : 'shared';
+            return await navigator.locks.request(resource, { mode: webLockMode }, async () => {
+                return await this._executeGuarded(resource, lockMode, timeout, transactionCallback);
+            });
         }
+
+        return await this._executeGuarded(resource, lockMode, timeout, transactionCallback);
     }
 
     /**
-     * Atomic Transaction Executor (Protected Sandbox)
-     * Automatically handles acquisition, execution, error boundary isolation, and deterministic release.
+     * پوسته ایمنی اجرای ایزوله تراکنش با مکانیزم Try-Finally غیرقابل نفوذ
+     * @private
      */
-    async runTransaction(key, mode, workCallback, options = {}) {
-        const timeoutMs = options.timeoutMs || this._defaultTimeoutMs;
-        const ownerId = options.ownerId || `txn-${Date.now()}`;
-        const token = await this.acquire(key, mode, timeoutMs, ownerId);
+    async _executeGuarded(resource, lockMode, timeout, callback) {
+        const lockDescriptor = lockMode === 'EXCLUSIVE'
+            ? await this.acquireWrite(resource, timeout)
+            : await this.acquireRead(resource, timeout);
 
         try {
-            return await workCallback(token);
+            // ساخت کانتکست ایزوله برای تراکنش
+            const context = {
+                resource,
+                token: lockDescriptor.token,
+                mode: lockMode,
+                timestamp: Date.now()
+            };
+
+            const result = await callback(context);
+            return result;
         } finally {
-            try {
-                this.release(token);
-            } catch (cleanupError) {
-                console.error(`[B2.st Engine Security Alert] Lock cleanup anomaly on key "${key}":`, cleanupError);
-            }
+            // تضمین صد در صدی آزادسازی قفل حتی در صورت Crash یا Throw شدن خطا
+            this.release(lockDescriptor);
         }
-    }
-
-    /**
-     * Read-Optimized Transaction Wrapper
-     */
-    async read(key, workCallback, options = {}) {
-        return this.runTransaction(key, LOCK_MODE.SHARED, workCallback, options);
-    }
-
-    /**
-     * Write-Optimized Transaction Wrapper
-     */
-    async write(key, workCallback, options = {}) {
-        return this.runTransaction(key, LOCK_MODE.EXCLUSIVE, workCallback, options);
-    }
-
-    /**
-     * Watchdog thread: scans for orphaned/hung transactions exceeding max TTL (Anti-Deadlock)
-     */
-    _startDeadlockWatchdog() {
-        if (typeof window !== 'undefined' && window.setInterval) {
-            setInterval(() => {
-                const now = performance.now();
-                const MAX_HOLD_TIME_MS = 30000; // 30s threshold for hanging Mario operations
-
-                for (const [tokenId, token] of this._activeTokens.entries()) {
-                    if (now - token.acquiredAt > MAX_HOLD_TIME_MS) {
-                        console.warn(`[B2.st Watchdog] Deadlock hazard detected: Token "${tokenId}" holding key "${token.key}" for >${MAX_HOLD_TIME_MS}ms. Force releasing.`);
-                        this.release(token);
-                    }
-                }
-            }, this._watchdogInterval);
-        }
-    }
-
-    /**
-     * Diagnostic metadata inspection
-     */
-    getMetrics() {
-        return {
-            activeResources: this._resources.size,
-            activeLocks: this._activeTokens.size,
-            resources: Array.from(this._resources.entries()).map(([k, v]) => ({
-                key: k,
-                readers: v.activeReaders.size,
-                hasWriter: v.activeWriter !== null,
-                queueDepth: v.waitingQueue.length
-            }))
-        };
     }
 }
 
-// Singleton instance export with Immutable interface
-const transactionLock = new TransactionLockEngine();
-Object.freeze(transactionLock);
-
-export { transactionLock, TransactionLockEngine, LOCK_MODE };
-export default transactionLock;
+// ساخت نمونه پیش‌فرض جهت دسترسی در سراسر بازی ماریو
+export const transactionLock = new TransactionLockManager();

@@ -1,251 +1,606 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="fa" dir="rtl">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>B2.st Super Mario - OpenAPI 3.0 Interactive Testing Console</title>
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/5.11.0/swagger-ui.min.css" />
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220%22><text y=%2226%22 font-size=%2224%22>🍄</text></svg>">
+  <title>B2.st Super Mario Engine - مستندات و تست تعاملی API (OpenAPI 3.0)</title>
+  
+  <!-- فونت رترو پیکسل‌آرت و فونت خوانای کاربری -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Vazirmatn:wght@300;400;600;700;900&display=swap" rel="stylesheet">
+  
+  <!-- استایل‌های رسمی Swagger UI از CDN پرسرعت -->
+  <link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@5.11.0/swagger-ui.css" />
+  
   <style>
     :root {
-      --bg-dark: #0f172a;
-      --card-dark: #1e293b;
-      --text-main: #f8fafc;
-      --primary: #ef4444;
-      --emerald: #10b981;
+      --nes-red: #d62828;
+      --nes-dark-red: #9e1b1b;
+      --nes-blue: #003049;
+      --nes-green: #2a9d8f;
+      --nes-yellow: #f77f00;
+      --nes-gold: #fcbf49;
+      --nes-bg: #121316;
+      --nes-surface: #1e2025;
+      --nes-border: #323640;
+      --nes-text: #eaecef;
+      --nes-accent: #e63946;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
     }
 
     body {
-      margin: 0;
-      background-color: var(--bg-dark);
-      color: var(--text-main);
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background-color: var(--nes-bg);
+      color: var(--nes-text);
+      font-family: 'Vazirmatn', sans-serif;
+      min-height: 100vh;
+      overflow-x: hidden;
     }
 
-    /* Top Studio Header */
-    .b2st-header {
-      background: linear-gradient(90deg, #182234 0%, #0b1120 100%);
-      border-bottom: 2px solid #334155;
-      padding: 16px 32px;
+    /* هدر رترو با استایل کلاسیک نینتندو B2.st */
+    .retro-header {
+      background: linear-gradient(180deg, #1f2127 0%, #15161a 100%);
+      border-bottom: 4px solid var(--nes-red);
+      padding: 16px 24px;
       display: flex;
-      justify-content: space-between;
+      flex-wrap: wrap;
       align-items: center;
+      justify-content: space-between;
+      gap: 16px;
       position: sticky;
       top: 0;
-      z-index: 1000;
-      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+      z-index: 999;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.6);
     }
 
-    .brand {
+    .brand-group {
       display: flex;
       align-items: center;
-      gap: 12px;
+      gap: 16px;
     }
 
-    .brand-logo {
-      font-size: 24px;
-      background: #dc2626;
-      width: 40px;
-      height: 40px;
+    .pixel-mario-box {
+      width: 44px;
+      height: 44px;
+      background-color: var(--nes-red);
+      border: 3px solid #ffffff;
+      box-shadow: 3px 3px 0px #000;
       display: flex;
       align-items: center;
       justify-content: center;
-      border-radius: 8px;
-      box-shadow: 0 0 12px rgba(220, 38, 38, 0.6);
+      font-family: 'Press Start 2P', monospace;
+      font-size: 18px;
+      color: #fff;
+      text-shadow: 2px 2px #000;
+      animation: coinPulse 1.5s infinite alternate ease-in-out;
+    }
+
+    @keyframes coinPulse {
+      0% { transform: scale(1); filter: brightness(1); }
+      100% { transform: scale(1.06); filter: brightness(1.2); }
     }
 
     .brand-title {
-      font-size: 18px;
-      font-weight: 700;
+      font-family: 'Press Start 2P', monospace;
+      font-size: 14px;
+      color: var(--nes-gold);
       letter-spacing: 0.5px;
-      color: #fff;
+      line-height: 1.4;
+      text-shadow: 2px 2px 0px #000;
     }
 
     .brand-subtitle {
-      font-size: 12px;
-      color: #94a3b8;
+      font-size: 13px;
+      color: #9aa0a6;
+      margin-top: 4px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
     }
 
-    .header-actions {
+    .engine-badge {
+      display: inline-block;
+      background: var(--nes-green);
+      color: #fff;
+      font-size: 10px;
+      font-family: 'Press Start 2P', monospace;
+      padding: 3px 8px;
+      border-radius: 2px;
+      text-shadow: 1px 1px #000;
+    }
+
+    .nav-actions {
       display: flex;
+      align-items: center;
       gap: 12px;
     }
 
-    .btn {
-      padding: 8px 16px;
-      font-size: 13px;
-      font-weight: 600;
-      border-radius: 6px;
+    .retro-btn {
+      font-family: 'Press Start 2P', monospace;
+      font-size: 10px;
       text-decoration: none;
-      transition: all 0.2s ease;
+      padding: 10px 14px;
+      border: 2px solid #fff;
+      box-shadow: 3px 3px 0 #000;
+      background: var(--nes-red);
+      color: #fff;
+      cursor: pointer;
+      transition: all 0.15s ease;
       display: inline-flex;
       align-items: center;
       gap: 6px;
-      border: 1px solid transparent;
-      cursor: pointer;
     }
 
-    .btn-play {
-      background: #ef4444;
-      color: #fff;
-      border-color: #f87171;
+    .retro-btn:hover {
+      background: var(--nes-dark-red);
+      transform: translate(-1px, -1px);
+      box-shadow: 4px 4px 0 #000;
     }
 
-    .btn-play:hover {
-      background: #dc2626;
-      transform: translateY(-1px);
+    .retro-btn:active {
+      transform: translate(2px, 2px);
+      box-shadow: 1px 1px 0 #000;
     }
 
-    .btn-raw {
-      background: #334155;
-      color: #cbd5e1;
-      border-color: #475569;
+    .retro-btn.secondary {
+      background: #2a2d36;
+      border-color: #555b6e;
     }
 
-    .btn-raw:hover {
-      background: #475569;
-      color: #fff;
+    .retro-btn.secondary:hover {
+      background: #3b3f4c;
     }
 
-    /* Swagger Dark Theme Customization */
-    .swagger-ui {
-      max-width: 1200px;
+    /* بنر کنترل ماک داخلی انجین */
+    .mock-banner {
+      background: #1b263b;
+      border-bottom: 2px dashed #415a77;
+      padding: 10px 24px;
+      font-size: 13px;
+      color: #e0e1dd;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .mock-badge {
+      background: #778da9;
+      color: #0d1b2a;
+      font-weight: 700;
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-size: 11px;
+    }
+
+    /* بازتعریف و شخصی‌سازی استایل‌های Swagger UI برای همخوانی با پوسته دارک ماریو استودیو B2.st */
+    #swagger-ui {
+      max-width: 1380px;
       margin: 0 auto;
-      padding: 24px;
+      padding: 20px 16px 80px 16px;
+      direction: ltr; /* OpenAPI specification content is strictly standardized in LTR */
+    }
+
+    .swagger-ui {
+      color: var(--nes-text) !important;
     }
 
     .swagger-ui .info {
-      margin: 20px 0;
+      margin: 25px 0 !important;
+      background: var(--nes-surface);
+      border: 2px solid var(--nes-border);
+      border-radius: 6px;
+      padding: 24px;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.3);
     }
 
     .swagger-ui .info .title {
-      color: #f1f5f9;
-      font-family: inherit;
+      font-family: 'Press Start 2P', monospace !important;
+      font-size: 18px !important;
+      color: var(--nes-gold) !important;
+      text-shadow: 2px 2px #000;
     }
 
-    .swagger-ui .info p, .swagger-ui .info li {
-      color: #cbd5e1;
+    .swagger-ui .info p,
+    .swagger-ui .info li,
+    .swagger-ui .info table {
+      color: #cad2c5 !important;
+      font-size: 14px !important;
+      line-height: 1.7 !important;
+      direction: rtl !important;
+      text-align: right !important;
+      font-family: 'Vazirmatn', sans-serif !important;
     }
 
     .swagger-ui .scheme-container {
-      background: var(--card-dark);
-      box-shadow: none;
-      border-radius: 8px;
-      padding: 16px;
-      border: 1px solid #334155;
-      margin-bottom: 24px;
+      background: var(--nes-surface) !important;
+      border: 1px solid var(--nes-border) !important;
+      box-shadow: none !important;
+      padding: 14px 20px !important;
+      margin-bottom: 20px !important;
+      border-radius: 6px !important;
     }
 
+    .swagger-ui select {
+      background: #111215 !important;
+      color: #fff !important;
+      border: 1px solid #444 !important;
+      padding: 6px 12px !important;
+      border-radius: 4px !important;
+    }
+
+    /* دسته‌بندی تگ‌ها */
+    .swagger-ui .opblock-tag {
+      font-family: 'Press Start 2P', monospace !important;
+      font-size: 13px !important;
+      color: #f1faee !important;
+      border-bottom: 2px solid var(--nes-border) !important;
+      padding: 14px 0 !important;
+      margin: 20px 0 10px 0 !important;
+    }
+
+    .swagger-ui .opblock-tag small {
+      font-family: 'Vazirmatn', sans-serif !important;
+      color: #a8dadc !important;
+      font-size: 13px !important;
+      direction: rtl;
+    }
+
+    /* بلوک‌های عملیاتی API */
     .swagger-ui .opblock {
-      background: #1e293b !important;
-      border-color: #334155 !important;
-      border-radius: 8px;
-      margin-bottom: 14px;
-      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+      background: #181a1f !important;
+      border: 1px solid #2e323b !important;
+      border-radius: 6px !important;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.2) !important;
+      margin-bottom: 14px !important;
     }
 
-    .swagger-ui .opblock .opblock-summary-operation-id,
-    .swagger-ui .opblock .opblock-summary-path,
+    .swagger-ui .opblock .opblock-summary {
+      padding: 10px 16px !important;
+    }
+
+    .swagger-ui .opblock .opblock-summary-method {
+      font-family: 'Press Start 2P', monospace !important;
+      font-size: 11px !important;
+      border-radius: 3px !important;
+      padding: 6px 10px !important;
+      text-shadow: 1px 1px #000;
+    }
+
+    .swagger-ui .opblock .opblock-summary-path {
+      color: #f8f9fa !important;
+      font-weight: 600 !important;
+      font-size: 14px !important;
+    }
+
     .swagger-ui .opblock .opblock-summary-description {
-      color: #f8fafc !important;
+      color: #adb5bd !important;
+      font-family: 'Vazirmatn', sans-serif !important;
+      font-size: 13px !important;
+      direction: rtl !important;
+      text-align: right !important;
+    }
+
+    .swagger-ui .opblock-body {
+      background: #141518 !important;
     }
 
     .swagger-ui .opblock-description-wrapper p,
-    .swagger-ui .response-col_status,
+    .swagger-ui .opblock-external-docs-wrapper p,
+    .swagger-ui .opblock-title_normal p {
+      color: #d1d5db !important;
+      font-family: 'Vazirmatn', sans-serif !important;
+    }
+
+    /* جداول پارامترها و کدهای پاسخ */
     .swagger-ui table thead tr th,
-    .swagger-ui .parameter__name,
-    .swagger-ui .parameter__type {
-      color: #cbd5e1 !important;
+    .swagger-ui table thead tr td {
+      color: #f3f4f6 !important;
+      border-bottom: 1px solid #374151 !important;
     }
 
-    .swagger-ui .responses-inner {
-      background: #0f172a !important;
-    }
-
-    .swagger-ui select, .swagger-ui input[type=text] {
-      background: #0f172a !important;
-      color: #fff !important;
-      border: 1px solid #475569 !important;
-      border-radius: 4px;
-    }
-
-    .swagger-ui .btn.execute {
-      background-color: #10b981 !important;
-      border-color: #10b981 !important;
-      color: #fff !important;
+    .swagger-ui .parameters-col_name {
+      color: var(--nes-gold) !important;
+      font-family: monospace !important;
       font-weight: 700;
     }
 
-    .swagger-ui .btn.btn-clear {
-      color: #cbd5e1 !important;
-      border-color: #475569 !important;
+    .swagger-ui .parameters-col_description p {
+      color: #9ca3af !important;
+      font-family: 'Vazirmatn', sans-serif !important;
+    }
+
+    .swagger-ui .response-col_status {
+      font-family: 'Press Start 2P', monospace !important;
+      font-size: 12px !important;
+      color: #48cae4 !important;
+    }
+
+    .swagger-ui .response-col_description {
+      color: #d1d5db !important;
+      font-family: 'Vazirmatn', sans-serif !important;
+    }
+
+    .swagger-ui pre,
+    .swagger-ui .highlight-code {
+      background: #090a0c !important;
+      border: 1px solid #23272f !important;
+      border-radius: 4px !important;
+    }
+
+    .swagger-ui .btn.execute {
+      background-color: var(--nes-green) !important;
+      border-color: #1e7065 !important;
+      color: #fff !important;
+      font-family: 'Press Start 2P', monospace !important;
+      font-size: 10px !important;
+      box-shadow: 2px 2px 0 #000;
+      border-radius: 2px !important;
+    }
+
+    .swagger-ui .btn.try-out__btn {
+      font-family: 'Press Start 2P', monospace !important;
+      font-size: 9px !important;
+      background: #2a2d36 !important;
+      border-color: #495057 !important;
+      color: #fff !important;
+    }
+
+    /* مدل‌ها و شِماها */
+    .swagger-ui section.models {
+      background: var(--nes-surface) !important;
+      border: 2px solid var(--nes-border) !important;
+      border-radius: 6px !important;
+    }
+
+    .swagger-ui section.models h4 {
+      font-family: 'Press Start 2P', monospace !important;
+      font-size: 13px !important;
+      color: var(--nes-gold) !important;
+    }
+
+    .swagger-ui .model-box {
+      background-color: #141518 !important;
+    }
+
+    .swagger-ui .model-title {
+      color: #e5e7eb !important;
+      font-family: monospace !important;
+    }
+
+    .swagger-ui .prop-type {
+      color: #06d6a0 !important;
+    }
+
+    /* فوتر استودیو B2.st */
+    .retro-footer {
+      border-top: 2px solid var(--nes-border);
+      background-color: #0c0d0f;
+      text-align: center;
+      padding: 24px;
+      font-size: 12px;
+      color: #8b949e;
+    }
+
+    .retro-footer a {
+      color: var(--nes-gold);
+      text-decoration: none;
+    }
+
+    .retro-footer a:hover {
+      text-decoration: underline;
     }
   </style>
 </head>
 <body>
 
-  <!-- Studio Header -->
-  <header class="b2st-header">
-    <div class="brand">
-      <div class="brand-logo">🍄</div>
+  <!-- Retro Navigation Header -->
+  <header class="retro-header">
+    <div class="brand-group">
+      <div class="pixel-mario-box">M</div>
       <div>
-        <div class="brand-title">B2.st Mario WebEngine API</div>
-        <div class="brand-subtitle">Interactive OpenAPI 3.0 / Swagger Interactive Console</div>
+        <h1 class="brand-title">B2.st MARIO ENGINE API</h1>
+        <div class="brand-subtitle">
+          <span>مستندات تعاملی Swagger / OpenAPI 3.0</span>
+          <span class="engine-badge">NES ECS v1.2</span>
+        </div>
       </div>
     </div>
-    <div class="header-actions">
-      <a href="../docs/openapi.json" target="_blank" class="btn btn-raw">📄 Raw OpenAPI JSON</a>
-      <a href="./index.html" class="btn btn-play">🎮 Play Mario Canvas Game</a>
+
+    <div class="nav-actions">
+      <a href="/index.html" class="retro-btn" title="بازگشت به بازی ماریو">
+        <span>▶</span> اجرای بازی (Canvas)
+      </a>
+      <a href="../docs/openapi.json" target="_blank" download class="retro-btn secondary" title="دانلود مشخصات خام JSON">
+        <span>↓</span> دانلود اسکیما JSON
+      </a>
     </div>
   </header>
 
-  <!-- Swagger UI Mount Target -->
-  <div id="swagger-ui"></div>
+  <!-- Info Bar & Local Sandbox Indicator -->
+  <div class="mock-banner">
+    <div>
+      <span class="mock-badge">SANDBOX READY</span>
+      <span> قابلیت <strong>Try It Out</strong> فعال است. کلیه درخواست‌ها از طریق انجین کلاینت و موتور لوکال اعتبارسنجی می‌شوند.</span>
+    </div>
+    <div style="font-family: monospace; font-size: 12px;">
+      SPEC: <code style="color: #fcbf49;">docs/openapi.json</code>
+    </div>
+  </div>
 
-  <!-- Swagger UI Core Scripts -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/5.11.0/swagger-ui-bundle.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/5.11.0/swagger-ui-standalone-preset.min.js"></script>
+  <!-- Swagger UI Root Container -->
+  <main id="swagger-ui"></main>
+
+  <!-- Footer -->
+  <footer class="retro-footer">
+    <p>توسعه‌یافته در استودیو <strong>B2.st</strong> — موتور بازی ماژولار شی‌گرای HTML5 Canvas و سامانه تله‌متری وب.</p>
+    <p style="margin-top: 6px; font-family: monospace; font-size: 11px;">Powered by SwaggerUI 5.x & OpenAPI Specification 3.0.3</p>
+  </footer>
+
+  <!-- Swagger UI Libraries -->
+  <script src="https://unpkg.com/swagger-ui-dist@5.11.0/swagger-ui-bundle.js"></script>
+  <script src="https://unpkg.com/swagger-ui-dist@5.11.0/swagger-ui-standalone-preset.js"></script>
 
   <script>
-    window.addEventListener('DOMContentLoaded', async () => {
-      let specUrl = '../docs/openapi.json';
+    /**
+     * سیستم شبیه‌ساز درون‌مرورگری (In-Browser Mock Interceptor)
+     * در صورتی که سرور Node/Express بک‌اند هنوز ران نشده باشد،
+     * این اینترسپتور پاسخ‌های استاندارد و واقعی را برای دکمه "Execute" در Swagger شبیه‌سازی می‌کند.
+     */
+    const originalFetch = window.fetch;
+    window.fetch = async function(...args) {
+      const url = typeof args[0] === 'string' ? args[0] : (args[0] && args[0].url ? args[0].url : '');
+      const options = args[1] || {};
+      const method = (options.method || 'GET').toUpperCase();
 
-      // Smart mock fallback interceptor for local testing without server backend
-      const interceptor = {
-        responseInterceptor: (response) => {
-          return response;
-        },
-        requestInterceptor: (req) => {
-          // If request fails due to no backend, Swagger shows intuitive mock status
-          return req;
-        }
-      };
-
-      try {
-        window.ui = SwaggerUIBundle({
-          url: specUrl,
-          dom_id: '#swagger-ui',
-          deepLinking: true,
-          presets: [
-            SwaggerUIBundle.presets.apis,
-            SwaggerUIStandalonePreset
-          ],
-          plugins: [
-            SwaggerUIBundle.plugins.DownloadUrl
-          ],
-          layout: "BaseLayout",
-          defaultModelsExpandDepth: 2,
-          defaultModelExpandDepth: 2,
-          docExpansion: "list",
-          showExtensions: true,
-          showCommonExtensions: true,
-          requestInterceptor: interceptor.requestInterceptor,
-          responseInterceptor: interceptor.responseInterceptor
-        });
-      } catch (err) {
-        console.error("Failed to load Swagger specification", err);
+      // اجازه به لود شدن فایل مشخصات OpenAPI
+      if (url.includes('openapi.json') || url.includes('.png') || url.includes('.css') || url.includes('.js')) {
+        return originalFetch.apply(this, args);
       }
-    });
+
+      // هدایت درخواست‌های شبیه‌سازی API ماریو در صورت عدم وجود بک‌اند زنده
+      if (url.includes('/api/v1/') || url.startsWith('/health') || url.startsWith('/levels') || url.startsWith('/session') || url.startsWith('/leaderboard')) {
+        try {
+          const liveResponse = await originalFetch.apply(this, args);
+          if (liveResponse.ok || liveResponse.status === 400 || liveResponse.status === 404) {
+            return liveResponse;
+          }
+        } catch (err) {
+          // در صورت بروز خطای کانکشن شبکه (سرور آفلاین)، پاسخ ماک در لحظه ساخته می‌شود:
+        }
+
+        const createJsonResponse = (data, status = 200) => {
+          return new Response(JSON.stringify(data, null, 2), {
+            status: status,
+            headers: {
+              'Content-Type': 'application/json; charset=utf-8',
+              'X-Powered-By': 'B2.st-Mario-Mock-Engine'
+            }
+          });
+        };
+
+        // هندلر درخواست سلامت /health
+        if (url.endsWith('/health')) {
+          return createJsonResponse({
+            status: "RUNNING",
+            version: "1.2.0",
+            engineFps: 60,
+            activeSessions: 1,
+            physicsEngine: "B2-AABB-Continuous-v1",
+            timestamp: new Date().toISOString()
+          });
+        }
+
+        // هندلر فهرست مراحل /levels
+        if (url.endsWith('/levels') && method === 'GET') {
+          return createJsonResponse([
+            {
+              id: "world-1-1",
+              name: "World 1-1 (Classic Plains)",
+              theme: "OVERWORLD",
+              widthTiles: 224,
+              heightTiles: 15,
+              timeLimit: 400
+            },
+            {
+              id: "world-1-2",
+              name: "World 1-2 (Underground Sewer)",
+              theme: "UNDERGROUND",
+              widthTiles: 210,
+              heightTiles: 15,
+              timeLimit: 400
+            }
+          ]);
+        }
+
+        // هندلر تک‌مرحله /levels/world-1-1
+        if (url.includes('/levels/world-1-1') && method === 'GET') {
+          return createJsonResponse({
+            id: "world-1-1",
+            name: "World 1-1",
+            tileSize: 16,
+            gravity: 0.55,
+            backgroundColor: "#5c94fc",
+            playerSpawn: { x: 48, y: 176 },
+            initialEntities: [
+              { id: "goomba-01", type: "GOOMBA", position: { x: 352, y: 176 }, velocity: { x: -0.5, y: 0 }, alive: true },
+              { id: "goomba-02", type: "GOOMBA", position: { x: 640, y: 176 }, velocity: { x: -0.5, y: 0 }, alive: true },
+              { id: "koopa-01", type: "KOOPA", position: { x: 1712, y: 168 }, velocity: { x: -0.7, y: 0 }, alive: true }
+            ]
+          });
+        }
+
+        // هندلر شروع نشست /session/start
+        if (url.includes('/session/start') && method === 'POST') {
+          return createJsonResponse({
+            sessionId: "b2-" + Math.random().toString(36).substring(2, 11) + "-mario",
+            levelId: "world-1-1",
+            createdAt: new Date().toISOString(),
+            initialState: {
+              position: { x: 48.0, y: 176.0 },
+              velocity: { x: 0.0, y: 0.0 },
+              form: "SMALL",
+              lives: 3,
+              score: 0,
+              coins: 0,
+              isGrounded: true,
+              isFacingRight: true,
+              invincibleTimer: 0.0
+            }
+          }, 201);
+        }
+
+        // هندلر جدول رکوردها /leaderboard
+        if (url.includes('/leaderboard')) {
+          if (method === 'GET') {
+            return createJsonResponse([
+              { rank: 1, playerName: "B2_ApexGamer", score: 142800, coins: 84, clearTimeSeconds: 104.2, levelId: "world-1-1", achievedAt: "2025-02-14T10:15:00Z" },
+              { rank: 2, playerName: "RetroKing_88", score: 98550, coins: 52, clearTimeSeconds: 122.6, levelId: "world-1-1", achievedAt: "2025-02-15T18:22:10Z" },
+              { rank: 3, playerName: "LuigiPower", score: 76300, coins: 39, clearTimeSeconds: 145.8, levelId: "world-1-1", achievedAt: "2025-02-16T04:40:00Z" }
+            ]);
+          } else if (method === 'POST') {
+            return createJsonResponse({ message: "رکورد با موفقیت در لیدربورد B2.st ثبت گردید.", verified: true }, 201);
+          }
+        }
+
+        // پیش‌فرض موفقیت‌آمیز
+        return createJsonResponse({ message: "Mock response generated by B2.st Mario Runtime successfully.", url: url, method: method });
+      }
+
+      return originalFetch.apply(this, args);
+    };
+
+    // مقداردهی اولیه برنامه Swagger UI با پیکربندی کامل و آدرس سند OpenAPI
+    window.onload = function() {
+      const ui = SwaggerUIBundle({
+        url: "../docs/openapi.json",
+        dom_id: '#swagger-ui',
+        deepLinking: true,
+        presets: [
+          SwaggerUIBundle.presets.apis,
+          SwaggerUIStandalonePreset
+        ],
+        plugins: [
+          SwaggerUIBundle.plugins.DownloadUrl
+        ],
+        layout: "BaseLayout",
+        defaultModelsExpandDepth: 1,
+        defaultModelExpandDepth: 2,
+        docExpansion: "list",
+        displayRequestDuration: true,
+        persistAuthorization: true,
+        filter: true,
+        validatorUrl: null
+      });
+
+      window.ui = ui;
+    };
   </script>
 </body>
 </html>

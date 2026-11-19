@@ -1,8 +1,6 @@
 /**
- * Axis-Aligned Bounding Box (AABB) for 2D Collision Detection
- * Studio: B2.st
+ * Studio B2.st - Axis-Aligned Bounding Box (AABB) Collision Primitive
  */
-
 export class AABB {
   constructor(x = 0, y = 0, width = 0, height = 0) {
     this.x = x;
@@ -28,20 +26,16 @@ export class AABB {
   }
 
   get centerX() {
-    return this.x + this.width / 2;
+    return this.x + this.width * 0.5;
   }
 
   get centerY() {
-    return this.y + this.height / 2;
+    return this.y + this.height * 0.5;
   }
 
-  setPosition(x, y) {
+  set(x, y, width, height) {
     this.x = x;
     this.y = y;
-    return this;
-  }
-
-  setSize(width, height) {
     this.width = width;
     this.height = height;
     return this;
@@ -65,7 +59,12 @@ export class AABB {
     );
   }
 
-  clone() {
-    return new AABB(this.x, this.y, this.width, this.height);
+  getOverlap(other) {
+    const ox = Math.min(this.right, other.right) - Math.max(this.left, other.left);
+    const oy = Math.min(this.bottom, other.bottom) - Math.max(this.top, other.top);
+    return {
+      x: ox > 0 ? ox : 0,
+      y: oy > 0 ? oy : 0
+    };
   }
 }

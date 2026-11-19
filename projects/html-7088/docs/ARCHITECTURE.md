@@ -1,18 +1,38 @@
-# B2.st NES Mario Engine — Architecture & Caching Specification
+# B2.st Super Mario Bros - Architecture & Testing Documentation
 
-## 1. High-Level Modular Layers
-1. **Core Utilities & Cache (`src/core/`)**:
-   - `PerformanceCache`: Fast In-Memory LRU Cache with sub-millisecond lookups, configurable TTL, eviction policies, and memoization helpers.
-   - `RateLimiter`: Dual Token-Bucket and Keyed-Window throttling system protecting the physics loop and input handlers against spam and event starvation.
-2. **Central Engine (`src/engine/`)**:
-   - `GameLoop`: Fixed-timestep physics update (60 Hz) coupled with variable delta interpolation rendering.
-   - `Physics`: Discrete AABB collision engine with axis-separation resolution.
-   - `Camera`: Smooth horizontal and vertical viewport tracker with boundary clamps.
-   - `InputHandler`: Unified keyboard abstraction integrated with rate limiters.
-3. **Entities & Levels (`src/entities/`, `src/levels/`)**:
-   - Lightweight hybrid ECS/OOP structure.
-   - `Mario`, `Goomba`, `TileMap`: Procedural rasterization leveraging `PerformanceCache` to cache offscreen bitmaps and eliminate redundant vector draw calls.
-4. **Retro Presentation (`public/`)**:
-   - Authentic 8-bit NES CRT scanline simulation, dynamic viewport scaler, and live HUD metrics (FPS, Cache Hit Ratio, Limiter status).
-5. **Quality Assurance (`tests/`)**:
-   - Automated unit tests covering AABB math, LRU eviction, TTL expiration, and rate-limiting integrity.
+معماری این پروژه بر پایه استانداردهای بازی‌سازی رترو مدرن و تفکیک مسئولیت‌ها در ۴ لایه مستقل طراحی شده است:
+
+## ۱. لایه هسته و موتور مرکزی (`src/engine/`)
+- **`Vector2.js`**: اعمال ریاضی برداری دوبعدی، اندازه، نرمال‌سازی و تساوی اپسیلون.
+- **`AABB.js`**: کادرهای محصورکننده موازی با محورها (Axis-Aligned Bounding Box) با قابلیت تشخیص دقیق هم‌پوشانی و بردار نفوذ.
+- **`PhysicsEngine.js`**: موتور فیزیک سینماتیک با تفکیک محورها (Horizontal first, Vertical second) جهت جلوگیری از باگ‌های گیر کردن گوشه‌ها (Corner Snapping) و پرتاب از سقف، همراه با گرانش و سرعت بیشینه (Terminal Velocity).
+- **`Camera.js`**: سیستم دنبال‌کننده بازیکن با ناحیه مرده (Deadzone) قابل تنظیم و کلمپ به ابعاد مرحله.
+
+## ۲. لایه هویت‌ها و مرحله (`src/entities/`, `src/levels/`)
+- **`Entity.js`**: کلاس پایه انتیتی‌ها برای ادغام در پایپ‌لاین فیزیک.
+- **`Mario.js`**: کلاس بازیکن اصلی با پیاده‌سازی پرش، فیزیک لگدمال کردن انمی (Stomp)، اینولنربل فریم‌ها (i-frames)، جمع‌آوری سکه و کسر جان.
+- **`Goomba.js`**: دشمن گشت‌زن کلاسیک با منطق تغییر جهت پس از برخورد به دیوار و تغییر حالت به Squashed.
+- **`TileMap.js`**: ماتریس تایل‌ها با پشتیبانی از ضربه به آجرهای زرد و بلوک‌های علامت سوال (Question Blocks).
+
+## ۳. لایه نمایش و واسط کاربر (`public/`)
+- پیاده‌سازی رزولوشن رترو NES (۲۵۶ در ۲۴۰ پیکسل با نسبت ۱۶:۱۵) اسکیل شده روی کانواس Crisp Pixelated، لایه فیلتر CRT/Scanline، و HUD کامل شامل Score، Coins، World، Time و Lives.
+
+## ۴. لایه تست‌های خودکار یکپارچه (`tests/`)
+- **`testHarness.js`**: مهار آزمون (Test Runner) مستقل با استاندارد BDD (`describe`, `it`, `beforeEach`, `expect`) بدون هیچ‌گونه وابستگی خارجی با خروجی رنگی ANSI.
+- **`integration.test.js`**: شامل ۹ سوئیت آزمون جامع با پوشش کامل:
+  1. محاسبات برداری و هندسه برخورد AABB
+  2. شتاب گرانش و سرعت حد (Terminal Velocity)
+  3. برخورد به کف، دیوارها و زیر بلوک‌ها (Head Bump)
+  4. استخراج سکه از Question Block و بلوک‌های خالی
+  5. فیزیک کمان پرش و نقطه اوج (Apex)
+  6. آزمون یکپارچگی Stomp دشمن Goomba و جهش ماریو
+  7. دمیج افقی ماریو و تنزل وضعیت Super به Small
+  8. رفتار دوربین متحرک و مرزهای مرحله
+  9. شبیه‌سازی ۶۰ فریم پیوسته گیم‌پلی چندعاملی
+
+### نحوه اجرای آزمون‌ها:
+```bash
+npm test
+# یا مستقیماً:
+node tests/integration.test.js
+```

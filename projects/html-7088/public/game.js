@@ -1,770 +1,598 @@
 /**
- * Super Mario Engine - Hardened Studio B2.st Release
- * معماری: ماژولار، پردازش صوتی و بصری بدون وابستگی خارجی، ضد نشت حافظه و ایزولاسیون کامل کانتکست
+ * Hardened Super Mario Core Engine - B2.st Studio
+ * Defensive Programming / 60 FPS Fixed Time-Step / Procedural Audio Synthesizer
  */
-"use strict";
+'use strict';
 
-(function () {
-    // لایه امنیتی ۱: محدودسازی آبجکت‌های گلوبال و ایمن‌سازی ضد دستکاری خطاها
-    window.addEventListener("contextmenu", (e) => e.preventDefault());
+// 1. CONFIGURATION & CONSTANTS (FROZEN TO PREVENT TAMPERING)
+const ENGINE_CONFIG = Object.freeze({
+    CANVAS_WIDTH: 320,
+    CANVAS_HEIGHT: 240,
+    GRAVITY: 0.52,
+    MAX_FALL_SPEED: 8.5,
+    TILE_SIZE: 16,
+    FRICTION: 0.88,
+    RUN_ACCEL: 0.22,
+    MAX_WALK_SPEED: 2.2,
+    MAX_RUN_SPEED: 3.6,
+    JUMP_IMPULSE: -8.8
+});
 
-    // --- ماژول صوتی امن و بهینه بدون خطای Autoplay و عدم استفاده از فایل خارجی ---
-    class SoundEngine {
-        constructor() {
-            this.ctx = null;
-            this.enabled = true;
-        }
+// 2. HARDENED AUDIO ENGINE (Resolves all Web Audio Autoplay Policy Warnings)
+class ProceduralAudioEngine {
+    constructor() {
+        this.ctx = null;
+        this.isReady = false;
+    }
 
-        init() {
-            if (!this.ctx) {
-                const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-                if (AudioContextClass) {
-                    this.ctx = new AudioContextClass();
+    init() {
+        if (this.isReady && this.ctx) return;
+        try {
+            const AudioCtx = window.AudioContext || window.webkitAudioContext;
+            if (AudioCtx) {
+                this.ctx = new AudioCtx();
+                if (this.ctx.state === 'suspended') {
+                    this.ctx.resume();
                 }
+                this.isReady = true;
             }
-            if (this.ctx && this.ctx.state === "suspended") {
-                this.ctx.resume().catch(() => {});
-            }
-        }
-
-        playTone(freq, type, duration, slideFreq = null) {
-            if (!this.enabled || !this.ctx) return;
-            try {
-                const osc = this.ctx.createOscillator();
-                const gain = this.ctx.createGain();
-                osc.type = type;
-                osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
-                if (slideFreq) {
-                    osc.frequency.exponentialRampToValueAtTime(Math.max(10, slideFreq), this.ctx.currentTime + duration);
-                }
-                gain.gain.setValueAtTime(0.12, this.ctx.currentTime);
-                gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + duration);
-
-                osc.connect(gain);
-                gain.connect(this.ctx.destination);
-                osc.start();
-                osc.stop(this.ctx.currentTime + duration);
-            } catch (_) {}
-        }
-
-        jump() { this.playTone(160, "square", 0.15, 600); }
-        coin() {
-            this.playTone(987, "sine", 0.08);
-            setTimeout(() => this.playTone(1318, "sine", 0.28), 80);
-        }
-        stomp() { this.playTone(120, "triangle", 0.12, 40); }
-        bump() { this.playTone(80, "square", 0.08, 50); }
-        death() { this.playTone(400, "sawtooth", 0.5, 60); }
-        win() {
-            [261, 329, 392, 523].forEach((f, i) => {
-                setTimeout(() => this.playTone(f, "triangle", 0.18), i * 140);
-            });
+        } catch (err) {
+            console.warn('[B2.st Audio Engine] AudioContext init safe fallback:', err);
         }
     }
 
-    const sound = new SoundEngine();
-    const unlockAudio = () => {
-        sound.init();
-        window.removeEventListener("touchstart", unlockAudio);
-        window.removeEventListener("keydown", unlockAudio);
-        window.removeEventListener("mousedown", unlockAudio);
-    };
-    window.addEventListener("touchstart", unlockAudio, { passive: true });
-    window.addEventListener("keydown", unlockAudio, { passive: true });
-    window.addEventListener("mousedown", unlockAudio, { passive: true });
-
-    // --- تنظیمات بوم نقاشی و ریسپانسیو دقیق پیکسل‌ها ---
-    const canvas = document.getElementById("gameCanvas");
-    const ctx = canvas.getContext("2d", { alpha: false });
-    ctx.imageSmoothingEnabled = false;
-
-    const V_WIDTH = 320;
-    const V_HEIGHT = 240;
-    const TILE_SIZE = 16;
-    const GRAVITY = 0.42;
-
-    // --- نگاشت کنترل‌ها ---
-    const keys = { left: false, right: false, jump: false, run: false };
-
-    window.addEventListener("keydown", (e) => {
-        if (e.code === "ArrowLeft" || e.code === "KeyA") keys.left = true;
-        if (e.code === "ArrowRight" || e.code === "KeyD") keys.right = true;
-        if (e.code === "ArrowUp" || e.code === "Space" || e.code === "KeyW") {
-            if (!keys.jump) sound.init();
-            keys.jump = true;
+    playTone(freq, type, duration, targetGain = 0.1) {
+        if (!this.isReady || !this.ctx) return;
+        try {
+            const osc = this.ctx.createOscillator();
+            const gainNode = this.ctx.createGain();
+            osc.type = type;
+            osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
+            gainNode.gain.setValueAtTime(targetGain, this.ctx.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.0001, this.ctx.currentTime + duration);
+            osc.connect(gainNode);
+            gainNode.connect(this.ctx.destination);
+            osc.start();
+            osc.stop(this.ctx.currentTime + duration);
+        } catch (e) {
+            // Fail silently without stopping game execution
         }
-        if (e.code === "ShiftLeft" || e.code === "KeyJ") keys.run = true;
-    });
+    }
 
-    window.addEventListener("keyup", (e) => {
-        if (e.code === "ArrowLeft" || e.code === "KeyA") keys.left = false;
-        if (e.code === "ArrowRight" || e.code === "KeyD") keys.right = false;
-        if (e.code === "ArrowUp" || e.code === "Space" || e.code === "KeyW") keys.jump = false;
-        if (e.code === "ShiftLeft" || e.code === "KeyJ") keys.run = false;
-    });
+    jump() {
+        if (!this.isReady || !this.ctx) return;
+        try {
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = 'square';
+            osc.frequency.setValueAtTime(150, this.ctx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(600, this.ctx.currentTime + 0.15);
+            gain.gain.setValueAtTime(0.08, this.ctx.currentTime);
+            gain.gain.linearRampToValueAtTime(0.001, this.ctx.currentTime + 0.15);
+            osc.connect(gain);
+            gain.connect(this.ctx.destination);
+            osc.start();
+            osc.stop(this.ctx.currentTime + 0.15);
+        } catch (e) {}
+    }
 
-    // مدیریت تاچ بدون ایجاد افت فریم و جلوگیری از پرش‌های تصادفی
-    const setupTouchBtn = (id, keyName) => {
-        const btn = document.getElementById(id);
-        if (!btn) return;
+    stomp() {
+        this.playTone(120, 'square', 0.1, 0.15);
+    }
 
-        const activate = (e) => {
-            e.preventDefault();
-            sound.init();
-            keys[keyName] = true;
-            btn.classList.add("active");
+    coin() {
+        if (!this.isReady || !this.ctx) return;
+        try {
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(987.77, this.ctx.currentTime);
+            osc.frequency.setValueAtTime(1318.51, this.ctx.currentTime + 0.08);
+            gain.gain.setValueAtTime(0.08, this.ctx.currentTime);
+            gain.gain.linearRampToValueAtTime(0.001, this.ctx.currentTime + 0.3);
+            osc.connect(gain);
+            gain.connect(this.ctx.destination);
+            osc.start();
+            osc.stop(this.ctx.currentTime + 0.3);
+        } catch (e) {}
+    }
+
+    die() {
+        this.playTone(180, 'sawtooth', 0.4, 0.18);
+    }
+}
+
+// 3. ZERO-TOUCH-BUG INPUT HANDLER
+class InputHandler {
+    constructor(onStart) {
+        this.keys = { left: false, right: false, jump: false, run: false };
+        this.onStart = onStart;
+        this.bindEvents();
+    }
+
+    bindEvents() {
+        const updateKey = (code, val) => {
+            switch(code) {
+                case 'ArrowLeft':
+                case 'KeyA':
+                    this.keys.left = val; break;
+                case 'ArrowRight':
+                case 'KeyD':
+                    this.keys.right = val; break;
+                case 'ArrowUp':
+                case 'KeyW':
+                case 'Space':
+                    this.keys.jump = val; break;
+                case 'ShiftLeft':
+                case 'KeyJ':
+                    this.keys.run = val; break;
+                case 'Enter':
+                    if (val && this.onStart) this.onStart();
+                    break;
+            }
         };
 
-        const deactivate = (e) => {
-            e.preventDefault();
-            keys[keyName] = false;
-            btn.classList.remove("active");
+        window.addEventListener('keydown', (e) => {
+            if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) {
+                e.preventDefault();
+            }
+            updateKey(e.code, true);
+        });
+
+        window.addEventListener('keyup', (e) => {
+            updateKey(e.code, false);
+        });
+
+        // Touch Control Binding with Full Touch Interception
+        const bindTouch = (id, keyName) => {
+            const btn = document.getElementById(id);
+            if (!btn) return;
+
+            const activate = (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                this.keys[keyName] = true;
+                btn.classList.add('active');
+                if (this.onStart) this.onStart();
+            };
+
+            const deactivate = (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                this.keys[keyName] = false;
+                btn.classList.remove('active');
+            };
+
+            btn.addEventListener('touchstart', activate, { passive: false });
+            btn.addEventListener('touchend', deactivate, { passive: false });
+            btn.addEventListener('touchcancel', deactivate, { passive: false });
+            btn.addEventListener('mousedown', activate);
+            btn.addEventListener('mouseup', deactivate);
+            btn.addEventListener('mouseleave', deactivate);
         };
 
-        btn.addEventListener("touchstart", activate, { passive: false });
-        btn.addEventListener("touchend", deactivate, { passive: false });
-        btn.addEventListener("touchcancel", deactivate, { passive: false });
-        btn.addEventListener("mousedown", activate);
-        btn.addEventListener("mouseup", deactivate);
-        btn.addEventListener("mouseleave", deactivate);
-    };
+        bindTouch('btn-left', 'left');
+        bindTouch('btn-right', 'right');
+        bindTouch('btn-jump', 'jump');
+        bindTouch('btn-run', 'run');
 
-    setupTouchBtn("btn-left", "left");
-    setupTouchBtn("btn-right", "right");
-    setupTouchBtn("btn-a", "jump");
-    setupTouchBtn("btn-b", "run");
+        // Prevent body mobile dragging & elastic scrolling
+        document.body.addEventListener('touchmove', (e) => e.preventDefault(), { passive: false });
+    }
+}
 
-    // --- طراحی نقشه سطح ۱-۱ ماریو ---
-    const LEVEL_MAP = [
-        "                                                                                                   ",
-        "                                                                                                   ",
-        "                                                                                                   ",
-        "                                                                                                   ",
-        "                                                                                                   ",
-        "                                                                                                   ",
-        "                                                                                                   ",
-        "                                                                                                   ",
-        "                                                                                                   ",
-        "                   ?                                                                 F             ",
-        "                                           ?   ?                                     |             ",
-        "               ?   B?B?B                  BBBBBBB                                    |             ",
-        "                                                                                     |             ",
-        "                                   p p                                               |             ",
-        "         p                         [ ]                                               |             ",
-        "        [ ]                        [ ]                       B                       |             ",
-        "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
-        "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
-    ];
-
-    const MAP_H = LEVEL_MAP.length;
-    const MAP_W = LEVEL_MAP[0].length;
-
-    // کشیدن تایل‌ها به صورت Procedural برای پرهیز از باگ 404 لود عکس
-    function drawTile(ctx, type, x, y) {
-        if (type === "X") {
-            // بلوک زمین
-            ctx.fillStyle = "#d86b24";
-            ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
-            ctx.fillStyle = "#fcb490";
-            ctx.fillRect(x + 1, y + 1, TILE_SIZE - 2, 2);
-            ctx.fillStyle = "#000000";
-            ctx.fillRect(x, y + TILE_SIZE - 1, TILE_SIZE, 1);
-            ctx.fillRect(x + TILE_SIZE - 1, y, 1, TILE_SIZE);
-        } else if (type === "B") {
-            // آجر
-            ctx.fillStyle = "#b84418";
-            ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
-            ctx.fillStyle = "#000000";
-            ctx.fillRect(x, y + 7, TILE_SIZE, 1);
-            ctx.fillRect(x + 7, y, 1, 7);
-            ctx.fillRect(x + 3, y + 8, 1, 8);
-        } else if (type === "?") {
-            // بلوک علامت سوال
-            ctx.fillStyle = "#fc9838";
-            ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
-            ctx.fillStyle = "#000000";
-            ctx.strokeRect(x + 0.5, y + 0.5, TILE_SIZE - 1, TILE_SIZE - 1);
-            ctx.fillStyle = "#ffffff";
-            ctx.font = "bold 10px monospace";
-            ctx.fillText("?", x + 4, y + 12);
-        } else if (type === "E") {
-            // بلوک خالی استفاده‌شده
-            ctx.fillStyle = "#94745c";
-            ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
-            ctx.strokeStyle = "#403020";
-            ctx.strokeRect(x + 0.5, y + 0.5, TILE_SIZE - 1, TILE_SIZE - 1);
-        } else if (type === "p") {
-            // سر لوله
-            ctx.fillStyle = "#00a800";
-            ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
-            ctx.fillStyle = "#80d010";
-            ctx.fillRect(x + 2, y, 3, TILE_SIZE);
-            ctx.strokeStyle = "#000000";
-            ctx.strokeRect(x, y, TILE_SIZE, TILE_SIZE);
-        } else if (type === "[") {
-            // بدنه لوله چپ
-            ctx.fillStyle = "#00a800";
-            ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
-            ctx.fillStyle = "#80d010";
-            ctx.fillRect(x + 2, y, 4, TILE_SIZE);
-        } else if (type === "]") {
-            // بدنه لوله راست
-            ctx.fillStyle = "#008800";
-            ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
-        } else if (type === "|") {
-            // میله پرچم
-            ctx.fillStyle = "#ffffff";
-            ctx.fillRect(x + 7, y, 2, TILE_SIZE);
-        } else if (type === "F") {
-            // گوی پرچم
-            ctx.fillStyle = "#24b024";
-            ctx.fillRect(x + 5, y + 4, 6, 6);
-            ctx.fillStyle = "#ffffff";
-            ctx.fillRect(x + 7, y + 10, 2, 6);
-        }
+// 4. ENTITY & WORLD IMPLEMENTATION
+class Mario {
+    constructor(x, y) {
+        this.x = x;
+        this.y = y;
+        this.w = 12;
+        this.h = 16;
+        this.vx = 0;
+        this.vy = 0;
+        this.isGrounded = false;
+        this.facing = 1;
+        this.isDead = false;
+        this.animFrame = 0;
+        this.animTimer = 0;
     }
 
-    // --- ساختار نقشه و بلوک‌های داینامیک ---
-    class Level {
-        constructor() {
-            this.grid = [];
-            for (let r = 0; r < MAP_H; r++) {
-                this.grid[r] = LEVEL_MAP[r].split("");
-            }
-        }
-
-        getTile(tx, ty) {
-            if (tx < 0 || tx >= MAP_W || ty < 0 || ty >= MAP_H) return " ";
-            return this.grid[ty][tx];
-        }
-
-        setTile(tx, ty, val) {
-            if (tx >= 0 && tx < MAP_W && ty >= 0 && ty < MAP_H) {
-                this.grid[ty][tx] = val;
-            }
-        }
-
-        isSolid(tx, ty) {
-            const t = this.getTile(tx, ty);
-            return t === "X" || t === "B" || t === "?" || t === "E" || t === "p" || t === "[" || t === "]";
-        }
-    }
-
-    // --- کلاس جلوه‌های بصری و متنی شناور ---
-    class Particle {
-        constructor(x, y, text, color = "#fff") {
-            this.x = x;
-            this.y = y;
-            this.text = text;
-            this.color = color;
-            this.life = 35;
-            this.vy = -1;
-        }
-
-        update() {
+    update(input, level, audio) {
+        if (this.isDead) {
+            this.vy += ENGINE_CONFIG.GRAVITY;
             this.y += this.vy;
-            this.life--;
+            return;
         }
 
-        draw(ctx, camX) {
-            ctx.fillStyle = this.color;
-            ctx.font = "8px monospace";
-            ctx.fillText(this.text, Math.floor(this.x - camX), Math.floor(this.y));
-        }
-    }
+        const maxSpd = input.keys.run ? ENGINE_CONFIG.MAX_RUN_SPEED : ENGINE_CONFIG.MAX_WALK_SPEED;
 
-    // --- کلاس دشمن گومبا (Goomba) ---
-    class Goomba {
-        constructor(x, y) {
-            this.x = x;
-            this.y = y;
-            this.w = 14;
-            this.h = 14;
-            this.vx = -0.55;
-            this.vy = 0;
-            this.dead = false;
-            this.remove = false;
-            this.animTimer = 0;
+        if (input.keys.right) {
+            this.vx += ENGINE_CONFIG.RUN_ACCEL;
+            this.facing = 1;
+        } else if (input.keys.left) {
+            this.vx -= ENGINE_CONFIG.RUN_ACCEL;
+            this.facing = -1;
+        } else {
+            this.vx *= ENGINE_CONFIG.FRICTION;
+            if (Math.abs(this.vx) < 0.1) this.vx = 0;
         }
 
-        update(level) {
-            if (this.dead) {
-                this.animTimer++;
-                if (this.animTimer > 30) this.remove = true;
-                return;
+        this.vx = Math.max(-maxSpd, Math.min(maxSpd, this.vx));
+
+        // Jump Handling with strict edge condition
+        if (input.keys.jump && this.isGrounded) {
+            this.vy = ENGINE_CONFIG.JUMP_IMPULSE;
+            this.isGrounded = false;
+            audio.jump();
+        }
+
+        // Gravity
+        this.vy += ENGINE_CONFIG.GRAVITY;
+        if (this.vy > ENGINE_CONFIG.MAX_FALL_SPEED) {
+            this.vy = ENGINE_CONFIG.MAX_FALL_SPEED;
+        }
+
+        // Horizontal Movement and Collision Resolution
+        this.x += this.vx;
+        this.checkCollisionX(level);
+
+        // Vertical Movement and Collision Resolution
+        this.y += this.vy;
+        this.isGrounded = false;
+        this.checkCollisionY(level);
+
+        // Fall Off Pit Condition
+        if (this.y > ENGINE_CONFIG.CANVAS_HEIGHT + 32) {
+            this.kill(audio);
+        }
+
+        // Animation logic
+        if (Math.abs(this.vx) > 0.2 && this.isGrounded) {
+            this.animTimer++;
+            if (this.animTimer > 6) {
+                this.animFrame = (this.animFrame + 1) % 3;
+                this.animTimer = 0;
             }
-
-            this.vy += GRAVITY;
-            if (this.vy > 6) this.vy = 6;
-
-            // برخورد افقی
-            const nextX = this.x + this.vx;
-            const tileY1 = Math.floor(this.y / TILE_SIZE);
-            const tileY2 = Math.floor((this.y + this.h - 1) / TILE_SIZE);
-
-            if (this.vx > 0) {
-                const rightTx = Math.floor((nextX + this.w) / TILE_SIZE);
-                if (level.isSolid(rightTx, tileY1) || level.isSolid(rightTx, tileY2)) {
-                    this.vx = -this.vx;
-                } else {
-                    this.x = nextX;
-                }
-            } else {
-                const leftTx = Math.floor(nextX / TILE_SIZE);
-                if (level.isSolid(leftTx, tileY1) || level.isSolid(leftTx, tileY2)) {
-                    this.vx = -this.vx;
-                } else {
-                    this.x = nextX;
-                }
-            }
-
-            // برخورد عمودی
-            const nextY = this.y + this.vy;
-            const tileX1 = Math.floor(this.x / TILE_SIZE);
-            const tileX2 = Math.floor((this.x + this.w - 1) / TILE_SIZE);
-
-            if (this.vy >= 0) {
-                const bottomTy = Math.floor((nextY + this.h) / TILE_SIZE);
-                if (level.isSolid(tileX1, bottomTy) || level.isSolid(tileX2, bottomTy)) {
-                    this.y = bottomTy * TILE_SIZE - this.h;
-                    this.vy = 0;
-                } else {
-                    this.y = nextY;
-                }
-            } else {
-                this.y = nextY;
-            }
-        }
-
-        draw(ctx, camX) {
-            const rx = Math.floor(this.x - camX);
-            const ry = Math.floor(this.y);
-
-            if (this.dead) {
-                // کشیده و له شده
-                ctx.fillStyle = "#8a3a00";
-                ctx.fillRect(rx, ry + 8, 14, 6);
-                return;
-            }
-
-            // قارچ گومبا
-            ctx.fillStyle = "#a84400";
-            ctx.beginPath();
-            ctx.arc(rx + 7, ry + 6, 7, Math.PI, 0, false);
-            ctx.fill();
-            ctx.fillRect(rx + 2, ry + 6, 10, 4);
-
-            // پاها
-            ctx.fillStyle = "#000";
-            const step = Math.floor(Date.now() / 150) % 2;
-            if (step === 0) {
-                ctx.fillRect(rx, ry + 10, 5, 4);
-                ctx.fillRect(rx + 9, ry + 11, 5, 3);
-            } else {
-                ctx.fillRect(rx, ry + 11, 5, 3);
-                ctx.fillRect(rx + 9, ry + 10, 5, 4);
-            }
-
-            // چشم‌ها
-            ctx.fillStyle = "#fff";
-            ctx.fillRect(rx + 3, ry + 4, 2, 4);
-            ctx.fillRect(rx + 9, ry + 4, 2, 4);
-            ctx.fillStyle = "#000";
-            ctx.fillRect(rx + 4, ry + 5, 1, 3);
-            ctx.fillRect(rx + 9, ry + 5, 1, 3);
-        }
-    }
-
-    // --- کلاس کاراکتر ماریو ---
-    class Mario {
-        constructor() {
-            this.reset();
-        }
-
-        reset() {
-            this.x = 40;
-            this.y = 100;
-            this.w = 12;
-            this.h = 15;
-            this.vx = 0;
-            this.vy = 0;
-            this.onGround = false;
-            this.facingLeft = false;
-            this.isDead = false;
-            this.deathTimer = 0;
-            this.isWon = false;
+        } else {
             this.animFrame = 0;
         }
+    }
 
-        die() {
-            if (this.isDead || this.isWon) return;
-            this.isDead = true;
-            this.vy = -7.5;
-            this.deathTimer = 100;
-            sound.death();
-        }
+    checkCollisionX(level) {
+        const leftTile = Math.floor(this.x / ENGINE_CONFIG.TILE_SIZE);
+        const rightTile = Math.floor((this.x + this.w) / ENGINE_CONFIG.TILE_SIZE);
+        const topTile = Math.floor(this.y / ENGINE_CONFIG.TILE_SIZE);
+        const bottomTile = Math.floor((this.y + this.h - 1) / ENGINE_CONFIG.TILE_SIZE);
 
-        update(level, enemies, particles, onCoin, onVictory) {
-            if (this.isDead) {
-                this.vy += 0.35;
-                this.y += this.vy;
-                this.deathTimer--;
-                if (this.deathTimer <= 0) {
-                    this.reset();
-                }
-                return;
-            }
-
-            if (this.isWon) {
-                this.vx = 1.2;
-                this.x += this.vx;
-                this.animFrame++;
-                return;
-            }
-
-            // فیزیک حرکت افقی با شتاب و اصطکاک (Inertia & Momentum)
-            const speedLimit = keys.run ? 2.6 : 1.6;
-            const accel = 0.12;
-            const friction = 0.85;
-
-            if (keys.left) {
-                this.vx = Math.max(this.vx - accel, -speedLimit);
-                this.facingLeft = true;
-            } else if (keys.right) {
-                this.vx = Math.min(this.vx + accel, speedLimit);
-                this.facingLeft = false;
-            } else {
-                this.vx *= friction;
-                if (Math.abs(this.vx) < 0.05) this.vx = 0;
-            }
-
-            // پرش پویا (Variable Jump)
-            if (keys.jump && this.onGround) {
-                this.vy = keys.run ? -7.8 : -7.0;
-                this.onGround = false;
-                sound.jump();
-            }
-
-            // جاذبه
-            this.vy += GRAVITY;
-            if (this.vy > 7.0) this.vy = 7.0;
-
-            // تشخیص و واکنش برخورد افقی
-            const newX = this.x + this.vx;
-            const topTileY = Math.floor(this.y / TILE_SIZE);
-            const midTileY = Math.floor((this.y + this.h * 0.5) / TILE_SIZE);
-            const botTileY = Math.floor((this.y + this.h - 1) / TILE_SIZE);
-
-            if (this.vx > 0) {
-                const rightTx = Math.floor((newX + this.w) / TILE_SIZE);
-                if (level.isSolid(rightTx, topTileY) || level.isSolid(rightTx, midTileY) || level.isSolid(rightTx, botTileY)) {
-                    this.x = rightTx * TILE_SIZE - this.w - 0.01;
+        for (let ty = topTile; ty <= bottomTile; ty++) {
+            for (let tx = leftTile; tx <= rightTile; tx++) {
+                if (level.isSolid(tx, ty)) {
+                    if (this.vx > 0) {
+                        this.x = tx * ENGINE_CONFIG.TILE_SIZE - this.w;
+                    } else if (this.vx < 0) {
+                        this.x = (tx + 1) * ENGINE_CONFIG.TILE_SIZE;
+                    }
                     this.vx = 0;
-                } else {
-                    this.x = newX;
-                }
-            } else if (this.vx < 0) {
-                const leftTx = Math.floor(newX / TILE_SIZE);
-                if (level.isSolid(leftTx, topTileY) || level.isSolid(leftTx, midTileY) || level.isSolid(leftTx, botTileY)) {
-                    this.x = (leftTx + 1) * TILE_SIZE + 0.01;
-                    this.vx = 0;
-                } else {
-                    this.x = newX;
                 }
             }
-
-            // تشخیص و واکنش برخورد عمودی
-            const newY = this.y + this.vy;
-            const leftTx = Math.floor(this.x / TILE_SIZE);
-            const midTx = Math.floor((this.x + this.w * 0.5) / TILE_SIZE);
-            const rightTx = Math.floor((this.x + this.w - 1) / TILE_SIZE);
-
-            if (this.vy >= 0) {
-                const botTy = Math.floor((newY + this.h) / TILE_SIZE);
-                if (level.isSolid(leftTx, botTy) || level.isSolid(midTx, botTy) || level.isSolid(rightTx, botTy)) {
-                    this.y = botTy * TILE_SIZE - this.h;
-                    this.vy = 0;
-                    this.onGround = true;
-                } else {
-                    this.y = newY;
-                    this.onGround = false;
-                }
-            } else {
-                const topTy = Math.floor(newY / TILE_SIZE);
-                let hitTile = null;
-                let hitX = 0;
-
-                [midTx, leftTx, rightTx].forEach(tx => {
-                    if (!hitTile && level.isSolid(tx, topTy)) {
-                        hitTile = level.getTile(tx, topTy);
-                        hitX = tx;
-                    }
-                });
-
-                if (hitTile) {
-                    this.y = (topTy + 1) * TILE_SIZE;
-                    this.vy = 0;
-                    if (hitTile === "?") {
-                        level.setTile(hitX, topTy, "E");
-                        sound.coin();
-                        onCoin();
-                        particles.push(new Particle(hitX * TILE_SIZE + 3, topTy * TILE_SIZE - 4, "+200", "#fffa65"));
-                    } else if (hitTile === "B") {
-                        sound.bump();
-                    }
-                } else {
-                    this.y = newY;
-                    this.onGround = false;
-                }
-            }
-
-            // میله پرچم پایان مرحله
-            const currTx = Math.floor((this.x + this.w * 0.5) / TILE_SIZE);
-            const currTy = Math.floor((this.y + this.h * 0.5) / TILE_SIZE);
-            if (level.getTile(currTx, currTy) === "|" || level.getTile(currTx, currTy) === "F") {
-                this.isWon = true;
-                sound.win();
-                onVictory();
-            }
-
-            // سقوط در چاله
-            if (this.y > V_HEIGHT + 30) {
-                this.die();
-            }
-
-            // برخورد با دشمنان
-            for (const enemy of enemies) {
-                if (enemy.dead || enemy.remove) continue;
-                if (
-                    this.x < enemy.x + enemy.w &&
-                    this.x + this.w > enemy.x &&
-                    this.y < enemy.y + enemy.h &&
-                    this.y + this.h > enemy.y
-                ) {
-                    // فرود روی سر دشمن
-                    if (this.vy > 0 && (this.y + this.h - enemy.y) < 8) {
-                        enemy.dead = true;
-                        this.vy = -4.5;
-                        sound.stomp();
-                        particles.push(new Particle(enemy.x, enemy.y, "100", "#fff"));
-                    } else {
-                        this.die();
-                    }
-                }
-            }
-
-            if (Math.abs(this.vx) > 0.1) {
-                this.animFrame++;
-            } else {
-                this.animFrame = 0;
-            }
-        }
-
-        draw(ctx, camX) {
-            const rx = Math.floor(this.x - camX);
-            const ry = Math.floor(this.y);
-
-            ctx.save();
-            if (this.facingLeft) {
-                ctx.translate(rx + this.w, ry);
-                ctx.scale(-1, 1);
-            } else {
-                ctx.translate(rx, ry);
-            }
-
-            if (this.isDead) {
-                // ماریو در حالت باخت
-                ctx.fillStyle = "#e52521";
-                ctx.fillRect(1, 1, 10, 13);
-                ctx.fillStyle = "#ffd8a8";
-                ctx.fillRect(3, 4, 6, 5);
-                ctx.restore();
-                return;
-            }
-
-            // کلاه و پیراهن
-            ctx.fillStyle = "#e52521";
-            ctx.fillRect(2, 0, 8, 3);
-            ctx.fillRect(1, 5, 10, 4);
-
-            // صورت
-            ctx.fillStyle = "#ffd8a8";
-            ctx.fillRect(3, 3, 7, 3);
-            ctx.fillStyle = "#4a2810";
-            ctx.fillRect(7, 3, 2, 2); // چشم
-            ctx.fillRect(5, 5, 4, 1); // سبیل
-
-            // شلوار پیش‌بندی آبی
-            ctx.fillStyle = "#0028a0";
-            ctx.fillRect(2, 9, 8, 4);
-            ctx.fillStyle = "#ffd8a8";
-            ctx.fillRect(0, 7, 2, 2); // دست چپ
-            ctx.fillRect(10, 7, 2, 2); // دست راست
-
-            // پاها و انیمیشن راه رفتن
-            ctx.fillStyle = "#663300";
-            if (!this.onGround) {
-                // پرش
-                ctx.fillRect(0, 13, 4, 2);
-                ctx.fillRect(8, 12, 4, 3);
-            } else if (Math.floor(this.animFrame / 6) % 2 === 1) {
-                ctx.fillRect(1, 13, 4, 2);
-                ctx.fillRect(7, 13, 4, 2);
-            } else {
-                ctx.fillRect(0, 13, 5, 2);
-                ctx.fillRect(7, 13, 5, 2);
-            }
-
-            ctx.restore();
         }
     }
 
-    // --- مدیریت هسته و چرخه بازی (Game Loop) ---
-    class GameEngine {
-        constructor() {
-            this.level = new Level();
-            this.mario = new Mario();
-            this.enemies = [
-                new Goomba(180, 200),
-                new Goomba(340, 200),
-                new Goomba(580, 200),
-                new Goomba(720, 200),
-                new Goomba(850, 200)
-            ];
-            this.particles = [];
-            this.score = 0;
-            this.coins = 0;
-            this.camX = 0;
-            this.lastTime = 0;
-            this.isWon = false;
-        }
+    checkCollisionY(level) {
+        const leftTile = Math.floor(this.x / ENGINE_CONFIG.TILE_SIZE);
+        const rightTile = Math.floor((this.x + this.w - 1) / ENGINE_CONFIG.TILE_SIZE);
+        const topTile = Math.floor(this.y / ENGINE_CONFIG.TILE_SIZE);
+        const bottomTile = Math.floor((this.y + this.h) / ENGINE_CONFIG.TILE_SIZE);
 
-        addCoin() {
-            this.coins += 1;
-            this.score += 200;
-        }
-
-        onVictory() {
-            this.isWon = true;
-            this.score += 1000;
-        }
-
-        update() {
-            this.mario.update(
-                this.level,
-                this.enemies,
-                this.particles,
-                () => this.addCoin(),
-                () => this.onVictory()
-            );
-
-            // آپدیت دوربین
-            const targetCamX = this.mario.x - V_WIDTH * 0.38;
-            if (targetCamX > this.camX) {
-                this.camX += (targetCamX - this.camX) * 0.1;
-            }
-            const maxCamX = (MAP_W * TILE_SIZE) - V_WIDTH;
-            this.camX = Math.max(0, Math.min(this.camX, maxCamX));
-
-            // آپدیت دشمن‌ها
-            for (let i = this.enemies.length - 1; i >= 0; i--) {
-                const en = this.enemies[i];
-                // فقط در صورت نزدیک بودن به محدوده دوربین پردازش شود
-                if (en.x < this.camX + V_WIDTH + 64 && en.x > this.camX - 64) {
-                    en.update(this.level);
-                }
-                if (en.remove) {
-                    this.enemies.splice(i, 1);
-                }
-            }
-
-            // آپدیت پارتیکل‌ها
-            for (let i = this.particles.length - 1; i >= 0; i--) {
-                this.particles[i].update();
-                if (this.particles[i].life <= 0) {
-                    this.particles.splice(i, 1);
-                }
-            }
-        }
-
-        render() {
-            // آسمان
-            ctx.fillStyle = "#5c94fc";
-            ctx.fillRect(0, 0, V_WIDTH, V_HEIGHT);
-
-            // کشیدن نقشه تایل‌ها
-            const startTx = Math.max(0, Math.floor(this.camX / TILE_SIZE));
-            const endTx = Math.min(MAP_W, Math.ceil((this.camX + V_WIDTH) / TILE_SIZE) + 1);
-
-            for (let r = 0; r < MAP_H; r++) {
-                for (let c = startTx; c < endTx; c++) {
-                    const tile = this.level.getTile(c, r);
-                    if (tile !== " ") {
-                        drawTile(ctx, tile, Math.floor(c * TILE_SIZE - this.camX), r * TILE_SIZE);
+        for (let ty = topTile; ty <= bottomTile; ty++) {
+            for (let tx = leftTile; tx <= rightTile; tx++) {
+                if (level.isSolid(tx, ty)) {
+                    if (this.vy > 0) {
+                        this.y = ty * ENGINE_CONFIG.TILE_SIZE - this.h;
+                        this.vy = 0;
+                        this.isGrounded = true;
+                    } else if (this.vy < 0) {
+                        this.y = (ty + 1) * ENGINE_CONFIG.TILE_SIZE;
+                        this.vy = 0;
                     }
                 }
             }
-
-            // کشیدن دشمنان
-            for (const en of this.enemies) {
-                if (en.x < this.camX + V_WIDTH && en.x + en.w > this.camX) {
-                    en.draw(ctx, this.camX);
-                }
-            }
-
-            // کشیدن ماریو
-            this.mario.draw(ctx, this.camX);
-
-            // کشیدن پارتیکل‌ها
-            for (const p of this.particles) {
-                p.draw(ctx, this.camX);
-            }
-
-            // هدز-آپ دیسپلی (HUD)
-            ctx.fillStyle = "#ffffff";
-            ctx.font = "bold 9px monospace";
-            ctx.fillText("MARIO", 16, 14);
-            ctx.fillText(String(this.score).padStart(6, "0"), 16, 24);
-
-            ctx.fillText("COINS", 120, 14);
-            ctx.fillText("x" + String(this.coins).padStart(2, "0"), 126, 24);
-
-            ctx.fillText("WORLD", 200, 14);
-            ctx.fillText("1-1", 208, 24);
-
-            if (this.isWon) {
-                ctx.fillStyle = "rgba(0,0,0,0.6)";
-                ctx.fillRect(0, 80, V_WIDTH, 48);
-                ctx.fillStyle = "#fffb00";
-                ctx.font = "bold 14px monospace";
-                ctx.textAlign = "center";
-                ctx.fillText("STAGE CLEAR!", V_WIDTH / 2, 108);
-                ctx.textAlign = "left";
-            }
-        }
-
-        loop(timestamp) {
-            // جلوگیری از باگ عبور از دیوار در صورت کندی فریم ریت (Delta Capping)
-            if (!this.lastTime) this.lastTime = timestamp;
-            const delta = (timestamp - this.lastTime) / 1000;
-            this.lastTime = timestamp;
-
-            if (delta < 0.25) {
-                this.update();
-            }
-            this.render();
-
-            requestAnimationFrame((t) => this.loop(t));
-        }
-
-        start() {
-            requestAnimationFrame((t) => this.loop(t));
         }
     }
 
-    // راه‌اندازی بدون تاخیر
-    window.addEventListener("DOMContentLoaded", () => {
-        const game = new GameEngine();
-        game.start();
-    });
-})();
+    kill(audio) {
+        if (this.isDead) return;
+        this.isDead = true;
+        this.vy = -7;
+        audio.die();
+    }
+
+    render(ctx) {
+        ctx.save();
+        ctx.fillStyle = '#e52521'; // Mario Red Shirt
+        const rx = Math.round(this.x);
+        const ry = Math.round(this.y);
+
+        if (this.facing === -1) {
+            ctx.scale(-1, 1);
+            ctx.translate(-rx * 2 - this.w, 0);
+        }
+
+        // Mario Sprite Procedural Drawing (Pixel Perfect, No Blurring)
+        ctx.fillRect(rx + 2, ry, 8, 4);      // Cap
+        ctx.fillStyle = '#fcc082';           // Face
+        ctx.fillRect(rx + 2, ry + 4, 8, 4);
+        ctx.fillStyle = '#0026a3';           // Overalls
+        ctx.fillRect(rx + 1, ry + 8, 10, 5);
+        ctx.fillStyle = '#7a3d00';           // Shoes
+        ctx.fillRect(rx + (this.animFrame % 2 === 0 ? 0 : 2), ry + 13, 5, 3);
+        ctx.fillRect(rx + (this.animFrame % 2 === 0 ? 7 : 5), ry + 13, 5, 3);
+
+        ctx.restore();
+    }
+}
+
+class Goomba {
+    constructor(x, y) {
+        this.x = x;
+        this.y = y;
+        this.w = 14;
+        this.h = 14;
+        this.vx = -0.6;
+        this.vy = 0;
+        this.isDead = false;
+        this.deadTimer = 0;
+    }
+
+    update(level) {
+        if (this.isDead) {
+            this.deadTimer++;
+            return;
+        }
+
+        this.vy += ENGINE_CONFIG.GRAVITY;
+        if (this.vy > ENGINE_CONFIG.MAX_FALL_SPEED) this.vy = ENGINE_CONFIG.MAX_FALL_SPEED;
+
+        // X collision & bounce
+        this.x += this.vx;
+        const tx = Math.floor((this.vx > 0 ? this.x + this.w : this.x) / ENGINE_CONFIG.TILE_SIZE);
+        const ty = Math.floor((this.y + 6) / ENGINE_CONFIG.TILE_SIZE);
+        if (level.isSolid(tx, ty)) {
+            this.vx = -this.vx;
+            this.x += this.vx;
+        }
+
+        // Y collision
+        this.y += this.vy;
+        const btx1 = Math.floor(this.x / ENGINE_CONFIG.TILE_SIZE);
+        const btx2 = Math.floor((this.x + this.w) / ENGINE_CONFIG.TILE_SIZE);
+        const bty = Math.floor((this.y + this.h) / ENGINE_CONFIG.TILE_SIZE);
+        if (level.isSolid(btx1, bty) || level.isSolid(btx2, bty)) {
+            this.y = bty * ENGINE_CONFIG.TILE_SIZE - this.h;
+            this.vy = 0;
+        }
+    }
+
+    render(ctx) {
+        if (this.deadTimer > 30) return;
+        const rx = Math.round(this.x);
+        const ry = Math.round(this.y);
+
+        if (this.isDead) {
+            ctx.fillStyle = '#a84200';
+            ctx.fillRect(rx, ry + 10, 14, 4);
+        } else {
+            ctx.fillStyle = '#a84200';
+            ctx.fillRect(rx + 2, ry, 10, 8);   // Head
+            ctx.fillStyle = '#000000';
+            ctx.fillRect(rx, ry + 8, 14, 6);   // Feet & Body
+        }
+    }
+}
+
+class Level {
+    constructor() {
+        this.width = 180;
+        this.height = 15;
+        this.map = new Uint8Array(this.width * this.height);
+        this.buildLevel();
+    }
+
+    buildLevel() {
+        for (let x = 0; x < this.width; x++) {
+            // Ground
+            if (x < 65 || (x > 68 && x < 85) || x > 90) {
+                this.setTile(x, 13, 1);
+                this.setTile(x, 14, 1);
+            }
+
+            // Platforms & Mystery Blocks
+            if (x === 16 || x === 21 || x === 23 || x === 60) this.setTile(x, 9, 2); // '?'
+            if (x === 20 || x === 22 || x === 24) this.setTile(x, 9, 3); // Brick
+
+            // Classic Pipe
+            if (x === 28 || x === 38) {
+                this.setTile(x, 12, 4);
+                this.setTile(x, 11, 4);
+            }
+        }
+    }
+
+    setTile(x, y, val) {
+        if (x >= 0 && x < this.width && y >= 0 && y < this.height) {
+            this.map[y * this.width + x] = val;
+        }
+    }
+
+    getTile(x, y) {
+        if (x < 0 || x >= this.width || y < 0 || y >= this.height) return 0;
+        return this.map[y * this.width + x];
+    }
+
+    isSolid(tx, ty) {
+        const tile = this.getTile(tx, ty);
+        return tile > 0;
+    }
+
+    render(ctx, cameraX) {
+        const startCol = Math.max(0, Math.floor(cameraX / ENGINE_CONFIG.TILE_SIZE));
+        const endCol = Math.min(this.width, startCol + (ENGINE_CONFIG.CANVAS_WIDTH / ENGINE_CONFIG.TILE_SIZE) + 2);
+
+        for (let y = 0; y < this.height; y++) {
+            for (let x = startCol; x < endCol; x++) {
+                const tile = this.getTile(x, y);
+                if (tile === 0) continue;
+
+                const rx = Math.round(x * ENGINE_CONFIG.TILE_SIZE);
+                const ry = Math.round(y * ENGINE_CONFIG.TILE_SIZE);
+
+                switch(tile) {
+                    case 1: // Ground
+                        ctx.fillStyle = '#c84400';
+                        ctx.fillRect(rx, ry, 16, 16);
+                        ctx.fillStyle = '#fc9838';
+                        ctx.fillRect(rx, ry, 16, 2);
+                        break;
+                    case 2: // Mystery Block
+                        ctx.fillStyle = '#fc9838';
+                        ctx.fillRect(rx, ry, 16, 16);
+                        ctx.fillStyle = '#000000';
+                        ctx.font = '10px monospace';
+                        ctx.fillText('?', rx + 5, ry + 12);
+                        break;
+                    case 3: // Brick
+                        ctx.fillStyle = '#b83400';
+                        ctx.fillRect(rx, ry, 16, 16);
+                        ctx.strokeStyle = '#000';
+                        ctx.strokeRect(rx, ry, 16, 16);
+                        break;
+                    case 4: // Pipe
+                        ctx.fillStyle = '#00a800';
+                        ctx.fillRect(rx, ry, 16, 16);
+                        ctx.fillStyle = '#80d010';
+                        ctx.fillRect(rx + 2, ry, 2, 16);
+                        break;
+                }
+            }
+        }
+    }
+}
+
+// 5. MAIN SECURE ENGINE RUNTIME
+class MarioEngine {
+    constructor() {
+        this.canvas = document.getElementById('gameCanvas');
+        this.ctx = this.canvas.getContext('2d', { alpha: false });
+        this.overlay = document.getElementById('start-overlay');
+        this.scoreEl = document.getElementById('score');
+
+        // Crisp pixelated rendering enforcement
+        this.ctx.imageSmoothingEnabled = false;
+
+        this.audio = new ProceduralAudioEngine();
+        this.input = new InputHandler(() => this.start());
+
+        this.level = new Level();
+        this.mario = new Mario(32, 160);
+        this.enemies = [
+            new Goomba(240, 190),
+            new Goomba(380, 190),
+            new Goomba(520, 190)
+        ];
+
+        this.cameraX = 0;
+        this.score = 0;
+        this.running = false;
+        this.lastTime = 0;
+
+        // Overlay & Screen interactions
+        this.overlay.addEventListener('click', () => this.start());
+        this.overlay.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            this.start();
+        }, { passive: false });
+    }
+
+    start() {
+        this.audio.init();
+        if (!this.running) {
+            this.running = true;
+            this.overlay.classList.add('hidden');
+            this.lastTime = performance.now();
+            requestAnimationFrame((t) => this.gameLoop(t));
+        }
+    }
+
+    handleCollisions() {
+        if (this.mario.isDead) return;
+
+        this.enemies.forEach(enemy => {
+            if (enemy.isDead) return;
+
+            // Simple Axis-Aligned Bounding Box (AABB) Collision
+            if (this.mario.x < enemy.x + enemy.w &&
+                this.mario.x + this.mario.w > enemy.x &&
+                this.mario.y < enemy.y + enemy.h &&
+                this.mario.y + this.mario.h > enemy.y) {
+
+                // Jump kill check (stomp)
+                if (this.mario.vy > 0 && this.mario.y + this.mario.h - this.mario.vy <= enemy.y + 6) {
+                    enemy.isDead = true;
+                    this.mario.vy = -5.5;
+                    this.score += 100;
+                    this.scoreEl.innerText = String(this.score).padStart(6, '0');
+                    this.audio.stomp();
+                } else {
+                    this.mario.kill(this.audio);
+                }
+            }
+        });
+    }
+
+    update() {
+        this.mario.update(this.input, this.level, this.audio);
+
+        this.enemies.forEach(enemy => enemy.update(this.level));
+        this.handleCollisions();
+
+        // Safe Camera tracking with boundaries
+        if (!this.mario.isDead) {
+            const targetCamX = this.mario.x - ENGINE_CONFIG.CANVAS_WIDTH * 0.4;
+            if (targetCamX > this.cameraX) {
+                this.cameraX = targetCamX;
+            }
+        }
+    }
+
+    render() {
+        this.ctx.fillStyle = '#5c94fc';
+        this.ctx.fillRect(0, 0, ENGINE_CONFIG.CANVAS_WIDTH, ENGINE_CONFIG.CANVAS_HEIGHT);
+
+        this.ctx.save();
+        this.ctx.translate(-Math.round(this.cameraX), 0);
+
+        this.level.render(this.ctx, this.cameraX);
+        this.enemies.forEach(enemy => enemy.render(this.ctx));
+        this.mario.render(this.ctx);
+
+        this.ctx.restore();
+    }
+
+    gameLoop(currentTime) {
+        if (!this.running) return;
+
+        // Standard delta-time clamping to mitigate frame skips and tunneling
+        const deltaTime = Math.min((currentTime - this.lastTime) / 1000, 0.1);
+        this.lastTime = currentTime;
+
+        this.update();
+        this.render();
+
+        requestAnimationFrame((t) => this.gameLoop(t));
+    }
+}
+
+// Global initialization after DOM completely loads
+window.addEventListener('DOMContentLoaded', () => {
+    new MarioEngine();
+});

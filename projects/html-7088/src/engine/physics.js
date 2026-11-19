@@ -1,124 +1,138 @@
 /**
- * AABB (Axis-Aligned Bounding Box) Physics Engine
- * Handles gravity, collisions, resolution, and spatial bounds.
- * Layer: Central Engine
+ * Physics & AABB Collision Engine
  * Studio: B2.st
  */
-
-import { CONFIG } from '../../config/game_config.js';
+import { GAME_CONFIG } from '../../config/game_config.js';
 
 export class PhysicsEngine {
-  constructor(tileMap) {
-    this.tileMap = tileMap;
-    this.gravity = CONFIG.PHYSICS.GRAVITY;
-    this.maxFallSpeed = CONFIG.PHYSICS.MAX_FALL_SPEED;
-  }
-
-  /**
-   * Check if two rectangular entities intersect
-   */
-  static checkAABB(rectA, rectB) {
-    return (
-      rectA.x < rectB.x + rectB.width &&
-      rectA.x + rectA.width > rectB.x &&
-      rectA.y < rectB.y + rectB.height &&
-      rectA.y + rectA.height > rectB.y
-    );
-  }
-
-  /**
-   * Applies gravity to an entity's velocity
-   */
-  applyGravity(entity, deltaTime) {
-    if (!entity.hasGravity || entity.isDead) return;
-
-    entity.velocity.y += this.gravity * deltaTime;
-    if (entity.velocity.y > this.maxFallSpeed) {
-      entity.velocity.y = this.maxFallSpeed;
+    constructor() {
+        this.gravity = GAME_CONFIG.PHYSICS.GRAVITY;
+        this.maxFallSpeed = GAME_CONFIG.PHYSICS.MAX_FALL_SPEED;
     }
-  }
 
-  /**
-   * Moves entity along X axis and resolves tile collisions
-   */
-  resolveMapCollisionX(entity, deltaTime) {
-    entity.position.x += entity.velocity.x * deltaTime;
+    /**
+     * Integrates entity velocity and gravity
+     * @param {Entity} entity
+     * @param {number} dt Delta time
+     */
+    applyForces(entity, dt) {
+        if (!entity.isDynamic) return;
 
-    const tileSize = this.tileMap.tileSize;
-    const startTileY = Math.floor(entity.position.y / tileSize);
-    const endTileY = Math.floor((entity.position.y + entity.height - 0.01) / tileSize);
-
-    if (entity.velocity.x > 0) {
-      // Moving Right
-      const rightTileX = Math.floor((entity.position.x + entity.width) / tileSize);
-      for (let ty = startTileY; ty <= endTileY; ty++) {
-        const tile = this.tileMap.getTile(rightTileX, ty);
-        if (tile && tile.isSolid) {
-          entity.position.x = rightTileX * tileSize - entity.width;
-          entity.onWallCollide('right');
-          entity.velocity.x = 0;
-          break;
+        // Apply Gravity
+        entity.vy += this.gravity * dt;
+        if (entity.vy > this.maxFallSpeed) {
+            entity.vy = this.maxFallSpeed;
         }
-      }
-    } else if (entity.velocity.x < 0) {
-      // Moving Left
-      const leftTileX = Math.floor(entity.position.x / tileSize);
-      for (let ty = startTileY; ty <= endTileY; ty++) {
-        const tile = this.tileMap.getTile(leftTileX, ty);
-        if (tile && tile.isSolid) {
-          entity.position.x = (leftTileX + 1) * tileSize;
-          entity.onWallCollide('left');
-          entity.velocity.x = 0;
-          break;
+
+        // Apply Ground/Air Friction
+        if (entity.onGround) {
+            entity.vx *= GAME_CONFIG.PHYSICS.FRICTION;
+        } else {
+            entity.vx *= GAME_CONFIG.PHYSICS.AIR_RESISTANCE;
         }
-      }
+
+        if (Math.abs(entity.vx) < 0.1) entity.vx = 0;
     }
-  }
 
-  /**
-   * Moves entity along Y axis and resolves floor / ceiling collisions
-   */
-  resolveMapCollisionY(entity, deltaTime) {
-    entity.position.y += entity.velocity.y * deltaTime;
-    entity.onGround = false;
-
-    const tileSize = this.tileMap.tileSize;
-    const startTileX = Math.floor(entity.position.x / tileSize);
-    const endTileX = Math.floor((entity.position.x + entity.width - 0.01) / tileSize);
-
-    if (entity.velocity.y > 0) {
-      // Falling down
-      const bottomTileY = Math.floor((entity.position.y + entity.height) / tileSize);
-      for (let tx = startTileX; tx <= endTileX; tx++) {
-        const tile = this.tileMap.getTile(tx, bottomTileY);
-        if (tile && tile.isSolid) {
-          entity.position.y = bottomTileY * tileSize - entity.height;
-          entity.velocity.y = 0;
-          entity.onGround = true;
-          break;
-        }
-      }
-    } else if (entity.velocity.y < 0) {
-      // Jumping up into ceiling / block
-      const topTileY = Math.floor(entity.position.y / tileSize);
-      for (let tx = startTileX; tx <= endTileX; tx++) {
-        const tile = this.tileMap.getTile(tx, topTileY);
-        if (tile && tile.isSolid) {
-          entity.position.y = (topTileY + 1) * tileSize;
-          entity.velocity.y = 0;
-          entity.onCeilingHit(tx, topTileY, tile);
-          break;
-        }
-      }
+    /**
+     * Checks Axis-Aligned Bounding Box (AABB) intersection
+     * @param {Object} a {x, y, width, height}
+     * @param {Object} b {x, y, width, height}
+     * @returns {boolean}
+     */
+    static checkAABB(a, b) {
+        return (
+            a.x < b.x + b.width &&
+            a.x + a.width > b.x &&
+            a.y < b.y + b.height &&
+            a.y + a.height > b.y
+        );
     }
-  }
 
-  /**
-   * Full movement and collision update for an entity
-   */
-  updateEntity(entity, deltaTime) {
-    this.applyGravity(entity, deltaTime);
-    this.resolveMapCollisionX(entity, deltaTime);
-    this.resolveMapCollisionY(entity, deltaTime);
-  }
+    /**
+     * Resolves movement against static tilemap matrix
+     * @param {Entity} entity
+     * @param {LevelManager} levelManager
+     * @param {number} dt
+     */
+    resolveTileCollisions(entity, levelManager, dt) {
+        if (!entity.isDynamic) return;
+
+        const tileSize = GAME_CONFIG.WORLD.TILE_SIZE;
+
+        // 1. Resolve Horizontal Movement
+        entity.x += entity.vx * dt;
+        let leftTile = Math.floor(entity.x / tileSize);
+        let rightTile = Math.floor((entity.x + entity.width - 0.01) / tileSize);
+        let topTile = Math.floor(entity.y / tileSize);
+        let bottomTile = Math.floor((entity.y + entity.height - 0.01) / tileSize);
+
+        for (let ty = topTile; ty <= bottomTile; ty++) {
+            for (let tx = leftTile; tx <= rightTile; tx++) {
+                if (levelManager.isSolidTile(tx, ty)) {
+                    if (entity.vx > 0) {
+                        entity.x = tx * tileSize - entity.width;
+                        entity.onCollideSide('right');
+                    } else if (entity.vx < 0) {
+                        entity.x = (tx + 1) * tileSize;
+                        entity.onCollideSide('left');
+                    }
+                    entity.vx = 0;
+                }
+            }
+        }
+
+        // 2. Resolve Vertical Movement
+        entity.y += entity.vy * dt;
+        entity.onGround = false;
+
+        leftTile = Math.floor(entity.x / tileSize);
+        rightTile = Math.floor((entity.x + entity.width - 0.01) / tileSize);
+        topTile = Math.floor(entity.y / tileSize);
+        bottomTile = Math.floor((entity.y + entity.height - 0.01) / tileSize);
+
+        for (let ty = topTile; ty <= bottomTile; ty++) {
+            for (let tx = leftTile; tx <= rightTile; tx++) {
+                if (levelManager.isSolidTile(tx, ty)) {
+                    if (entity.vy > 0) { // Falling onto surface
+                        entity.y = ty * tileSize - entity.height;
+                        entity.vy = 0;
+                        entity.onGround = true;
+                        entity.onCollideBottom();
+                    } else if (entity.vy < 0) { // Jumping into ceiling
+                        entity.y = (ty + 1) * tileSize;
+                        entity.vy = 0;
+                        entity.onCollideTop(tx, ty);
+                    }
+                }
+            }
+        }
+
+        // Level floor kill boundary
+        if (entity.y > levelManager.mapHeight * tileSize) {
+            entity.kill('fall');
+        }
+    }
+
+    /**
+     * Resolves Dynamic Entity vs Dynamic Entity collision
+     * @param {Entity} entityA
+     * @param {Entity} entityB
+     */
+    static resolveEntityCollision(entityA, entityB) {
+        if (!PhysicsEngine.checkAABB(entityA, entityB)) return null;
+
+        // Calculate overlap depths
+        const overlapX = (entityA.width + entityB.width) / 2 - Math.abs((entityA.x + entityA.width / 2) - (entityB.x + entityB.width / 2));
+        const overlapY = (entityA.height + entityB.height) / 2 - Math.abs((entityA.y + entityA.height / 2) - (entityB.y + entityB.height / 2));
+
+        let side = 'unknown';
+        if (overlapX < overlapY) {
+            side = entityA.x < entityB.x ? 'left' : 'right';
+        } else {
+            side = entityA.y < entityB.y ? 'top' : 'bottom';
+        }
+
+        return { side, overlapX, overlapY };
+    }
 }

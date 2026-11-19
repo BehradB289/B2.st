@@ -1,53 +1,47 @@
 /**
- * ECS Base Entity
- * Layer: Entities & Components
+ * Base Game Entity Class (Lightweight ECS representation)
  * Studio: B2.st
  */
-
-import { Vector2D } from '../engine/vector.js';
-
 export class Entity {
-  constructor(x, y, width, height) {
-    this.position = new Vector2D(x, y);
-    this.velocity = new Vector2D(0, 0);
-    this.width = width;
-    this.height = height;
+    constructor(x, y, width, height) {
+        this.x = x;
+        this.y = y;
+        this.width = width;
+        this.height = height;
 
-    this.hasGravity = true;
-    this.onGround = false;
-    this.isDead = false;
-    this.markedForRemoval = false;
-  }
+        // Kinematics
+        this.vx = 0;
+        this.vy = 0;
 
-  get x() {
-    return this.position.x;
-  }
-  get y() {
-    return this.position.y;
-  }
+        // State Flags
+        this.isDynamic = true;
+        this.onGround = false;
+        this.isDead = false;
+        this.markedForRemoval = false;
+        this.facing = 1; // 1 = Right, -1 = Left
+    }
 
-  getBounds() {
-    return {
-      x: this.position.x,
-      y: this.position.y,
-      width: this.width,
-      height: this.height
-    };
-  }
+    update(dt) {
+        // Implemented by subclasses
+    }
 
-  onWallCollide(direction) {
-    // Override in subclass
-  }
+    render(ctx, camera) {
+        // Implemented by subclasses
+    }
 
-  onCeilingHit(tileX, tileY, tile) {
-    // Override in subclass
-  }
+    onCollideSide(side) {
+        // Hook for wall bounce or halt
+    }
 
-  update(deltaTime) {
-    // Override in subclass
-  }
+    onCollideTop(tileX, tileY) {
+        // Hook for ceiling impact
+    }
 
-  render(ctx, camera) {
-    // Override in subclass
-  }
+    onCollideBottom() {
+        // Hook for landing
+    }
+
+    kill(reason = 'default') {
+        this.isDead = true;
+    }
 }

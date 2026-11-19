@@ -105,6 +105,7 @@ projects/html-7088/
 ├── src/entities/goomba.js
 ├── src/entities/mario.js
 ├── src/game.js
+├── src/index.js
 ├── src/levels/Level.js
 ├── src/levels/Level1.js
 ├── src/levels/Level1_1.js
@@ -119,6 +120,7 @@ projects/html-7088/
 ├── src/module_83.js
 ├── src/physics/Physics.js
 ├── src/security/Guardian.js
+├── src/security/Sanitizer.js
 ├── src/security/owasp_guard.js
 ├── src/services/network_retry.js
 ├── src/utils/backup.js

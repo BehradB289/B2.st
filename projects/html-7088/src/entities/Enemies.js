@@ -1,92 +1,93 @@
-/**
- * Classic Enemies: Goomba & Koopa Troopa (with kickable sliding shell mechanics)
- */
-
 import { Entity } from './Entity.js';
-import { Physics } from '../engine/Physics.js';
-import { sound } from '../engine/Audio.js';
+import { SpriteRenderer } from './SpriteRenderer.js';
+import { GameConfig } from '../../config/game.config.js';
 
 export class Goomba extends Entity {
   constructor(x, y) {
-    super(x, y, 16, 16);
-    this.vx = -35;
-    this.squished = false;
+    super(x, y, 14, 14);
+    this.hitboxOffset.set(1, 2);
+    this.velocity.x = -GameConfig.ENEMIES.GOOMBA_SPEED;
+    this.isSquished = false;
     this.squishTimer = 0;
   }
 
-  update(dt, level) {
-    if (this.squished) {
+  update(dt, physics) {
+    super.update(dt);
+
+    if (this.isSquished) {
       this.squishTimer += dt;
       if (this.squishTimer > 0.45) {
-        this.isDead = true;
+        this.shouldRemove = true;
       }
       return;
     }
 
-    super.update(dt, level);
-    Physics.resolveEntityVsTilemap(this, level, dt);
-  }
+    physics.updateEntity(this, dt);
 
-  onCollideWall(side) {
-    if (side === 'left') this.vx = Math.abs(this.vx);
-    if (side === 'right') this.vx = -Math.abs(this.vx);
+    if (this.position.y > GameConfig.CANVAS.INTERNAL_HEIGHT + 32) {
+      this.shouldRemove = true;
+    }
   }
 
   stomp() {
-    this.squished = true;
-    this.vx = 0;
-    this.vy = 0;
-    sound.playStomp();
+    this.isSquished = true;
+    this.velocity.set(0, 0);
+  }
+
+  onWallHit(side) {
+    this.velocity.x = side === 'right' ? -GameConfig.ENEMIES.GOOMBA_SPEED : GameConfig.ENEMIES.GOOMBA_SPEED;
+  }
+
+  render(ctx, camera) {
+    const screen = camera.worldToScreen(this.position.x, this.position.y);
+    SpriteRenderer.drawGoomba(ctx, screen.x, screen.y, this);
   }
 }
 
 export class Koopa extends Entity {
   constructor(x, y) {
-    super(x, y, 16, 24);
-    this.vx = -40;
-    this.inShell = false;
-    this.shellMoving = false;
+    super(x, y, 14, 22);
+    this.hitboxOffset.set(1, 2);
+    this.velocity.x = -GameConfig.ENEMIES.KOOPA_SPEED;
+    this.isShell = false;
+    this.isMovingShell = false;
   }
 
-  update(dt, level) {
-    super.update(dt, level);
-    Physics.resolveEntityVsTilemap(this, level, dt);
-    this.facing = this.vx >= 0 ? 1 : -1;
-  }
+  update(dt, physics) {
+    super.update(dt);
 
-  onCollideWall(side) {
-    if (side === 'left') {
-      this.vx = Math.abs(this.vx);
-      if (this.shellMoving) sound.playBrickBump();
+    if (this.isShell && !this.isMovingShell) {
+      this.velocity.x = 0;
     }
-    if (side === 'right') {
-      this.vx = -Math.abs(this.vx);
-      if (this.shellMoving) sound.playBrickBump();
+
+    physics.updateEntity(this, dt);
+
+    if (this.position.y > GameConfig.CANVAS.INTERNAL_HEIGHT + 32) {
+      this.shouldRemove = true;
     }
   }
 
-  stomp(mario) {
-    if (!this.inShell) {
-      this.inShell = true;
-      this.height = 16;
-      this.y += 8;
-      this.vx = 0;
-      sound.playStomp();
-    } else if (!this.shellMoving) {
-      this.shellMoving = true;
-      const kickDir = mario.x < this.x + this.width / 2 ? 1 : -1;
-      this.vx = kickDir * 260;
-      sound.playKick();
-    } else {
-      this.shellMoving = false;
-      this.vx = 0;
-      sound.playStomp();
+  stomp() {
+    if (!this.isShell) {
+      this.isShell = true;
+      this.hitboxSize.set(14, 14);
+      this.hitboxOffset.set(1, 2);
+      this.velocity.set(0, 0);
     }
   }
 
   kick(direction) {
-    this.shellMoving = true;
-    this.vx = direction * 260;
-    sound.playKick();
+    this.isMovingShell = true;
+    this.velocity.x = direction * GameConfig.ENEMIES.SHELL_SPEED;
+  }
+
+  onWallHit(side) {
+    const speed = this.isMovingShell ? GameConfig.ENEMIES.SHELL_SPEED : GameConfig.ENEMIES.KOOPA_SPEED;
+    this.velocity.x = side === 'right' ? -speed : speed;
+  }
+
+  render(ctx, camera) {
+    const screen = camera.worldToScreen(this.position.x, this.position.y);
+    SpriteRenderer.drawKoopa(ctx, screen.x, screen.y, this);
   }
 }

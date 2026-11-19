@@ -1,359 +1,186 @@
-import { GameLoop } from './GameLoop.js';
-import { Camera } from './Camera.js';
-import { Physics } from './Physics.js';
+/**
+ * @file Game.js
+ * @description موتور مرکزی لوپ، هماهنگ‌ساز رویدادها، دوربین و رندر فریم
+ */
+
+import { Sanitizer } from '../security/Sanitizer.js';
 import { InputHandler } from './InputHandler.js';
+import { Level } from '../world/Level.js';
 import { Mario } from '../entities/Mario.js';
 import { Goomba } from '../entities/Goomba.js';
-import { Coin } from '../entities/Coin.js';
-import { TileMap } from '../levels/TileMap.js';
-import { createLevel1 } from '../levels/Level1.js';
-import { GAME_CONFIG } from '../../config/game.config.js';
 
-/**
- * Procedural Web Audio 8-bit Synthesizer
- */
-class SoundEngine {
-  constructor() {
-    this.ctx = null;
-    this.muted = false;
-  }
-
-  _init() {
-    if (!this.ctx) {
-      const AudioContext = window.AudioContext || window.webkitAudioContext;
-      this.ctx = new AudioContext();
-    }
-    if (this.ctx && this.ctx.state === 'suspended') {
-      this.ctx.resume();
-    }
-  }
-
-  playJump() {
-    if (this.muted) return;
-    this._init();
-    if (!this.ctx) return;
-    const osc = this.ctx.createOscillator();
-    const gain = this.ctx.createGain();
-    osc.type = 'square';
-    osc.frequency.setValueAtTime(150, this.ctx.currentTime);
-    osc.frequency.exponentialRampToValueAtTime(600, this.ctx.currentTime + 0.15);
-    gain.gain.setValueAtTime(0.12, this.ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.15);
-    osc.connect(gain);
-    gain.connect(this.ctx.destination);
-    osc.start();
-    osc.stop(this.ctx.currentTime + 0.15);
-  }
-
-  playCoin() {
-    if (this.muted) return;
-    this._init();
-    if (!this.ctx) return;
-    const osc = this.ctx.createOscillator();
-    const gain = this.ctx.createGain();
-    osc.type = 'sine';
-    osc.frequency.setValueAtTime(987, this.ctx.currentTime);
-    osc.frequency.setValueAtTime(1318, this.ctx.currentTime + 0.08);
-    gain.gain.setValueAtTime(0.15, this.ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.35);
-    osc.connect(gain);
-    gain.connect(this.ctx.destination);
-    osc.start();
-    osc.stop(this.ctx.currentTime + 0.35);
-  }
-
-  playStomp() {
-    if (this.muted) return;
-    this._init();
-    if (!this.ctx) return;
-    const osc = this.ctx.createOscillator();
-    const gain = this.ctx.createGain();
-    osc.type = 'triangle';
-    osc.frequency.setValueAtTime(180, this.ctx.currentTime);
-    osc.frequency.exponentialRampToValueAtTime(50, this.ctx.currentTime + 0.1);
-    gain.gain.setValueAtTime(0.2, this.ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.1);
-    osc.connect(gain);
-    gain.connect(this.ctx.destination);
-    osc.start();
-    osc.stop(this.ctx.currentTime + 0.1);
-  }
-
-  playBump() {
-    if (this.muted) return;
-    this._init();
-    if (!this.ctx) return;
-    const osc = this.ctx.createOscillator();
-    const gain = this.ctx.createGain();
-    osc.type = 'square';
-    osc.frequency.setValueAtTime(90, this.ctx.currentTime);
-    gain.gain.setValueAtTime(0.15, this.ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.08);
-    osc.connect(gain);
-    gain.connect(this.ctx.destination);
-    osc.start();
-    osc.stop(this.ctx.currentTime + 0.08);
-  }
-
-  playDeath() {
-    if (this.muted) return;
-    this._init();
-    if (!this.ctx) return;
-    const osc = this.ctx.createOscillator();
-    const gain = this.ctx.createGain();
-    osc.type = 'triangle';
-    osc.frequency.setValueAtTime(320, this.ctx.currentTime);
-    osc.frequency.linearRampToValueAtTime(120, this.ctx.currentTime + 0.4);
-    gain.gain.setValueAtTime(0.2, this.ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.5);
-    osc.connect(gain);
-    gain.connect(this.ctx.destination);
-    osc.start();
-    osc.stop(this.ctx.currentTime + 0.5);
-  }
-}
-
-/**
- * Main Mario Game Orchestrator
- */
 export class Game {
-  constructor(canvasElement) {
-    this.canvas = canvasElement;
-    this.ctx = canvasElement.getContext('2d', { alpha: false });
-    this.ctx.imageSmoothingEnabled = false;
-
-    this.score = 0;
-    this.coins = 0;
-    this.world = '1-1';
-    this.time = 400;
-    this.lives = GAME_CONFIG.MARIO.INITIAL_LIVES;
-    this.isPaused = false;
-    this.gameWon = false;
-
-    this.soundEngine = new SoundEngine();
-    this.input = new InputHandler();
-    this.camera = new Camera(GAME_CONFIG.CANVAS.WIDTH, GAME_CONFIG.CANVAS.HEIGHT);
-
-    this.entities = [];
-    this.initLevel();
-
-    this.loop = new GameLoop(
-      GAME_CONFIG.TIMING.FIXED_DELTA,
-      (dt) => this.update(dt),
-      (alpha) => this.render(alpha)
-    );
-  }
-
-  initLevel() {
-    const levelData = createLevel1();
-    this.levelWidth = levelData.width;
-    this.tileMap = new TileMap(levelData.matrix, GAME_CONFIG.PHYSICS.TILE_SIZE);
-
-    this.mario = new Mario(levelData.spawnMario.x, levelData.spawnMario.y);
-    this.mario.gameContext = this;
-
-    this.entities = [];
-    levelData.spawns.forEach((spawn) => {
-      if (spawn.type === 'goomba') {
-        const g = new Goomba(spawn.x, spawn.y);
-        g.gameContext = this;
-        this.entities.push(g);
-      } else if (spawn.type === 'coin') {
-        const c = new Coin(spawn.x, spawn.y, true);
-        c.gameContext = this;
-        this.entities.push(c);
-      }
-    });
-
-    this.camera.reset();
-    this.time = 400;
-  }
-
-  spawnPoppedCoin(x, y) {
-    const coin = new Coin(x, y, false);
-    coin.gameContext = this;
-    this.entities.push(coin);
-    this.soundEngine.playCoin();
-  }
-
-  addScore(points) {
-    this.score += points;
-  }
-
-  addCoin() {
-    this.coins += 1;
-    if (this.coins >= 100) {
-      this.coins = 0;
-      this.lives += 1;
-    }
-  }
-
-  update(dt) {
-    this.input.update();
-
-    if (this.input.justPressed.pause) {
-      this.isPaused = !this.isPaused;
-    }
-    if (this.input.justPressed.mute) {
-      this.soundEngine.muted = !this.soundEngine.muted;
-    }
-
-    if (this.isPaused) {
-      this.input.postUpdate();
-      return;
-    }
-
-    if (this.mario.state !== 'DEAD' && !this.gameWon) {
-      this.time = Math.max(0, this.time - dt * 1.5);
-      if (this.time <= 0) {
-        this.mario.kill(this.soundEngine);
-      }
-    }
-
-    // Mario update
-    this.mario.update(dt, this.input, this.soundEngine);
-
-    // Apply gravity
-    Physics.applyGravity(
-      this.mario,
-      GAME_CONFIG.PHYSICS.GRAVITY,
-      GAME_CONFIG.PHYSICS.MAX_FALL_SPEED,
-      dt
-    );
-
-    // Resolve tilemap collision
-    Physics.resolveTileMapCollisions(this.mario, this.tileMap, GAME_CONFIG.PHYSICS.TILE_SIZE);
-
-    // Fall in pit check
-    if (this.mario.position.y > GAME_CONFIG.CANVAS.HEIGHT && this.mario.state !== 'DEAD') {
-      this.mario.kill(this.soundEngine);
-    }
-
-    // Camera follow Mario
-    this.camera.update(this.mario, this.levelWidth);
-
-    // TileMap bump animations
-    this.tileMap.update(dt);
-
-    // Update Entities & Collisions
-    const marioBox = this.mario.getBounds();
-
-    for (let i = this.entities.length - 1; i >= 0; i--) {
-      const e = this.entities[i];
-      e.update(dt, this.soundEngine);
-
-      // Goomba / Enemy gravity & tiles
-      if (e instanceof Goomba && !e.isSquashed) {
-        Physics.applyGravity(
-          e,
-          GAME_CONFIG.PHYSICS.GRAVITY,
-          GAME_CONFIG.PHYSICS.MAX_FALL_SPEED,
-          dt
-        );
-        Physics.resolveTileMapCollisions(e, this.tileMap, GAME_CONFIG.PHYSICS.TILE_SIZE);
-      }
-
-      // Mario vs Entity collision check
-      if (this.mario.state !== 'DEAD' && Physics.checkAABB(marioBox, e.getBounds())) {
-        if (e instanceof Coin) {
-          e.collect(this.soundEngine);
-          this.addCoin();
-          this.addScore(200);
-        } else if (e instanceof Goomba && !e.isSquashed) {
-          // Check if Mario stomped Goomba from above
-          if (this.mario.velocity.y > 0 && this.mario.position.y + this.mario.size.y - 8 < e.position.y + 6) {
-            e.stomp(this.soundEngine);
-            this.mario.velocity.y = GAME_CONFIG.PHYSICS.BOUNCE_FORCE;
-            this.addScore(100);
-          } else {
-            // Mario damaged
-            this.mario.kill(this.soundEngine);
-          }
+    /**
+     * @param {HTMLCanvasElement} canvas 
+     */
+    constructor(canvas) {
+        if (!canvas) {
+            throw new Error('کانواس مقداردهی نشده است.');
         }
-      }
 
-      if (e.markedForRemoval) {
-        this.entities.splice(i, 1);
-      }
-    }
+        this.canvas = canvas;
+        /** @type {CanvasRenderingContext2D} */
+        this.ctx = this.canvas.getContext('2d', { alpha: false });
 
-    // Flagpole Goal check (at column 110: x ~ 1760)
-    if (this.mario.position.x >= 1760 && !this.gameWon) {
-      this.gameWon = true;
-      this.addScore(1000);
-    }
+        this.input = new InputHandler();
+        this.level = new Level();
+        this.mario = new Mario(60, 200);
 
-    // Respawn after death
-    if (this.mario.state === 'DEAD' && this.mario.position.y > GAME_CONFIG.CANVAS.HEIGHT + 80) {
-      this.lives -= 1;
-      if (this.lives > 0) {
-        this.initLevel();
-      } else {
-        // Game Over reset
-        this.lives = GAME_CONFIG.MARIO.INITIAL_LIVES;
+        this.enemies = [
+            new Goomba(320, 200),
+            new Goomba(580, 200),
+            new Goomba(850, 100),
+            new Goomba(1200, 200)
+        ];
+
+        this.cameraX = 0;
         this.score = 0;
         this.coins = 0;
-        this.initLevel();
-      }
+        this.lives = 3;
+
+        this.lastTime = 0;
+        this.isRunning = false;
+
+        this.uiScore = document.getElementById('mario-score');
+        this.uiCoins = document.getElementById('mario-coins');
+        this.uiLives = document.getElementById('mario-lives');
+
+        this._tick = this._tick.bind(this);
     }
 
-    this.input.postUpdate();
-  }
-
-  render() {
-    const ctx = this.ctx;
-
-    // Background Sky
-    ctx.fillStyle = GAME_CONFIG.CANVAS.BACKGROUND_COLOR;
-    ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
-
-    // Decorative clouds and bushes
-    this._renderScenery(ctx);
-
-    // Level TileMap
-    this.tileMap.render(ctx, this.camera);
-
-    // Entities
-    for (const entity of this.entities) {
-      entity.render(ctx, this.camera);
+    start() {
+        if (this.isRunning) return;
+        this.isRunning = true;
+        this.lastTime = performance.now();
+        requestAnimationFrame(this._tick);
     }
 
-    // Mario
-    this.mario.render(ctx, this.camera);
-
-    // Pause Overlay
-    if (this.isPaused) {
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
-      ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
-      ctx.fillStyle = '#ffffff';
-      ctx.font = '12px monospace';
-      ctx.textAlign = 'center';
-      ctx.fillText('PAUSED', this.canvas.width / 2, this.canvas.height / 2);
+    stop() {
+        this.isRunning = false;
     }
 
-    // Victory Banner
-    if (this.gameWon) {
-      ctx.fillStyle = '#ffffff';
-      ctx.font = '10px monospace';
-      ctx.textAlign = 'center';
-      ctx.fillText('COURSE CLEAR! CONGRATULATIONS B2.ST', this.canvas.width / 2, 70);
-    }
-  }
+    _tick(currentTime) {
+        if (!this.isRunning) return;
 
-  _renderScenery(ctx) {
-    // Parallax background clouds
-    const cloudOffsets = [40, 200, 360, 600, 840, 1100, 1400];
-    ctx.fillStyle = '#ffffff';
-    for (const cx of cloudOffsets) {
-      const scr = this.camera.worldToScreen(cx, 40);
-      if (scr.x > -60 && scr.x < this.canvas.width + 60) {
-        ctx.fillRect(scr.x, scr.y, 36, 12);
-        ctx.fillRect(scr.x + 8, scr.y - 6, 20, 6);
-      }
-    }
-  }
+        const rawDelta = (currentTime - this.lastTime) / 1000;
+        this.lastTime = currentTime;
 
-  start() {
-    this.loop.start();
-  }
+        // ایمن‌سازی دلتاتایم جهت پایداری فریم‌ریت
+        const dt = Sanitizer.clampDeltaTime(rawDelta, 0.05);
+
+        this.update(dt);
+        this.render();
+
+        requestAnimationFrame(this._tick);
+    }
+
+    /**
+     * @param {number} dt 
+     */
+    update(dt) {
+        this.mario.update(dt, this.input, this.level);
+
+        // دوربین پویا متمرکز بر حرکت ماریو به سمت راست
+        const targetCamX = this.mario.x - (this.canvas.width * 0.35);
+        if (targetCamX > this.cameraX) {
+            this.cameraX = targetCamX;
+        }
+
+        // بروزرسانی انتیتی‌های دشمن و بررسی برخورد
+        for (let i = this.enemies.length - 1; i >= 0; i--) {
+            const enemy = this.enemies[i];
+            enemy.update(dt, this.level);
+
+            if (enemy.isDead && enemy.deadTimer > 0.4) {
+                this.enemies.splice(i, 1);
+                continue;
+            }
+
+            if (!enemy.isDead && this._checkAABB(this.mario, enemy)) {
+                // اگر ماریو از بالا روی دشمن بپرد
+                if (this.mario.vy > 0 && (this.mario.y + this.mario.height - enemy.y) < 16) {
+                    enemy.stomp();
+                    this.mario.vy = -260; // پرش ارتجاعی
+                    this.score += 200;
+                    this._updateUI();
+                } else {
+                    // برخورد ماریو با دشمن از جناحین
+                    const hitAccepted = this.mario.takeHit();
+                    if (hitAccepted) {
+                        this.lives -= 1;
+                        this._updateUI();
+                        if (this.lives <= 0) {
+                            this._handleGameOver();
+                        }
+                    }
+                }
+            }
+        }
+
+        // سقوط ماریو در چاله‌ها
+        if (this.mario.y > this.canvas.height) {
+            this.lives -= 1;
+            this._updateUI();
+            if (this.lives > 0) {
+                this._respawnMario();
+            } else {
+                this._handleGameOver();
+            }
+        }
+    }
+
+    _checkAABB(boxA, boxB) {
+        return (
+            boxA.x < boxB.x + boxB.width &&
+            boxA.x + boxA.width > boxB.x &&
+            boxA.y < boxB.y + boxB.height &&
+            boxA.y + boxA.height > boxB.y
+        );
+    }
+
+    _respawnMario() {
+        this.mario.x = Math.max(50, this.cameraX + 20);
+        this.mario.y = 50;
+        this.mario.vx = 0;
+        this.mario.vy = 0;
+        this.mario.takeHit(); // شکست‌ناپذیری موقت
+    }
+
+    _handleGameOver() {
+        alert(`بازی تمام شد! امتیاز کسب‌شده: ${this.score}`);
+        this.lives = 3;
+        this.score = 0;
+        this.cameraX = 0;
+        this.mario = new Mario(60, 200);
+        this.enemies = [
+            new Goomba(320, 200),
+            new Goomba(580, 200),
+            new Goomba(850, 100),
+            new Goomba(1200, 200)
+        ];
+        this._updateUI();
+    }
+
+    _updateUI() {
+        if (this.uiScore) this.uiScore.textContent = `MARIO: ${String(this.score).padStart(6, '0')}`;
+        if (this.uiCoins) this.uiCoins.textContent = `COINS: ${String(this.coins).padStart(2, '0')}`;
+        if (this.uiLives) this.uiLives.textContent = `LIVES: ${this.lives}`;
+    }
+
+    render() {
+        // ۱. پاکسازی صفحه با رنگ آسمان
+        this.ctx.fillStyle = '#5c94fc';
+        this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+
+        // ۲. رسم سطح لول و بلاک‌ها
+        this.level.render(this.ctx, this.cameraX);
+
+        // ۳. رسم دشمنان
+        for (const enemy of this.enemies) {
+            enemy.render(this.ctx, this.cameraX);
+        }
+
+        // ۴. رسم ماریو
+        this.mario.render(this.ctx, this.cameraX);
+    }
 }

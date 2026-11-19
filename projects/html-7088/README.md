@@ -38,6 +38,7 @@ projects/html-7088/
 ├── package.json
 ├── public/game.js
 ├── public/index.html
+├── public/main.js
 ├── public/style.css
 ├── public/styles.css
 ├── public/swagger.html
@@ -47,6 +48,7 @@ projects/html-7088/
 ├── scripts/rollback.sh
 ├── server.js
 ├── src/.dockerignore
+├── src/audio/retro_audio.js
 ├── src/cli.js
 ├── src/core/Engine.js
 ├── src/core/InputHandler.js
@@ -83,6 +85,7 @@ projects/html-7088/
 ├── src/engine/Vector2D.js
 ├── src/engine/camera.js
 ├── src/engine/game_loop.js
+├── src/engine/input_handler.js
 ├── src/engine/physics.js
 ├── src/entities/Coin.js
 ├── src/entities/Enemies.js
@@ -92,6 +95,8 @@ projects/html-7088/
 ├── src/entities/Mario.js
 ├── src/entities/Particle.js
 ├── src/entities/SpriteRenderer.js
+├── src/entities/collectible.js
+├── src/entities/entity.js
 ├── src/entities/goomba.js
 ├── src/entities/mario.js
 ├── src/game.js
@@ -102,6 +107,7 @@ projects/html-7088/
 ├── src/levels/TileMap.js
 ├── src/levels/World1_1.js
 ├── src/levels/level_1_1.js
+├── src/levels/level_manager.js
 ├── src/main.js
 ├── src/module_83.js
 ├── src/physics/Physics.js
@@ -119,11 +125,13 @@ projects/html-7088/
 ├── tests/health_monitor.test.js
 ├── tests/integration.test.js
 ├── tests/level.test.js
+├── tests/performance_cache.test.js
 ├── tests/physics.test.js
 ├── tests/physics_cache.test.js
 ├── tests/run-tests.js
 ├── tests/runAll.js
 ├── tests/testHarness.js
 ├── tests/testRunner.js
+├── tests/test_runner.js
 ├── tests/unit.test.js
 ```

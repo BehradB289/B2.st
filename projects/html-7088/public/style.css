@@ -1,142 +1,208 @@
-/* NES Classic Retro Style & Pixel Viewport */
-@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+/**
+ * B2.st Studio - Cyber Security & Hardened Presentation Layer
+ * Zero-Flicker / Pixel Perfect CSS Engine
+ */
 
-* {
+:root {
+    --bg-color: #0c0d14;
+    --sky-color: #5c94fc;
+    --primary-font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Courier New", monospace;
+    --touch-btn-color: rgba(255, 255, 255, 0.25);
+    --touch-btn-active: rgba(255, 255, 255, 0.55);
+}
+
+*, *::before, *::after {
     box-sizing: border-box;
-    user-select: none;
-    -webkit-user-select: none;
     margin: 0;
     padding: 0;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+    -webkit-user-select: none;
 }
 
-body {
-    background-color: #0d0e15;
-    color: #ffffff;
-    font-family: 'Press Start 2P', monospace, sans-serif;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    min-height: 100vh;
+html, body {
+    width: 100%;
+    height: 100%;
     overflow: hidden;
+    background-color: var(--bg-color);
+    font-family: var(--primary-font);
+    touch-action: none;
+    display: flex;
+    justify-content: center;
+    align-items: center;
 }
 
-.game-wrapper {
+#game-wrapper {
     position: relative;
-    width: 768px;
-    height: 720px;
-    max-width: 96vw;
-    max-height: 90vh;
-    aspect-ratio: 256 / 240;
-    background: #000;
-    border: 4px solid #333842;
-    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.8), 0 0 20px rgba(255, 99, 71, 0.2);
+    width: 100vw;
+    height: 100vh;
     display: flex;
     flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    background-color: var(--bg-color);
 }
 
-/* NES Top HUD */
-.hud-bar {
+#hud {
     position: absolute;
-    top: 8px;
-    left: 0;
-    right: 0;
+    top: 12px;
+    width: 100%;
+    max-width: 640px;
     display: flex;
-    justify-content: space-around;
-    font-size: 11px;
+    justify-content: space-between;
+    padding: 0 24px;
     z-index: 10;
-    text-shadow: 2px 2px #000000;
+    font-size: 14px;
+    font-weight: 800;
+    color: #ffffff;
+    text-shadow: 2px 2px 0 #000;
     pointer-events: none;
 }
 
-.hud-group {
+.hud-item {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 4px;
 }
 
-.hud-title {
-    color: #ffffff;
+.hud-label {
+    color: #ffcccc;
+    font-size: 11px;
 }
 
-.hud-value {
-    color: #ffd700;
-}
-
-/* Main Display Canvas */
-canvas#game-canvas {
+#canvas-container {
+    position: relative;
     width: 100%;
     height: 100%;
+    max-width: 100vw;
+    max-height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+canvas {
+    width: 100%;
+    height: 100%;
+    max-width: calc(100vh * (4 / 3));
+    max-height: calc(100vw * (3 / 4));
+    aspect-ratio: 4 / 3;
+    background-color: var(--sky-color);
+    image-rendering: -moz-crisp-edges;
+    image-rendering: -webkit-crisp-edges;
     image-rendering: pixelated;
     image-rendering: crisp-edges;
     display: block;
-    background-color: #5c94fc; /* NES World 1-1 Sky Blue */
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.85);
 }
 
-/* CRT Scanlines Overlay */
-.crt-overlay {
+.overlay {
     position: absolute;
-    top: 0;
+    inset: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background: rgba(0, 0, 0, 0.65);
+    z-index: 20;
+    transition: opacity 0.3s ease;
+}
+
+.overlay.hidden {
+    opacity: 0;
+    pointer-events: none;
+}
+
+.overlay-card {
+    text-align: center;
+    color: #ffffff;
+    padding: 30px;
+    border-radius: 12px;
+    background: rgba(20, 20, 30, 0.85);
+    border: 2px solid #e52521;
+    box-shadow: 0 0 20px rgba(229, 37, 33, 0.4);
+}
+
+.overlay-card h1 {
+    font-size: 28px;
+    margin-bottom: 12px;
+    color: #fbd000;
+    text-shadow: 3px 3px 0 #e52521;
+}
+
+.overlay-card p {
+    font-size: 14px;
+    margin-bottom: 8px;
+}
+
+.overlay-card small {
+    display: block;
+    margin-top: 15px;
+    color: #00e676;
+    font-size: 11px;
+    letter-spacing: 0.8px;
+}
+
+.blink {
+    animation: blinker 1s cubic-bezier(0.5, 0, 1, 1) infinite alternate;
+}
+
+@keyframes blinker {
+    from { opacity: 1; }
+    to { opacity: 0.2; }
+}
+
+/* Touch Controls Layout */
+#mobile-controls {
+    position: absolute;
+    bottom: 20px;
     left: 0;
     width: 100%;
-    height: 100%;
-    background: linear-gradient(
-        rgba(18, 16, 16, 0) 50%, 
-        rgba(0, 0, 0, 0.25) 50%
-    );
-    background-size: 100% 4px;
+    padding: 0 24px;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    z-index: 15;
     pointer-events: none;
-    z-index: 5;
 }
 
-/* Debug Performance Telemetry Drawer */
-.telemetry-bar {
-    margin-top: 10px;
-    font-size: 9px;
-    color: #79c0ff;
+.dpad, .action-buttons {
     display: flex;
     gap: 16px;
-    text-shadow: 1px 1px #000;
+    pointer-events: auto;
 }
 
-/* Mobile Touch Controls */
-.mobile-controls {
-    display: none;
-    position: absolute;
-    bottom: 12px;
-    left: 12px;
-    right: 12px;
-    justify-content: space-between;
-    z-index: 20;
-}
-
-.touch-btn {
-    width: 52px;
-    height: 52px;
-    background: rgba(255, 255, 255, 0.25);
-    border: 2px solid #ffffff;
+.t-btn {
+    width: 64px;
+    height: 64px;
     border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 18px;
+    border: 2px solid rgba(255, 255, 255, 0.4);
+    background: var(--touch-btn-color);
     color: #fff;
-    cursor: pointer;
-    touch-action: manipulation;
-}
-
-.touch-btn:active {
-    background: rgba(255, 255, 255, 0.6);
-}
-
-.d-pad, .action-pad {
+    font-size: 20px;
+    font-weight: bold;
     display: flex;
-    gap: 10px;
+    justify-content: center;
+    align-items: center;
+    outline: none;
+    backdrop-filter: blur(4px);
+    transition: transform 0.08s ease, background-color 0.08s ease;
 }
 
-@media (max-width: 800px) {
-    .mobile-controls {
-        display: flex;
+.t-btn:active, .t-btn.active {
+    background: var(--touch-btn-active);
+    transform: scale(0.92);
+}
+
+.action-a { background: rgba(229, 37, 33, 0.5); }
+.action-b { background: rgba(0, 150, 60, 0.5); }
+
+@media (hover: hover) and (pointer: fine) {
+    /* Hide on screen buttons for desktop mouse users automatically */
+    .touch-only {
+        opacity: 0.15;
+        transition: opacity 0.2s;
+    }
+    .touch-only:hover {
+        opacity: 1;
     }
 }

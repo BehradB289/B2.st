@@ -45,6 +45,7 @@ projects/html-7088/
 ├── scripts/deploy.sh
 ├── scripts/healthcheck.sh
 ├── scripts/rollback.sh
+├── server.js
 ├── src/.dockerignore
 ├── src/cli.js
 ├── src/core/Engine.js

@@ -1,323 +1,180 @@
-import { GameConfig } from '../config/game.config.js';
-import { Camera } from './engine/Camera.js';
-import { InputManager } from './engine/Input.js';
-import { SoundSynthesizer } from './engine/Audio.js';
-import { PhysicsEngine } from './engine/Physics.js';
-import { GameLoop } from './engine/GameLoop.js';
-import { TileMap, TILES } from './levels/TileMap.js';
-import { LevelLoader } from './levels/Level1_1.js';
-import { SpriteRenderer } from './entities/SpriteRenderer.js';
-import { Mario, MARIO_STATE } from './entities/Mario.js';
-import { Goomba, Koopa } from './entities/Enemies.js';
-import { SuperMushroomItem, BouncingCoinParticle, BrickDebrisParticle, FloatingText } from './entities/Items.js';
-
 /**
- * Studio B2.st - Master Mario Canvas Engine
+ * Mario Game Master Controller & ECS Orchestrator
+ * Studio: B2.st
  */
-class MarioGame {
-  constructor(canvas) {
-    this.canvas = canvas;
-    this.ctx = canvas.getContext('2d');
-    this.ctx.imageSmoothingEnabled = false;
 
-    this.tileMap = new TileMap(212, 15);
-    this.camera = new Camera();
-    this.input = new InputManager();
-    this.audio = new SoundSynthesizer();
-    this.physics = new PhysicsEngine(this.tileMap);
+import { GameConfig } from '../config/game.config.js';
+import { GameLoop } from './engine/GameLoop.js';
+import { Camera } from './engine/Camera.js';
+import { InputHandler } from './engine/InputHandler.js';
+import { Physics } from './engine/Physics.js';
+import { Level1 } from './levels/Level1.js';
+import { Mario } from './entities/Mario.js';
+import { Goomba } from './entities/Goomba.js';
+import { Koopa } from './entities/Koopa.js';
+import { globalSpriteCache, globalPhysicsCache, globalActionLimiter } from './core/performance_cache.js';
 
-    this.entities = [];
-    this.particles = [];
-    this.mario = null;
-    this.timeRemaining = GameConfig.WORLD.TIME_LIMIT;
-    this.isPaused = false;
-    this.isGameOver = false;
-    this.levelData = null;
+export class MarioGame {
+    constructor(canvasId) {
+        this.canvas = document.getElementById(canvasId);
+        this.ctx = this.canvas.getContext('2d', { alpha: false });
+        this.ctx.imageSmoothingEnabled = false;
 
-    this.init();
-  }
+        this.canvas.width = GameConfig.canvas.width;
+        this.canvas.height = GameConfig.canvas.height;
 
-  init() {
-    this.input.init();
-    this.camera.setLevelWidth(this.tileMap.width);
-    this.loop = new GameLoop(this.update.bind(this), this.render.bind(this));
+        this.camera = new Camera(GameConfig.canvas.width, GameConfig.canvas.height);
+        this.input = new InputHandler();
+        
+        this.entities = [];
+        this.mario = null;
+        this.tileMap = null;
+        this.timeRemaining = 400;
+        this.secondCounter = 0;
+        this.isPaused = false;
 
-    this.resetLevel();
-    this.loop.start();
-  }
+        // Hook pause toggle
+        this.input.onPauseToggle = () => {
+            this.isPaused = !this.isPaused;
+        };
 
-  resetLevel() {
-    this.tileMap = new TileMap(212, 15);
-    this.physics.tileMap = this.tileMap;
-    this.levelData = LevelLoader.loadWorld1_1(this.tileMap);
-    this.camera.reset();
+        this.initLevel();
 
-    const spawn = this.levelData.marioSpawn;
-    this.mario = new Mario(spawn.x, spawn.y);
-
-    this.mario.onHitCeilingBlock = (tx, ty, tileId) => {
-      this.handleBlockBump(tx, ty, tileId);
-    };
-
-    // Instantiate enemies
-    this.entities = [];
-    this.levelData.enemySpawns.forEach(item => {
-      if (item.type === 'goomba') {
-        this.entities.push(new Goomba(item.x, item.y));
-      } else if (item.type === 'koopa') {
-        this.entities.push(new Koopa(item.x, item.y));
-      }
-    });
-
-    this.particles = [];
-    this.timeRemaining = GameConfig.WORLD.TIME_LIMIT;
-    this.isGameOver = false;
-  }
-
-  handleBlockBump(tx, ty, tileId) {
-    this.tileMap.bumpTile(tx, ty);
-
-    if (tileId === TILES.QUESTION_COIN) {
-      this.tileMap.setTile(tx, ty, TILES.EMPTY_BLOCK);
-      this.mario.score += 200;
-      this.mario.coins += 1;
-      this.particles.push(new BouncingCoinParticle(tx * 16, (ty - 1) * 16));
-      this.particles.push(new FloatingText(tx * 16 + 2, (ty - 1) * 16, '200'));
-      this.audio.playCoin();
-    } else if (tileId === TILES.QUESTION_MUSHROOM) {
-      this.tileMap.setTile(tx, ty, TILES.EMPTY_BLOCK);
-      this.entities.push(new SuperMushroomItem(tx * 16, ty * 16));
-      this.audio.playPowerup();
-    } else if (tileId === TILES.BRICK) {
-      if (this.mario.isSuper) {
-        // Destroy brick into debris
-        this.tileMap.setTile(tx, ty, TILES.AIR);
-        const bx = tx * 16;
-        const by = ty * 16;
-        this.particles.push(new BrickDebrisParticle(bx, by, -60, -220));
-        this.particles.push(new BrickDebrisParticle(bx + 8, by, 60, -220));
-        this.particles.push(new BrickDebrisParticle(bx, by + 8, -50, -140));
-        this.particles.push(new BrickDebrisParticle(bx + 8, by + 8, 50, -140));
-        this.audio.playBump();
-      } else {
-        this.audio.playBump();
-      }
-    }
-  }
-
-  update(dt) {
-    if (this.input.isPauseJustPressed) {
-      this.isPaused = !this.isPaused;
-      if (this.isPaused) {
-        this.audio.stopBGM();
-      } else {
-        this.audio.startBGM();
-      }
+        this.loop = new GameLoop(
+            (dt) => this.update(dt),
+            (alpha) => this.render(alpha),
+            GameConfig.canvas.fps
+        );
     }
 
-    if (this.isPaused) {
-      this.input.update();
-      return;
-    }
+    initLevel() {
+        const levelData = Level1.create();
+        this.tileMap = levelData.tileMap;
+        this.camera.setLevelBounds(this.tileMap.width);
 
-    // Time limit countdown
-    if (this.mario.state !== MARIO_STATE.DYING && this.mario.state !== MARIO_STATE.VICTORY) {
-      this.timeRemaining -= dt * 1.5;
-      if (this.timeRemaining <= 0) {
-        this.timeRemaining = 0;
-        this.mario.kill(this.audio);
-      }
-    }
+        this.mario = new Mario(levelData.marioSpawn.x, levelData.marioSpawn.y);
+        this.entities = [this.mario];
 
-    this.tileMap.update(dt);
-    this.mario.handleInput(this.input, dt, this.audio);
-    this.mario.update(dt, this.physics, this.camera);
-    this.camera.update(this.mario.position.x);
-
-    // Check flagpole contact
-    if (this.mario.state !== MARIO_STATE.FLAGPOLE && this.mario.state !== MARIO_STATE.VICTORY) {
-      if (this.mario.position.x >= this.levelData.flagpoleX - 6) {
-        this.mario.state = MARIO_STATE.FLAGPOLE;
-        this.audio.stopBGM();
-        this.audio.playStageClear();
-        this.mario.score += Math.floor(this.timeRemaining) * 50;
-      }
-    }
-
-    // Update items & enemies
-    for (let i = this.entities.length - 1; i >= 0; i--) {
-      const e = this.entities[i];
-      if (this.camera.isVisible(e.getHitbox())) {
-        e.update(dt, this.physics);
-      }
-
-      if (e.shouldRemove) {
-        this.entities.splice(i, 1);
-        continue;
-      }
-
-      // Check collision with Mario
-      if (this.mario.state !== MARIO_STATE.DYING && this.mario.invulnerableTimer <= 0) {
-        const mBox = this.mario.getHitbox();
-        const eBox = e.getHitbox();
-
-        if (mBox.intersects(eBox)) {
-          if (e instanceof SuperMushroomItem) {
-            this.mario.growSuper();
-            this.mario.score += 1000;
-            this.particles.push(new FloatingText(e.position.x, e.position.y, '1000'));
-            this.audio.playPowerup();
-            e.shouldRemove = true;
-          } else if (e instanceof Goomba && !e.isSquished) {
-            if (this.mario.velocity.y > 0 && mBox.bottom - eBox.top < 10) {
-              // Stomped on Goomba
-              e.stomp();
-              this.mario.velocity.y = GameConfig.MARIO.BOUNCE_IMPULSE;
-              this.mario.score += 100;
-              this.particles.push(new FloatingText(e.position.x, e.position.y, '100'));
-              this.audio.playStomp();
-            } else {
-              // Mario hit by Goomba
-              if (this.mario.isSuper) {
-                this.mario.shrinkSmall();
-                this.audio.playBump();
-              } else {
-                this.mario.kill(this.audio);
-              }
+        // Populate level enemies
+        levelData.enemySpawns.forEach(spawn => {
+            if (spawn.type === 'goomba') {
+                this.entities.push(new Goomba(spawn.x, spawn.y));
+            } else if (spawn.type === 'koopa') {
+                this.entities.push(new Koopa(spawn.x, spawn.y));
             }
-          } else if (e instanceof Koopa) {
-            if (e.isShell) {
-              if (!e.isMovingShell) {
-                const dir = this.mario.position.x < e.position.x ? 1 : -1;
-                e.kick(dir);
-                this.audio.playStomp();
-              } else {
-                if (this.mario.velocity.y > 0 && mBox.bottom - eBox.top < 10) {
-                  e.isMovingShell = false;
-                  this.mario.velocity.y = GameConfig.MARIO.BOUNCE_IMPULSE;
-                  this.audio.playStomp();
-                } else if (this.mario.isSuper) {
-                  this.mario.shrinkSmall();
-                } else {
-                  this.mario.kill(this.audio);
+        });
+
+        this.timeRemaining = 400;
+        this.camera.reset();
+    }
+
+    start() {
+        this.loop.start();
+    }
+
+    update(dt) {
+        if (this.isPaused) return;
+
+        // Decrement game clock
+        this.secondCounter += dt;
+        if (this.secondCounter >= 1.0) {
+            this.secondCounter = 0;
+            if (this.timeRemaining > 0 && !this.mario.isDead) {
+                this.timeRemaining--;
+                if (this.timeRemaining <= 0) {
+                    this.mario.die();
                 }
-              }
-            } else if (this.mario.velocity.y > 0 && mBox.bottom - eBox.top < 10) {
-              e.stomp();
-              this.mario.velocity.y = GameConfig.MARIO.BOUNCE_IMPULSE;
-              this.audio.playStomp();
-            } else if (this.mario.isSuper) {
-              this.mario.shrinkSmall();
-            } else {
-              this.mario.kill(this.audio);
             }
-          }
         }
-      }
-    }
 
-    // Update particles
-    for (let i = this.particles.length - 1; i >= 0; i--) {
-      const p = this.particles[i];
-      p.update(dt);
-      if (p.shouldRemove) {
-        this.particles.splice(i, 1);
-      }
-    }
+        // 1. Update Mario with Input
+        this.mario.update(dt, this.input);
 
-    // Check Mario death respawn
-    if (this.mario.state === MARIO_STATE.DYING && this.mario.dyingTimer > 2.5) {
-      if (this.mario.lives > 0) {
-        this.resetLevel();
-      } else {
-        this.isGameOver = true;
-      }
-    }
+        // 2. Update all other entities
+        for (let i = this.entities.length - 1; i >= 0; i--) {
+            const entity = this.entities[i];
+            if (entity !== this.mario) {
+                // Activate enemies only when camera approaches
+                if (Math.abs(entity.pos.x - this.camera.x) < GameConfig.canvas.width + 64) {
+                    entity.update(dt);
+                }
+            }
 
-    this.input.update();
-  }
+            // Tilemap Collisions
+            Physics.updateEntityTilePhysics(entity, this.tileMap, dt);
 
-  render() {
-    const ctx = this.ctx;
-    ctx.fillStyle = GameConfig.PALETTE.SKY_BLUE;
-    ctx.fillRect(0, 0, GameConfig.CANVAS.INTERNAL_WIDTH, GameConfig.CANVAS.INTERNAL_HEIGHT);
-
-    // Draw visible tiles
-    const startTx = Math.max(0, Math.floor(this.camera.x / 16));
-    const endTx = Math.min(this.tileMap.width - 1, Math.ceil((this.camera.x + GameConfig.CANVAS.INTERNAL_WIDTH) / 16));
-
-    for (let ty = 0; ty < this.tileMap.height; ty++) {
-      for (let tx = startTx; tx <= endTx; tx++) {
-        const tileId = this.tileMap.getTile(tx, ty);
-        if (tileId !== TILES.AIR) {
-          const bumpOffset = this.tileMap.getTileBumpOffset(tx, ty);
-          const screen = this.camera.worldToScreen(tx * 16, ty * 16 + bumpOffset);
-          SpriteRenderer.drawTile(ctx, tileId, screen.x, screen.y, performance.now() * 0.001);
+            // Clean up off-screen dead entities
+            if (!entity.isAlive && entity !== this.mario) {
+                this.entities.splice(i, 1);
+            }
         }
-      }
+
+        // 3. Resolve Inter-entity Collisions (Mario vs Enemies, Shells vs Enemies)
+        for (let i = 0; i < this.entities.length; i++) {
+            for (let j = i + 1; j < this.entities.length; j++) {
+                Physics.resolveEntityOverlap(this.entities[i], this.entities[j]);
+            }
+        }
+
+        // 4. Smooth Camera Tracking
+        this.camera.update(this.mario);
+
+        // 5. Periodic Active Purge of expired cache entries (every 10 seconds)
+        if (Math.random() < 0.005) {
+            globalPhysicsCache.purgeExpired();
+        }
+
+        // Auto restart if Mario died and fallen off
+        if (this.mario.isDead && this.mario.deathTimer > 3.0) {
+            this.initLevel();
+        }
     }
 
-    // Render entities
-    this.entities.forEach(e => {
-      if (this.camera.isVisible(e.getHitbox())) {
-        e.render(ctx, this.camera);
-      }
-    });
+    render(alpha) {
+        // Clear background with classic NES sky blue
+        this.ctx.fillStyle = GameConfig.canvas.backgroundColor;
+        this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
 
-    // Render Mario
-    this.mario.render(ctx, this.camera);
+        // Render TileMap (Offscreen cache accelerated)
+        this.tileMap.render(this.ctx, this.camera);
 
-    // Render particles
-    this.particles.forEach(p => p.render(ctx, this.camera));
+        // Render Entities
+        for (let i = 0; i < this.entities.length; i++) {
+            this.entities[i].render(this.ctx, this.camera);
+        }
 
-    // Render NES HUD
-    this.renderHUD();
+        // Draw Pause overlay
+        if (this.isPaused) {
+            this.ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+            this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+            this.ctx.fillStyle = '#ffffff';
+            this.ctx.font = '12px "Courier New", monospace';
+            this.ctx.textAlign = 'center';
+            this.ctx.fillText('PAUSED', this.canvas.width / 2, this.canvas.height / 2);
+        }
 
-    // Render Pause or Game Over overlay
-    if (this.isPaused) {
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
-      ctx.fillRect(0, 0, GameConfig.CANVAS.INTERNAL_WIDTH, GameConfig.CANVAS.INTERNAL_HEIGHT);
-      ctx.fillStyle = '#ffffff';
-      ctx.font = '12px monospace';
-      ctx.textAlign = 'center';
-      ctx.fillText('PAUSED', GameConfig.CANVAS.INTERNAL_WIDTH / 2, GameConfig.CANVAS.INTERNAL_HEIGHT / 2);
-    } else if (this.isGameOver) {
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
-      ctx.fillRect(0, 0, GameConfig.CANVAS.INTERNAL_WIDTH, GameConfig.CANVAS.INTERNAL_HEIGHT);
-      ctx.fillStyle = '#ff2222';
-      ctx.font = '14px monospace';
-      ctx.textAlign = 'center';
-      ctx.fillText('GAME OVER', GameConfig.CANVAS.INTERNAL_WIDTH / 2, GameConfig.CANVAS.INTERNAL_HEIGHT / 2);
+        // Emit real-time telemetry to DOM HUD
+        this.updateHUD();
     }
-  }
 
-  renderHUD() {
-    const ctx = this.ctx;
-    ctx.font = '8px monospace';
-    ctx.fillStyle = '#ffffff';
-    ctx.textAlign = 'left';
+    updateHUD() {
+        const scoreElem = document.getElementById('hud-score');
+        const coinsElem = document.getElementById('hud-coins');
+        const timeElem = document.getElementById('hud-time');
+        const cacheElem = document.getElementById('hud-cache-stats');
 
-    // Headers
-    ctx.fillText('MARIO', 16, 12);
-    ctx.fillText('WORLD', 140, 12);
-    ctx.fillText('TIME', 205, 12);
+        if (scoreElem) scoreElem.textContent = String(this.mario.score).padStart(6, '0');
+        if (coinsElem) coinsElem.textContent = `x${String(this.mario.coins).padStart(2, '0')}`;
+        if (timeElem) timeElem.textContent = String(this.timeRemaining).padStart(3, '0');
 
-    // Values
-    const scoreStr = String(this.mario.score).padStart(6, '0');
-    const coinsStr = `o×${String(this.mario.coins).padStart(2, '0')}`;
-    const timeStr = String(Math.ceil(this.timeRemaining)).padStart(3, '0');
-
-    ctx.fillText(scoreStr, 16, 22);
-    ctx.fillText(coinsStr, 90, 22);
-    ctx.fillText('1-1', 148, 22);
-    ctx.fillText(timeStr, 209, 22);
-  }
+        if (cacheElem) {
+            const spriteStats = globalSpriteCache.getTelemetry();
+            cacheElem.innerHTML = `
+                <span>CACHE: ${spriteStats.size}/${spriteStats.maxEntries}</span> | 
+                <span>HITS: ${spriteStats.hits}</span> | 
+                <span>RATIO: ${spriteStats.hitRatio}</span> | 
+                <span>THROTTLED: ${globalActionLimiter.throttledEvents}</span>
+            `;
+        }
+    }
 }
-
-// Bootstrap on window load
-window.addEventListener('DOMContentLoaded', () => {
-  const canvas = document.getElementById('gameCanvas');
-  if (canvas) {
-    window.gameEngine = new MarioGame(canvas);
-  }
-});

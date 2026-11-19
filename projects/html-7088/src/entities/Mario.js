@@ -1,95 +1,139 @@
-import { Entity } from './Entity.js';
-import { GAME_CONFIG } from '../../config/game.config.js';
-
 /**
- * Mario Player Entity
- * Handles input kinematics, state degradation, stomping and jumping.
+ * B2.st Studio - Mario Entity System
+ * کنترل کامل رفتارهای فیزیکی، تشخیص برخورد پیشرفته و رفع خطاهای نحوی متغیرها
  */
-export class Mario extends Entity {
-  constructor(x = 40, y = 100) {
-    super(x, y, 16, 16, 'MARIO');
+"use strict";
 
-    this.state = GAME_CONFIG.MARIO_STATE.SMALL;
-    this.score = 0;
-    this.coins = 0;
-    this.lives = 3;
+import { Guardian } from "../security/Guardian.js";
 
-    this.jumpImpulse = GAME_CONFIG.JUMP_IMPULSE;
-    this.walkSpeed = GAME_CONFIG.MAX_WALK_SPEED;
+export class Mario {
+    constructor(x = 64, y = 300) {
+        this.x = Guardian.sanitizeNumber(x, 64);
+        this.y = Guardian.sanitizeNumber(y, 300);
+        this.width = 24;
+        this.height = 30;
 
-    this.invulnerableTimer = 0;
-    this.isFacingRight = true;
-  }
+        this.vx = 0;
+        this.vy = 0;
 
-  setPowerState(state) {
-    this.state = state;
-    if (state === GAME_CONFIG.MARIO_STATE.SUPER) {
-      this.size.y = 32;
-    } else {
-      this.size.y = 16;
+        // پارامترهای کنترل حرکت و گرانش
+        this.speed = 220;
+        this.jumpForce = -450;
+        this.gravity = 980;
+
+        this.isGrounded = false;
+        this.facingLeft = false;
+        this.score = 0;
     }
-  }
 
-  moveLeft() {
-    this.accelX = -1;
-    this.vel.x = -this.walkSpeed;
-    this.isFacingRight = false;
-  }
+    update(dt, input, level) {
+        const safeDt = Guardian.clamp(dt, 0.0, 0.05);
 
-  moveRight() {
-    this.accelX = 1;
-    this.vel.x = this.walkSpeed;
-    this.isFacingRight = true;
-  }
+        // 1. محاسبات بردار افقی
+        if (input.isLeft()) {
+            this.vx = -this.speed;
+            this.facingLeft = true;
+        } else if (input.isRight()) {
+            this.vx = this.speed;
+            this.facingLeft = false;
+        } else {
+            this.vx = 0;
+        }
 
-  stopHorizontal() {
-    this.accelX = 0;
-  }
+        // 2. جهش
+        if (input.isJump() && this.isGrounded) {
+            this.vy = this.jumpForce;
+            this.isGrounded = false;
+        }
 
-  jump() {
-    if (this.isGrounded) {
-      this.vel.y = this.jumpImpulse;
-      this.isGrounded = false;
-      return true;
+        // اعمال گرانش به بردار عمودی
+        this.vy += this.gravity * safeDt;
+
+        // 3. اعمال فیزیک حرکت افقی و مهار برخورد
+        this.x += this.vx * safeDt;
+        this.x = Guardian.sanitizeNumber(this.x, 0);
+        this.checkHorizontalCollisions(level);
+
+        // 4. اعمال فیزیک حرکت عمودی و مهار برخورد
+        this.y += this.vy * safeDt;
+        this.y = Guardian.sanitizeNumber(this.y, 0);
+        this.checkVerticalCollisions(level);
+
+        // 5. بررسی افتادن در گودال و ریست وضعیت
+        if (this.y > 600) {
+            this.respawn();
+        }
     }
-    return false;
-  }
 
-  bounceAfterStomp() {
-    this.vel.y = GAME_CONFIG.BOUNCE_IMPULSE;
-    this.score += GAME_CONFIG.SCORES.STOMP_GOOMBA;
-  }
+    checkHorizontalCollisions(level) {
+        const ts = level.tileSize;
+        const leftTile = Math.floor(this.x / ts);
+        const rightTile = Math.floor((this.x + this.width) / ts);
+        const topTile = Math.floor(this.y / ts);
+        const bottomTile = Math.floor((this.y + this.height - 1) / ts);
 
-  collectCoin() {
-    this.coins += 1;
-    this.score += GAME_CONFIG.SCORES.COIN;
-    if (this.coins >= 100) {
-      this.coins = 0;
-      this.lives += 1;
+        for (let r = topTile; r <= bottomTile; r++) {
+            if (this.vx > 0 && level.isSolid(rightTile, r)) {
+                this.x = rightTile * ts - this.width;
+                this.vx = 0;
+                break;
+            } else if (this.vx < 0 && level.isSolid(leftTile, r)) {
+                this.x = (leftTile + 1) * ts;
+                this.vx = 0;
+                break;
+            }
+        }
     }
-  }
 
-  takeDamage() {
-    if (this.invulnerableTimer > 0) return false;
+    checkVerticalCollisions(level) {
+        const ts = level.tileSize;
+        const leftTile = Math.floor((this.x + 2) / ts);
+        const rightTile = Math.floor((this.x + this.width - 2) / ts);
+        const topTile = Math.floor(this.y / ts);
+        const bottomTile = Math.floor((this.y + this.height) / ts);
 
-    if (this.state === GAME_CONFIG.MARIO_STATE.SUPER) {
-      this.setPowerState(GAME_CONFIG.MARIO_STATE.SMALL);
-      this.invulnerableTimer = 2.0; // 2 seconds iframes
-      return true;
-    } else if (this.state === GAME_CONFIG.MARIO_STATE.SMALL) {
-      this.state = GAME_CONFIG.MARIO_STATE.DEAD;
-      this.vel.set(0, -250);
-      this.hasGravity = true;
-      this.isStatic = false;
-      this.lives = Math.max(0, this.lives - 1);
-      return true;
+        this.isGrounded = false;
+
+        for (let c = leftTile; c <= rightTile; c++) {
+            if (this.vy > 0 && level.isSolid(c, bottomTile)) {
+                this.y = bottomTile * ts - this.height;
+                this.vy = 0;
+                this.isGrounded = true;
+                break;
+            } else if (this.vy < 0 && level.isSolid(c, topTile)) {
+                this.y = (topTile + 1) * ts;
+                this.vy = 0;
+                break;
+            }
+        }
     }
-    return false;
-  }
 
-  update(dt) {
-    if (this.invulnerableTimer > 0) {
-      this.invulnerableTimer = Math.max(0, this.invulnerableTimer - dt);
+    respawn() {
+        this.x = 64;
+        this.y = 300;
+        this.vx = 0;
+        this.vy = 0;
+        this.isGrounded = false;
     }
-  }
+
+    render(ctx, cameraX) {
+        const drawX = Math.floor(this.x - cameraX);
+        const drawY = Math.floor(this.y);
+
+        ctx.save();
+
+        // بدنه اصلی ماریو (کلاه و لباس قرمز، لباس کار آبی)
+        ctx.fillStyle = "#FF0000"; // قرمز نمادین ماریو
+        ctx.fillRect(drawX, drawY, this.width, this.height * 0.4);
+
+        ctx.fillStyle = "#0000FF"; // آبی لباس
+        ctx.fillRect(drawX, drawY + this.height * 0.4, this.width, this.height * 0.6);
+
+        // صورت و چشم‌ها
+        ctx.fillStyle = "#FCC082"; // رنگ پوست
+        const faceX = this.facingLeft ? drawX : drawX + 8;
+        ctx.fillRect(faceX, drawY + 4, 10, 8);
+
+        ctx.restore();
+    }
 }

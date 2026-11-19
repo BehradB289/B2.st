@@ -1,257 +1,123 @@
 /**
- * B2.st Mario Retro Game Engine - Automatic Migration System
- * Version tracking, sequential schema transformations, transactional safe-guards.
+ * B2.st Studio - Mario Game Engine
+ * Automated Database Migration Pipeline
+ * @module src/db/migrations
  */
 
-(function(root, factory) {
-  if (typeof module === 'object' && module.exports) {
-    const { DB_CONFIG } = require('../../config/db.config.js');
-    const { SettingsSchema, ProfileSchema, MigrationRecordSchema } = require('./schema.js');
-    module.exports = factory(DB_CONFIG, { SettingsSchema, ProfileSchema, MigrationRecordSchema });
-  } else {
-    root.MarioDbMigrations = factory(root.MarioDbConfig.DB_CONFIG, root.MarioDbSchema);
-  }
-})(typeof self !== 'undefined' ? self : this, function(DB_CONFIG, Schemas) {
-  'use strict';
+import { STORE_SCHEMAS } from './schema.js';
+import { DATABASE_CONFIG } from '../../config/database.config.js';
 
-  /**
-   * Base class for versioned migrations
-   */
-  class Migration {
-    constructor(version, name) {
-      this.version = version;
-      this.name = name;
-    }
-
-    async up(adapter, helpers) {
-      throw new Error(`Migration ${this.version} (${this.name}) must implement up()`);
-    }
-
-    async down(adapter, helpers) {
-      throw new Error(`Migration ${this.version} (${this.name}) must implement down()`);
-    }
-  }
-
-  /**
-   * Migration V1: Initial Store Seeding
-   * Seeds default system settings & Default guest Mario profile
-   */
-  class MigrationV1_InitialSchema extends Migration {
-    constructor() {
-      super(1, 'InitialSchema_V1');
-    }
-
-    async up(adapter, helpers) {
-      // 1. Seed system settings if missing
-      const existingSettings = await adapter.get('settings', DB_CONFIG.defaultSettings.id);
-      if (!existingSettings) {
-        const validatedSettings = Schemas.SettingsSchema.validate(DB_CONFIG.defaultSettings);
-        await adapter.put('settings', validatedSettings);
+/**
+ * Migration definition interface:
+ * {
+ *   version: number,
+ *   description: string,
+ *   up: (db: IDBDatabase, transaction: IDBTransaction) => Promise<void> | void
+ * }
+ */
+export const MIGRATIONS = [
+  {
+    version: 1,
+    description: 'Initial schema setup: Baseline stores, save states, and system tables.',
+    up: (db, transaction) => {
+      // Create migration store if not present
+      if (!db.objectStoreNames.contains(DATABASE_CONFIG.STORES.MIGRATIONS)) {
+        const migStore = db.createObjectStore(DATABASE_CONFIG.STORES.MIGRATIONS, { keyPath: 'version' });
+        migStore.createIndex('idx_applied_at', 'appliedAt', { unique: false });
       }
 
-      // 2. Seed default Guest profile if none exist
-      const existingProfiles = await adapter.getAll('profiles');
-      if (existingProfiles.length === 0) {
-        const defaultProfile = Schemas.ProfileSchema.validate({
-          id: 'profile_guest_mario',
-          username: 'Mario',
-          avatar: 'mario',
-          createdAt: Date.now(),
-          updatedAt: Date.now()
+      // Profiles store
+      if (!db.objectStoreNames.contains(DATABASE_CONFIG.STORES.PROFILES)) {
+        const profileStore = db.createObjectStore(DATABASE_CONFIG.STORES.PROFILES, { keyPath: 'id' });
+        profileStore.createIndex('idx_created_at', 'createdAt', { unique: false });
+      }
+
+      // Save states store
+      if (!db.objectStoreNames.contains(DATABASE_CONFIG.STORES.SAVE_STATES)) {
+        const stateStore = db.createObjectStore(DATABASE_CONFIG.STORES.SAVE_STATES, { keyPath: 'slotId' });
+        stateStore.createIndex('idx_timestamp', 'updatedAt', { unique: false });
+        stateStore.createIndex('idx_score', 'score', { unique: false });
+      }
+
+      // Settings store
+      if (!db.objectStoreNames.contains(DATABASE_CONFIG.STORES.SETTINGS)) {
+        db.createObjectStore(DATABASE_CONFIG.STORES.SETTINGS, { keyPath: 'id' });
+      }
+    }
+  },
+  {
+    version: 2,
+    description: 'Add high_scores store with compound stage indexes and leaderboards.',
+    up: (db, transaction) => {
+      if (!db.objectStoreNames.contains(DATABASE_CONFIG.STORES.HIGH_SCORES)) {
+        const scoreStore = db.createObjectStore(DATABASE_CONFIG.STORES.HIGH_SCORES, {
+          keyPath: 'id',
+          autoIncrement: true
         });
-        await adapter.put('profiles', defaultProfile);
+        scoreStore.createIndex('idx_score_desc', 'score', { unique: false });
+        scoreStore.createIndex('idx_stage', 'stage', { unique: false });
+        scoreStore.createIndex('idx_player', 'playerName', { unique: false });
+      }
+
+      // Add compound index to save_states
+      if (db.objectStoreNames.contains(DATABASE_CONFIG.STORES.SAVE_STATES)) {
+        const stateStore = transaction.objectStore(DATABASE_CONFIG.STORES.SAVE_STATES);
+        if (!stateStore.indexNames.contains('idx_world_level')) {
+          stateStore.createIndex('idx_world_level', ['world', 'level'], { unique: false });
+        }
       }
     }
-
-    async down(adapter, helpers) {
-      await adapter.delete('settings', DB_CONFIG.defaultSettings.id);
-      await adapter.delete('profiles', 'profile_guest_mario');
+  },
+  {
+    version: 3,
+    description: 'Introduce security audit logging store and data integrity hashing support.',
+    up: (db, transaction) => {
+      if (!db.objectStoreNames.contains(DATABASE_CONFIG.STORES.AUDIT_LOGS)) {
+        const auditStore = db.createObjectStore(DATABASE_CONFIG.STORES.AUDIT_LOGS, {
+          keyPath: 'id',
+          autoIncrement: true
+        });
+        auditStore.createIndex('idx_event_type', 'type', { unique: false });
+        auditStore.createIndex('idx_event_timestamp', 'timestamp', { unique: false });
+      }
     }
   }
+];
 
+/**
+ * Migration Runner responsible for executing migrations transactionally.
+ */
+export class MigrationEngine {
   /**
-   * Migration V2: Save States & Checkpoint Baseline
-   * Establishes slot-1 baseline save state for the default profile
+   * Applies all pending migrations up to targetVersion during IDB onupgradeneeded.
+   * @param {IDBDatabase} db 
+   * @param {IDBTransaction} transaction 
+   * @param {number} oldVersion 
+   * @param {number} newVersion 
    */
-  class MigrationV2_SaveStatesAndCheckpoints extends Migration {
-    constructor() {
-      super(2, 'SaveStatesAndCheckpoints_V2');
-    }
+  static runMigrations(db, transaction, oldVersion, newVersion) {
+    console.info(`[B2.st Database] Initiating Migration: v${oldVersion} -> v${newVersion}`);
 
-    async up(adapter, helpers) {
-      const guestSaveKey = 'save_profile_guest_mario_1';
-      const existingSave = await adapter.get('save_states', guestSaveKey);
+    const pending = MIGRATIONS.filter(
+      mig => mig.version > oldVersion && mig.version <= newVersion
+    ).sort((a, b) => a.version - b.version);
 
-      if (!existingSave) {
-        const initialSaveState = {
-          id: guestSaveKey,
-          profileId: 'profile_guest_mario',
-          slot: 1,
-          world: 1,
-          level: 1,
-          score: 0,
-          coins: 0,
-          lives: 3,
-          powerState: 'small',
-          checkpointX: 40,
-          checkpointY: 192,
-          timeRemaining: 400,
-          timestamp: Date.now()
-        };
-
-        if (helpers && helpers.cryptoSecurity) {
-          initialSaveState.checksum = await helpers.cryptoSecurity.sign(initialSaveState);
-        }
-
-        await adapter.put('save_states', initialSaveState);
-      }
-    }
-
-    async down(adapter, helpers) {
-      await adapter.delete('save_states', 'save_profile_guest_mario_1');
-    }
-  }
-
-  /**
-   * Migration V3: Cryptographic Integrity Enforced & CRT Retro Settings Extended
-   * Calculates SHA-256 signatures for existing records, initializes audit log.
-   */
-  class MigrationV3_SecurityAndAudit extends Migration {
-    constructor() {
-      super(3, 'SecurityAndAudit_V3');
-    }
-
-    async up(adapter, helpers) {
-      // 1. Ensure all existing save states have verified cryptographic checksums
-      if (helpers && helpers.cryptoSecurity) {
-        const allSaves = await adapter.getAll('save_states');
-        for (const save of allSaves) {
-          if (!save.checksum) {
-            save.checksum = await helpers.cryptoSecurity.sign(save);
-            await adapter.put('save_states', save);
-          }
-        }
-      }
-
-      // 2. Ensure settings include CRT and curvature keys
-      const currentSettings = await adapter.get('settings', DB_CONFIG.defaultSettings.id);
-      if (currentSettings) {
-        let changed = false;
-        if (currentSettings.curvature === undefined) {
-          currentSettings.curvature = false;
-          changed = true;
-        }
-        if (currentSettings.crtFilter === undefined) {
-          currentSettings.crtFilter = true;
-          changed = true;
-        }
-        if (changed) {
-          currentSettings.updatedAt = Date.now();
-          await adapter.put('settings', currentSettings);
-        }
-      }
-
-      // 3. Log migration event into audit log
-      const auditEntry = {
-        id: `audit_m3_${Date.now()}`,
-        event: 'MIGRATION_V3_APPLIED',
-        details: {
-          timestamp: Date.now(),
-          targetVersion: 3,
-          note: 'Cryptographic integrity hashes enforced on all stores.'
-        },
-        timestamp: Date.now()
-      };
-      await adapter.put('audit_log', auditEntry);
-    }
-
-    async down(adapter, helpers) {
-      await adapter.delete('audit_log', `audit_m3_${Date.now()}`);
-    }
-  }
-
-  /**
-   * Migration Runner: Executes pending migrations sequentially,
-   * records execution metadata, handles atomic rollbacks on failure.
-   */
-  class MigrationRunner {
-    constructor(migrations = null) {
-      this.migrations = migrations || [
-        new MigrationV1_InitialSchema(),
-        new MigrationV2_SaveStatesAndCheckpoints(),
-        new MigrationV3_SecurityAndAudit()
-      ];
-      this.migrations.sort((a, b) => a.version - b.version);
-    }
-
-    async getAppliedVersions(adapter) {
+    for (const step of pending) {
+      console.info(`[B2.st Migration Engine] Executing v${step.version}: ${step.description}`);
       try {
-        const records = await adapter.getAll('migrations_history');
-        return new Set(
-          records
-            .filter(r => r.status === 'SUCCESS')
-            .map(r => r.version)
-        );
-      } catch (err) {
-        return new Set();
+        step.up(db, transaction);
+
+        const migStore = transaction.objectStore(DATABASE_CONFIG.STORES.MIGRATIONS);
+        migStore.put({
+          version: step.version,
+          description: step.description,
+          appliedAt: new Date().toISOString(),
+          status: 'SUCCESS'
+        });
+      } catch (error) {
+        console.error(`[B2.st Migration Engine] Fatal failure in migration v${step.version}:`, error);
+        throw new Error(`Database Migration Failed at version ${step.version}: ${error.message}`);
       }
-    }
-
-    async run(adapter, helpers = {}) {
-      const applied = await this.getAppliedVersions(adapter);
-      const executed = [];
-
-      for (const migration of this.migrations) {
-        if (!applied.has(migration.version)) {
-          const startTime = Date.now();
-          try {
-            await migration.up(adapter, helpers);
-            const duration = Date.now() - startTime;
-
-            const record = Schemas.MigrationRecordSchema.validate({
-              version: migration.version,
-              name: migration.name,
-              appliedAt: Date.now(),
-              executionTimeMs: duration,
-              status: 'SUCCESS'
-            });
-
-            await adapter.put('migrations_history', record);
-            executed.push(record);
-          } catch (err) {
-            const duration = Date.now() - startTime;
-            const failedRecord = {
-              version: migration.version,
-              name: migration.name,
-              appliedAt: Date.now(),
-              executionTimeMs: duration,
-              status: 'FAILED'
-            };
-            try {
-              await adapter.put('migrations_history', failedRecord);
-            } catch (_) {}
-
-            // Attempt rollback
-            try {
-              await migration.down(adapter, helpers);
-            } catch (rollbackErr) {
-              console.error(`Rollback failed for migration v${migration.version}:`, rollbackErr);
-            }
-
-            throw new Error(`Migration ${migration.version} (${migration.name}) failed: ${err.message}`);
-          }
-        }
-      }
-
-      return executed;
     }
   }
-
-  return {
-    Migration,
-    MigrationV1_InitialSchema,
-    MigrationV2_SaveStatesAndCheckpoints,
-    MigrationV3_SecurityAndAudit,
-    MigrationRunner
-  };
-});
+}

@@ -1,55 +1,55 @@
-import { GameConfig } from '../../config/game.config.js';
+import { Vector2 } from './Vector2.js';
+import { GAME_CONFIG } from '../../config/game.config.js';
 
 /**
- * Studio B2.st - Classic NES Clamped Scrolling Camera
- * Prevents Mario from scrolling backwards, strictly follows rightward progression.
+ * 2D Viewport Camera
+ * Tracks player character with configurable deadzone and level clamping.
  */
 export class Camera {
-  constructor(viewportWidth = GameConfig.CANVAS.INTERNAL_WIDTH, viewportHeight = GameConfig.CANVAS.INTERNAL_HEIGHT) {
+  constructor(viewportWidth = GAME_CONFIG.VIEWPORT_WIDTH, viewportHeight = GAME_CONFIG.VIEWPORT_HEIGHT) {
+    this.pos = new Vector2(0, 0);
     this.viewportWidth = viewportWidth;
     this.viewportHeight = viewportHeight;
-    this.x = 0;
-    this.y = 0;
-    this.maxLevelWidth = 0;
+    this.maxLevelWidth = 3200; // default length
+    this.deadzoneLeft = viewportWidth * 0.35;
+    this.deadzoneRight = viewportWidth * 0.55;
   }
 
-  setLevelWidth(tilesCount) {
-    this.maxLevelWidth = tilesCount * GameConfig.WORLD.TILE_SIZE;
+  setBounds(maxLevelWidth) {
+    this.maxLevelWidth = maxLevelWidth;
   }
 
-  update(targetX) {
-    // NES Mario deadzone: target centered at 38% screen width
-    const targetOffset = this.viewportWidth * 0.38;
-    const desiredX = targetX - targetOffset;
+  update(targetEntity) {
+    if (!targetEntity) return;
 
-    // Camera cannot scroll backwards
-    if (desiredX > this.x) {
-      this.x = desiredX;
+    const screenTargetX = targetEntity.pos.x - this.pos.x;
+
+    if (screenTargetX > this.deadzoneRight) {
+      this.pos.x += screenTargetX - this.deadzoneRight;
+    } else if (screenTargetX < this.deadzoneLeft) {
+      this.pos.x += screenTargetX - this.deadzoneLeft;
     }
 
-    // Clamp camera within level bounds
+    // Clamp camera within world boundaries
+    if (this.pos.x < 0) this.pos.x = 0;
     const maxScroll = Math.max(0, this.maxLevelWidth - this.viewportWidth);
-    if (this.x > maxScroll) {
-      this.x = maxScroll;
-    }
+    if (this.pos.x > maxScroll) this.pos.x = maxScroll;
   }
 
-  reset() {
-    this.x = 0;
-    this.y = 0;
+  worldToScreen(worldVec) {
+    return new Vector2(worldVec.x - this.pos.x, worldVec.y - this.pos.y);
   }
 
-  isVisible(aabb, margin = 32) {
+  screenToWorld(screenVec) {
+    return new Vector2(screenVec.x + this.pos.x, screenVec.y + this.pos.y);
+  }
+
+  isVisible(aabb) {
     return (
-      aabb.right >= this.x - margin &&
-      aabb.left <= this.x + this.viewportWidth + margin
+      aabb.right >= this.pos.x &&
+      aabb.left <= this.pos.x + this.viewportWidth &&
+      aabb.bottom >= this.pos.y &&
+      aabb.top <= this.pos.y + this.viewportHeight
     );
-  }
-
-  worldToScreen(worldX, worldY) {
-    return {
-      x: Math.floor(worldX - this.x),
-      y: Math.floor(worldY - this.y)
-    };
   }
 }

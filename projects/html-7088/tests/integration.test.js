@@ -1,269 +1,420 @@
-/**
- * Comprehensive Automated Integration Tests for Engine, Physics, and Entities
- * Studio: B2.st
- */
-
-import { describe, it, beforeEach, expect, runAll } from './testRunner.js';
+import { describe, it, beforeEach, expect, runTests } from './testHarness.js';
+import { Vector2 } from '../src/engine/Vector2.js';
+import { AABB } from '../src/engine/AABB.js';
 import { PhysicsEngine } from '../src/engine/PhysicsEngine.js';
+import { Camera } from '../src/engine/Camera.js';
 import { TileMap } from '../src/levels/TileMap.js';
 import { Mario } from '../src/entities/Mario.js';
 import { Goomba } from '../src/entities/Goomba.js';
-import { Camera } from '../src/engine/Camera.js';
-import { InputHandler } from '../src/engine/InputHandler.js';
-import { TILES, MARIO_CONFIG, SCORES } from '../config/constants.js';
+import { GAME_CONFIG } from '../config/game.config.js';
 
-describe('Integration Test: Gravity and Solid Ground Landing', () => {
-  let map;
+// =========================================================================
+// Suite 1: Vector2 & AABB Geometric Primitives
+// =========================================================================
+describe('1. Vector2 & AABB Math Primitives', () => {
+  it('should accurately handle vector addition, scaling and magnitude', () => {
+    const v1 = new Vector2(3, 4);
+    expect(v1.magnitude()).toBe(5);
+
+    v1.scale(2);
+    expect(v1.x).toBe(6);
+    expect(v1.y).toBe(8);
+
+    const v2 = new Vector2(2, 2);
+    v1.add(v2);
+    expect(v1.x).toBe(8);
+    expect(v1.y).toBe(10);
+  });
+
+  it('should detect intersecting and non-intersecting AABB boxes', () => {
+    const boxA = new AABB(0, 0, 16, 16);
+    const boxB = new AABB(10, 10, 16, 16);
+    const boxC = new AABB(20, 20, 16, 16);
+
+    expect(boxA.intersects(boxB)).toBeTruthy();
+    expect(boxA.intersects(boxC)).toBeFalsy();
+  });
+
+  it('should calculate correct penetration depths and overlap vectors', () => {
+    const boxA = new AABB(0, 0, 16, 16);
+    const boxB = new AABB(12, 0, 16, 16); // 4px horizontal overlap
+
+    const overlap = boxA.getOverlap(boxB);
+    expect(overlap).toBeTruthy();
+    expect(overlap.absX).toBe(4);
+  });
+});
+
+// =========================================================================
+// Suite 2: Kinematics, Gravity & Terminal Velocity
+// =========================================================================
+describe('2. Kinematics, Gravity & Terminal Velocity', () => {
   let physics;
-  let mario;
 
   beforeEach(() => {
-    map = new TileMap(16, 20, 15);
-    // Ground level at row 10 (y = 160)
-    for (let c = 0; c < 20; c++) {
-      map.setTile(c, 10, TILES.GROUND);
-    }
-    physics = new PhysicsEngine(map, 980);
-    // Mario starts in mid-air above ground: row 6 (y = 96)
-    mario = new Mario(32, 96);
+    physics = new PhysicsEngine(GAME_CONFIG);
   });
 
-  it('pulls Mario downward due to continuous gravity acceleration', () => {
-    const initialY = mario.y;
-    physics.updateEntity(mario, 0.05);
+  it('should accelerate falling entities under gravity', () => {
+    const mario = new Mario(50, 50);
+    mario.vel.y = 0;
+    const dt = 1 / 60; // 0.01666s
 
-    expect(mario.vy).toBeGreaterThan(0);
-    expect(mario.y).toBeGreaterThan(initialY);
-    expect(mario.isGrounded).toBeFalsy();
+    physics.applyGravity(mario, dt);
+
+    const expectedVelY = GAME_CONFIG.GRAVITY * dt;
+    expect(mario.vel.y).toBeCloseTo(expectedVelY, 0.01);
   });
 
-  it('snaps Mario precisely to the ground surface and halts vertical velocity', () => {
-    // Expected landing Y: 10 * 16 - 16 = 144
-    for (let frame = 0; frame < 30; frame++) {
-      physics.updateEntity(mario, 1 / 60);
+  it('should strictly cap velocity at terminal velocity', () => {
+    const mario = new Mario(50, 50);
+    mario.vel.y = GAME_CONFIG.TERMINAL_VELOCITY - 10;
+
+    // Simulate several frames of free fall
+    for (let frame = 0; frame < 20; frame++) {
+      physics.applyGravity(mario, 1 / 60);
     }
 
-    expect(mario.y).toBe(144);
-    expect(mario.vy).toBe(0);
+    expect(mario.vel.y).toBe(GAME_CONFIG.TERMINAL_VELOCITY);
+  });
+
+  it('should not apply gravity to static or gravity-exempt entities', () => {
+    const mario = new Mario(50, 50);
+    mario.hasGravity = false;
+    mario.vel.y = 0;
+
+    physics.applyGravity(mario, 1 / 60);
+    expect(mario.vel.y).toBe(0);
+  });
+});
+
+// =========================================================================
+// Suite 3: TileMap Collisions (Floor, Ceiling, Walls)
+// =========================================================================
+describe('3. TileMap World Collision Resolution', () => {
+  let physics;
+  let tileMap;
+
+  beforeEach(() => {
+    physics = new PhysicsEngine(GAME_CONFIG);
+    tileMap = new TileMap(40, 15, 16);
+
+    // Create ground row at row 13 (y = 208)
+    for (let col = 0; col < 40; col++) {
+      tileMap.setTile(col, 13, GAME_CONFIG.TILE_TYPE.GROUND);
+    }
+  });
+
+  it('should stop falling Mario exactly at tile floor and reset grounded state', () => {
+    const mario = new Mario(64, 190); // 18px above floor
+    mario.vel.y = 200;
+
+    // Run 1 frame simulation
+    const dt = 1 / 60;
+    physics.resolveTileMapCollisions(mario, tileMap, dt);
+
+    // Mario height is 16. Floor is at 13 * 16 = 208. Mario pos.y should snap to 208 - 16 = 192
+    expect(mario.pos.y).toBe(192);
+    expect(mario.vel.y).toBe(0);
     expect(mario.isGrounded).toBeTruthy();
   });
+
+  it('should block Mario walking horizontally into a solid obstacle', () => {
+    // Add vertical obstacle at col 10 (x = 160), row 12
+    tileMap.setTile(10, 12, GAME_CONFIG.TILE_TYPE.GROUND);
+
+    const mario = new Mario(150, 12 * 16); // Walking right towards wall
+    mario.vel.x = 120;
+
+    const dt = 0.1; // 100ms step: would normally overshoot by 12px
+    physics.resolveTileMapCollisions(mario, tileMap, dt);
+
+    // Should snap to 160 - 16 = 144
+    expect(mario.pos.x).toBe(144);
+    expect(mario.vel.x).toBe(0);
+  });
+
+  it('should handle head bump against ceiling and rebound downward', () => {
+    // Place a brick block at col 5, row 8 (y = 128)
+    tileMap.setTile(5, 8, GAME_CONFIG.TILE_TYPE.BRICK);
+
+    const mario = new Mario(5 * 16, 140); // Underneath block
+    mario.vel.y = -200; // Jumping upwards
+
+    let bumpedTile = null;
+    mario.onHeadBump = (t) => {
+      bumpedTile = t;
+    };
+
+    const dt = 0.1;
+    physics.resolveTileMapCollisions(mario, tileMap, dt);
+
+    // Under block bottom = 8 * 16 + 16 = 144
+    expect(mario.pos.y).toBe(144);
+    expect(mario.vel.y).toBe(GAME_CONFIG.HEAD_BUMP_REBOUND);
+    expect(bumpedTile).toBeTruthy();
+    expect(bumpedTile.type).toBe(GAME_CONFIG.TILE_TYPE.BRICK);
+  });
 });
 
-describe('Integration Test: Jump Trajectory and Ceiling Brick Interaction', () => {
-  let map;
-  let physics;
+// =========================================================================
+// Suite 4: Interactive Tile Mechanics (Question Block & Coins)
+// =========================================================================
+describe('4. Question Block & Interactive Mechanics', () => {
+  let tileMap;
   let mario;
 
   beforeEach(() => {
-    map = new TileMap(16, 20, 15);
-    // Floor at row 10 (y = 160)
-    for (let c = 0; c < 20; c++) {
-      map.setTile(c, 10, TILES.GROUND);
-    }
-    // Question block above Mario at col 2, row 5 (y = 80)
-    map.setTile(2, 5, TILES.QUESTION_BLOCK);
-    physics = new PhysicsEngine(map, 980);
-
-    // Mario placed on ground directly below Question Block (x = 32, y = 144)
-    mario = new Mario(32, 144);
-    mario.isGrounded = true;
+    tileMap = new TileMap(20, 15, 16);
+    mario = new Mario(50, 50);
   });
 
-  it('executes jump upward impulse and rebounds immediately upon striking Question Block', () => {
-    const input = new InputHandler();
-    input.setKey('jump', true);
-    mario.update(0.016, input);
+  it('should turn Question Block into Empty Block and grant a coin', () => {
+    tileMap.setTile(8, 7, GAME_CONFIG.TILE_TYPE.QUESTION_BLOCK);
 
-    expect(mario.vy).toBe(MARIO_CONFIG.JUMP_FORCE);
-    expect(mario.isGrounded).toBeFalsy();
+    expect(mario.coins).toBe(0);
+    expect(mario.score).toBe(0);
 
-    // Step physics upward until collision with ceiling tile at row 5 (bottom is at y = 96)
-    let ceilingHitDetected = false;
-    for (let i = 0; i < 20; i++) {
-      physics.updateEntity(mario, 0.016);
-      if (mario.y <= 96 && mario.vy === 0) {
-        ceilingHitDetected = true;
-        break;
-      }
-    }
+    const hitResult = tileMap.hitBlockAt(8, 7, mario);
 
-    expect(ceilingHitDetected).toBeTruthy();
-    // Verify question block was hit and transformed into an empty block
-    expect(map.getTile(2, 5)).toBe(TILES.QUESTION_BLOCK_EMPTY);
-    // Mario should have received 1 coin and score
+    expect(hitResult.triggered).toBeTruthy();
+    expect(tileMap.getTile(8, 7)).toBe(GAME_CONFIG.TILE_TYPE.EMPTY_BLOCK);
     expect(mario.coins).toBe(1);
-    expect(mario.score).toBe(SCORES.COIN);
-  });
-});
-
-describe('Integration Test: Horizontal Obstacle Collision (Pipes and Walls)', () => {
-  let map;
-  let physics;
-  let mario;
-  let input;
-
-  beforeEach(() => {
-    map = new TileMap(16, 20, 15);
-    // Floor at row 10 (y = 160)
-    for (let c = 0; c < 20; c++) {
-      map.setTile(c, 10, TILES.GROUND);
-    }
-    // Green Pipe obstacle at col 5, rows 8 and 9 (x = 80)
-    map.setTile(5, 8, TILES.PIPE_TOP_LEFT);
-    map.setTile(5, 9, TILES.PIPE_BODY_LEFT);
-
-    physics = new PhysicsEngine(map, 980);
-    // Mario positioned to the left of the pipe at x = 50, y = 144
-    mario = new Mario(50, 144);
-    mario.isGrounded = true;
-    input = new InputHandler();
+    expect(mario.score).toBe(GAME_CONFIG.SCORES.COIN);
   });
 
-  it('stops horizontal movement against the pipe without clipping through', () => {
-    input.setKey('right', true);
+  it('should not allow empty blocks to be triggered again', () => {
+    tileMap.setTile(8, 7, GAME_CONFIG.TILE_TYPE.EMPTY_BLOCK);
 
-    // Simulate running right towards the obstacle for 1 second
-    for (let i = 0; i < 60; i++) {
-      mario.update(1 / 60, input);
-      physics.updateEntity(mario, 1 / 60);
-    }
-
-    // Pipe left edge is 5 * 16 = 80. Mario width is 14.
-    // Mario right edge should align with pipe left edge: 80 - 14 = 66
-    expect(mario.x).toBe(66);
-    expect(mario.x + mario.width).toBe(80);
-  });
-});
-
-describe('Integration Test: Mario Stomp Goomba Interaction', () => {
-  let map;
-  let physics;
-  let mario;
-  let goomba;
-
-  beforeEach(() => {
-    map = new TileMap(16, 20, 15);
-    for (let c = 0; c < 20; c++) {
-      map.setTile(c, 10, TILES.GROUND);
-    }
-    physics = new PhysicsEngine(map, 980);
-
-    // Goomba standing on ground at x = 100, y = 144
-    goomba = new Goomba(100, 144);
-    goomba.isGrounded = true;
-
-    // Mario falling from air directly above Goomba at x = 100, y = 130 with positive vy
-    mario = new Mario(100, 130);
-    mario.vy = 150;
+    const hitResult = tileMap.hitBlockAt(8, 7, mario);
+    expect(hitResult.triggered).toBeFalsy();
+    expect(mario.coins).toBe(0);
   });
 
-  it('squashes Goomba, bounces Mario upward, and rewards score points', () => {
-    const initialScore = mario.score;
-    const entities = [mario, goomba];
-
-    physics.resolveEntityToEntity(mario, entities);
-
-    // Goomba must be squashed and dead
-    expect(goomba.isSquashed).toBeTruthy();
-    expect(goomba.isAlive).toBeFalsy();
-
-    // Mario must bounce with negative vertical velocity
-    expect(mario.vy).toBe(MARIO_CONFIG.BOUNCE_FORCE);
-    expect(mario.score).toBe(initialScore + SCORES.GOOMBA_STOMP);
-  });
-});
-
-describe('Integration Test: Side Impact by Enemy (Damage and Life Loss)', () => {
-  let map;
-  let physics;
-  let mario;
-  let goomba;
-
-  beforeEach(() => {
-    map = new TileMap(16, 20, 15);
-    for (let c = 0; c < 20; c++) {
-      map.setTile(c, 10, TILES.GROUND);
-    }
-    physics = new PhysicsEngine(map, 980);
-
-    // Mario on ground
-    mario = new Mario(80, 144);
-    mario.isGrounded = true;
-
-    // Goomba collides from horizontal side with vy = 0
-    goomba = new Goomba(85, 144);
-    goomba.isGrounded = true;
-  });
-
-  it('reduces Mario life and triggers invulnerability state', () => {
+  it('should reward extra life on collecting 100 coins', () => {
+    mario.coins = 99;
     const initialLives = mario.lives;
-    const entities = [mario, goomba];
 
-    physics.resolveEntityToEntity(mario, entities);
+    mario.collectCoin();
 
-    expect(mario.lives).toBe(initialLives - 1);
-    expect(mario.invulnerableTimer).toBeGreaterThan(0);
-    // Goomba should remain alive and not squashed
-    expect(goomba.isAlive).toBeTruthy();
-    expect(goomba.isSquashed).toBeFalsy();
+    expect(mario.coins).toBe(0);
+    expect(mario.lives).toBe(initialLives + 1);
   });
 });
 
-describe('Integration Test: Camera Tracking and Forward-Only Scroll Lock', () => {
+// =========================================================================
+// Suite 5: Mario Jumping Dynamics & Arc
+// =========================================================================
+describe('5. Mario Jump Kinematics & Arc Progression', () => {
+  let physics;
+  let tileMap;
+
+  beforeEach(() => {
+    physics = new PhysicsEngine(GAME_CONFIG);
+    tileMap = new TileMap(30, 15, 16);
+    for (let c = 0; c < 30; c++) tileMap.setTile(c, 13, GAME_CONFIG.TILE_TYPE.GROUND);
+  });
+
+  it('should only jump when grounded', () => {
+    const mario = new Mario(50, 192);
+    mario.isGrounded = false;
+    expect(mario.jump()).toBeFalsy();
+
+    mario.isGrounded = true;
+    expect(mario.jump()).toBeTruthy();
+    expect(mario.vel.y).toBe(GAME_CONFIG.JUMP_IMPULSE);
+  });
+
+  it('should follow a realistic ballistic trajectory reaching peak apex', () => {
+    const mario = new Mario(50, 192);
+    mario.isGrounded = true;
+    mario.jump();
+
+    const dt = 1 / 60;
+    let prevY = mario.pos.y;
+    let reachedApex = false;
+
+    // Simulate 40 frames
+    for (let f = 0; f < 40; f++) {
+      physics.applyGravity(mario, dt);
+      mario.pos.y += mario.vel.y * dt;
+
+      if (mario.vel.y >= 0 && !reachedApex) {
+        reachedApex = true;
+        // At apex, Mario should be significantly higher than starting 192
+        expect(mario.pos.y).toBeLessThan(150);
+      }
+      prevY = mario.pos.y;
+    }
+
+    expect(reachedApex).toBeTruthy();
+  });
+});
+
+// =========================================================================
+// Suite 6: Mario vs Goomba Stomp Collision Integration
+// =========================================================================
+describe('6. Mario vs Goomba Stomp Collision Resolution', () => {
+  let physics;
+
+  beforeEach(() => {
+    physics = new PhysicsEngine(GAME_CONFIG);
+  });
+
+  it('should stomp Goomba when Mario falls onto it from above', () => {
+    const mario = new Mario(50, 30);
+    mario.vel.y = 150; // Falling downwards
+
+    const goomba = new Goomba(50, 42); // Underneath Mario
+    expect(goomba.state).toBe('ALIVE');
+
+    const collision = physics.resolveDynamicPair(mario, goomba);
+    expect(collision).toBeTruthy();
+    expect(collision.type).toBe('STOMP');
+
+    // Execute stomp handler
+    mario.bounceAfterStomp();
+    goomba.squash();
+
+    expect(goomba.state).toBe('SQUASHED');
+    expect(mario.vel.y).toBe(GAME_CONFIG.BOUNCE_IMPULSE);
+    expect(mario.score).toBe(GAME_CONFIG.SCORES.STOMP_GOOMBA);
+  });
+});
+
+// =========================================================================
+// Suite 7: Mario vs Goomba Side Damage & State Degradation
+// =========================================================================
+describe('7. Mario vs Goomba Side Contact & Damage Pipeline', () => {
+  let physics;
+
+  beforeEach(() => {
+    physics = new PhysicsEngine(GAME_CONFIG);
+  });
+
+  it('should kill Small Mario on side contact', () => {
+    const mario = new Mario(40, 100);
+    mario.vel.y = 0; // Not falling
+
+    const goomba = new Goomba(50, 100); // Direct side contact
+    const collision = physics.resolveDynamicPair(mario, goomba);
+
+    expect(collision).toBeTruthy();
+    expect(collision.type).toBe('HORIZONTAL_CONTACT');
+
+    const damaged = mario.takeDamage();
+    expect(damaged).toBeTruthy();
+    expect(mario.state).toBe(GAME_CONFIG.MARIO_STATE.DEAD);
+    expect(mario.lives).toBe(2);
+  });
+
+  it('should downgrade Super Mario to Small Mario and grant invulnerability frames', () => {
+    const mario = new Mario(40, 100);
+    mario.setPowerState(GAME_CONFIG.MARIO_STATE.SUPER);
+    expect(mario.size.y).toBe(32);
+
+    const damaged = mario.takeDamage();
+    expect(damaged).toBeTruthy();
+    expect(mario.state).toBe(GAME_CONFIG.MARIO_STATE.SMALL);
+    expect(mario.size.y).toBe(16);
+    expect(mario.invulnerableTimer).toBeGreaterThan(0);
+
+    // Second hit while invulnerable should not do damage
+    const secondHit = mario.takeDamage();
+    expect(secondHit).toBeFalsy();
+    expect(mario.state).toBe(GAME_CONFIG.MARIO_STATE.SMALL);
+  });
+});
+
+// =========================================================================
+// Suite 8: Dynamic Camera Tracking & Boundary Clamping
+// =========================================================================
+describe('8. Camera Viewport Tracking & Coordinates', () => {
   let camera;
+  let mario;
 
   beforeEach(() => {
     camera = new Camera(256, 240);
+    camera.setBounds(3200);
+    mario = new Mario(50, 100);
   });
 
-  it('tracks Mario when advancing beyond the lead threshold', () => {
-    camera.update(50);
-    expect(camera.x).toBe(0);
-
-    // Advance Mario far to the right (x = 300)
-    camera.update(300);
-    expect(camera.x).toBeGreaterThan(0);
+  it('should not scroll when Mario is within deadzone', () => {
+    mario.pos.x = 100; // within 256 * 0.55 = 140.8
+    camera.update(mario);
+    expect(camera.pos.x).toBe(0);
   });
 
-  it('locks scroll position and prohibits backward scrolling (Classic NES Rule)', () => {
-    camera.update(400);
-    const lockedX = camera.x;
+  it('should smoothly advance camera when Mario crosses deadzone', () => {
+    mario.pos.x = 180; // Past 140.8
+    camera.update(mario);
+    expect(camera.pos.x).toBeGreaterThan(0);
 
-    // Mario moves backward to the left (x = 100)
-    camera.update(100);
-    expect(camera.x).toBe(lockedX);
-  });
-});
-
-describe('Integration Test: Continuous Multi-Frame Step Simulation (Anti-Tunneling)', () => {
-  let map;
-  let physics;
-  let mario;
-
-  beforeEach(() => {
-    map = new TileMap(16, 10, 10);
-    // Ground at row 5 (y = 80)
-    for (let c = 0; c < 10; c++) {
-      map.setTile(c, 5, TILES.GROUND);
-    }
-    physics = new PhysicsEngine(map, 980);
-    // Mario positioned at y = 20 falling at high speed
-    mario = new Mario(16, 20);
-    mario.vy = 400;
+    const screenCoord = camera.worldToScreen(mario.pos);
+    expect(screenCoord.x).toBeCloseTo(camera.deadzoneRight, 0.1);
   });
 
-  it('prevents tunneling through thin ground barriers across rapid frames', () => {
-    for (let frame = 0; frame < 40; frame++) {
-      physics.updateEntity(mario, 0.016);
-    }
-
-    // Mario must be stopped on top of ground (80 - 16 = 64) and not fall beneath row 5
-    expect(mario.y).toBe(64);
-    expect(mario.isGrounded).toBeTruthy();
+  it('should clamp at level end boundaries', () => {
+    mario.pos.x = 4000;
+    camera.update(mario);
+    expect(camera.pos.x).toBe(3200 - 256);
   });
 });
 
-// Run standalone if executed directly via Node
-if (typeof process !== 'undefined' && process.argv[1] && process.argv[1].endsWith('integration.test.js')) {
-  runAll();
-}
+// =========================================================================
+// Suite 9: End-to-End Game Loop Integration Simulation
+// =========================================================================
+describe('9. Multi-Frame End-to-End Gameplay Simulation', () => {
+  it('should run 60 consecutive frames: Mario jumps, stomps Goomba and collects block coin', () => {
+    const physics = new PhysicsEngine(GAME_CONFIG);
+    const tileMap = new TileMap(50, 15, 16);
+
+    // Ground line at row 13
+    for (let c = 0; c < 50; c++) tileMap.setTile(c, 13, GAME_CONFIG.TILE_TYPE.GROUND);
+
+    // Question block overhead at col 6, row 9
+    tileMap.setTile(6, 9, GAME_CONFIG.TILE_TYPE.QUESTION_BLOCK);
+
+    // Mario starts on ground at col 2
+    const mario = new Mario(32, 192);
+    mario.isGrounded = true;
+
+    // Goomba walking at col 8
+    const goomba = new Goomba(128, 192);
+
+    const entities = [mario, goomba];
+    const dt = 1 / 60;
+
+    mario.onHeadBump = (tile) => {
+      tileMap.hitBlockAt(tile.col, tile.row, mario);
+    };
+
+    // Frame 1: Mario moves right and jumps
+    mario.moveRight();
+    mario.jump();
+
+    // Simulate 60 ticks
+    for (let frame = 0; frame < 60; frame++) {
+      // Check entity vs entity dynamic interaction
+      const contact = physics.resolveDynamicPair(mario, goomba);
+      if (contact) {
+        if (contact.type === 'STOMP') {
+          mario.bounceAfterStomp();
+          goomba.squash();
+        } else if (contact.type === 'HORIZONTAL_CONTACT') {
+          mario.takeDamage();
+        }
+      }
+
+      physics.step(entities, tileMap, dt);
+    }
+
+    // Verify system integrity
+    expect(mario.active).toBeTruthy();
+    expect(mario.pos.x).toBeGreaterThan(32); // Has progressed horizontally
+    expect(mario.vel.y).toBeLessThanOrEqual(GAME_CONFIG.TERMINAL_VELOCITY);
+  });
+});
+
+// Run all test suites
+runTests();

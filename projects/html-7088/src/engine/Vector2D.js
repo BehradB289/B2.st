@@ -1,7 +1,9 @@
 /**
- * @file Vector2D.js
- * @description 2D Vector math primitives for coordinates, velocities, and impulses.
+ * B2.st Studio - Mario Game Engine
+ * 2D Vector Math Component
+ * @module src/engine/Vector2D
  */
+
 export class Vector2D {
   constructor(x = 0, y = 0) {
     this.x = x;
@@ -14,19 +16,13 @@ export class Vector2D {
     return this;
   }
 
-  add(v) {
-    this.x += v.x;
-    this.y += v.y;
+  add(vector) {
+    this.x += vector.x;
+    this.y += vector.y;
     return this;
   }
 
-  sub(v) {
-    this.x -= v.x;
-    this.y -= v.y;
-    return this;
-  }
-
-  scale(scalar) {
+  multiply(scalar) {
     this.x *= scalar;
     this.y *= scalar;
     return this;

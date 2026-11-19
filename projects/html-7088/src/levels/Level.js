@@ -1,107 +1,50 @@
 /**
- * Dynamic Tilemap Manager, Mystery Blocks, Bump Animations & Warp Logic
+ * B2.st Studio - Mario Game Engine
+ * Level Map & Tile Collision Matrix
+ * @module src/levels/Level
  */
 
-import { CONFIG } from '../../config/game.config.js';
-import { sound } from '../engine/Audio.js';
-import { PowerUp } from '../entities/PowerUps.js';
-
 export class Level {
-  constructor(levelData) {
-    this.width = levelData.width;
-    this.height = levelData.height;
-    this.tiles = [...levelData.tiles];
-    this.bumpedBlocks = new Map(); // key: 'tx,ty' -> bump offset
-    this.initialEnemies = levelData.enemies || [];
+  constructor(world = 1, level = 1) {
+    this.world = world;
+    this.level = level;
+    this.width = 2400;
+    this.height = 240;
+    this.platforms = [];
+    this.coins = [];
+    this.initMap();
   }
 
-  getTile(tx, ty) {
-    if (tx < 0 || tx >= this.width || ty < 0 || ty >= this.height) {
-      return CONFIG.TILES.EMPTY;
-    }
-    return this.tiles[ty * this.width + tx];
-  }
+  initMap() {
+    this.platforms = [
+      // Ground sections with pits
+      { x: 0, y: 208, w: 680, h: 32, type: 'ground' },
+      { x: 740, y: 208, w: 600, h: 32, type: 'ground' },
+      { x: 1400, y: 208, w: 1000, h: 32, type: 'ground' },
 
-  setTile(tx, ty, tileId) {
-    if (tx >= 0 && tx < this.width && ty >= 0 && ty < this.height) {
-      this.tiles[ty * this.width + tx] = tileId;
-    }
-  }
+      // Floating bricks & question blocks
+      { x: 160, y: 144, w: 16, h: 16, type: 'question' },
+      { x: 220, y: 144, w: 16, h: 16, type: 'brick' },
+      { x: 236, y: 144, w: 16, h: 16, type: 'question' },
+      { x: 252, y: 144, w: 16, h: 16, type: 'brick' },
 
-  isSolid(tx, ty) {
-    const tile = this.getTile(tx, ty);
-    return (
-      tile === CONFIG.TILES.GROUND ||
-      tile === CONFIG.TILES.BRICK ||
-      tile === CONFIG.TILES.QUESTION_COIN ||
-      tile === CONFIG.TILES.QUESTION_POWERUP ||
-      tile === CONFIG.TILES.HARD_BLOCK ||
-      tile === CONFIG.TILES.PIPE_TOP_LEFT ||
-      tile === CONFIG.TILES.PIPE_TOP_RIGHT ||
-      tile === CONFIG.TILES.PIPE_SHAFT_LEFT ||
-      tile === CONFIG.TILES.PIPE_SHAFT_RIGHT ||
-      tile === CONFIG.TILES.USED_BLOCK
-    );
-  }
+      // Pipes
+      { x: 340, y: 176, w: 32, h: 32, type: 'pipe' },
+      { x: 500, y: 160, w: 32, h: 48, type: 'pipe' },
+      { x: 620, y: 144, w: 32, h: 64, type: 'pipe' },
 
-  bumpBlock(tx, ty, mario, onSpawnItem, particleSystem) {
-    const tile = this.getTile(tx, ty);
+      // Pyramid stairs
+      { x: 1800, y: 192, w: 16, h: 16, type: 'stair' },
+      { x: 1816, y: 176, w: 16, h: 32, type: 'stair' },
+      { x: 1832, y: 160, w: 16, h: 48, type: 'stair' },
+      { x: 1848, y: 144, w: 16, h: 64, type: 'stair' }
+    ];
 
-    if (tile === CONFIG.TILES.QUESTION_COIN) {
-      this.setTile(tx, ty, CONFIG.TILES.USED_BLOCK);
-      this._animateBump(tx, ty);
-      sound.playCoin();
-      particleSystem.spawnFloatingCoin(tx * CONFIG.TILES.SIZE + 4, ty * CONFIG.TILES.SIZE);
-      particleSystem.spawnScorePopup('200', tx * CONFIG.TILES.SIZE, ty * CONFIG.TILES.SIZE - 12);
-      return { score: 200, coins: 1 };
-    }
-
-    if (tile === CONFIG.TILES.QUESTION_POWERUP) {
-      this.setTile(tx, ty, CONFIG.TILES.USED_BLOCK);
-      this._animateBump(tx, ty);
-      sound.playPowerUpAppears();
-
-      const itemType = mario.powerState === 'SMALL' ? 'MUSHROOM' : 'FIRE_FLOWER';
-      const item = new PowerUp(tx * CONFIG.TILES.SIZE, ty * CONFIG.TILES.SIZE, itemType);
-      onSpawnItem(item);
-      return { score: 1000, coins: 0 };
-    }
-
-    if (tile === CONFIG.TILES.BRICK) {
-      if (mario.powerState === 'SMALL') {
-        this._animateBump(tx, ty);
-        sound.playBrickBump();
-      } else {
-        // Super/Fire Mario shatters the brick!
-        this.setTile(tx, ty, CONFIG.TILES.EMPTY);
-        sound.playBrickBreak();
-        particleSystem.spawnBrickDebris(tx * CONFIG.TILES.SIZE + 4, ty * CONFIG.TILES.SIZE + 4);
-        return { score: 50, coins: 0 };
-      }
-    }
-
-    return null;
-  }
-
-  _animateBump(tx, ty) {
-    const key = `${tx},${ty}`;
-    this.bumpedBlocks.set(key, { offset: -6, timer: 0.12 });
-  }
-
-  update(dt) {
-    // Smooth bump animation recovery
-    this.bumpedBlocks.forEach((bump, key) => {
-      bump.timer -= dt;
-      if (bump.timer <= 0) {
-        this.bumpedBlocks.delete(key);
-      } else {
-        bump.offset = Math.sin((bump.timer / 0.12) * Math.PI) * -7;
-      }
-    });
-  }
-
-  getBlockOffset(tx, ty) {
-    const bump = this.bumpedBlocks.get(`${tx},${ty}`);
-    return bump ? bump.offset : 0;
+    this.coins = [
+      { x: 160, y: 120, collected: false },
+      { x: 236, y: 120, collected: false },
+      { x: 350, y: 140, collected: false },
+      { x: 510, y: 130, collected: false }
+    ];
   }
 }

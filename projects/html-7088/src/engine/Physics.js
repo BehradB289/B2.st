@@ -1,71 +1,105 @@
+import { GameConfig } from '../../config/game.config.js';
+import { AABB } from './AABB.js';
+
 /**
- * B2.st Studio - Mario Game Engine
- * Axis-Aligned Bounding Box (AABB) Physics System
- * @module src/engine/Physics
+ * Studio B2.st - AABB Physics Engine & Tile/Entity Collision Resolver
  */
-
-import { Vector2D } from './Vector2D.js';
-
-export class AABB {
-  constructor(x, y, width, height) {
-    this.pos = new Vector2D(x, y);
-    this.size = new Vector2D(width, height);
-  }
-
-  get left() { return this.pos.x; }
-  get right() { return this.pos.x + this.size.x; }
-  get top() { return this.pos.y; }
-  get bottom() { return this.pos.y + this.size.y; }
-
-  intersects(other) {
-    return (
-      this.left < other.right &&
-      this.right > other.left &&
-      this.top < other.bottom &&
-      this.bottom > other.top
-    );
-  }
-}
-
 export class PhysicsEngine {
-  constructor() {
-    this.gravity = 980; // px/s^2
-    this.maxVelocityY = 600;
+  constructor(tileMap) {
+    this.tileMap = tileMap;
+    this.gravity = GameConfig.WORLD.GRAVITY;
+    this.terminalVelocity = GameConfig.WORLD.TERMINAL_VELOCITY;
+    this._tempTileBox = new AABB();
   }
 
-  applyGravity(entity, deltaTime) {
-    if (!entity.isGrounded) {
-      entity.vel.y += this.gravity * deltaTime;
-      if (entity.vel.y > this.maxVelocityY) {
-        entity.vel.y = this.maxVelocityY;
+  updateEntity(entity, dt, onHitCeiling = null) {
+    if (!entity.alive) return;
+
+    // Apply gravity
+    if (!entity.grounded) {
+      entity.velocity.y += this.gravity * dt;
+      if (entity.velocity.y > this.terminalVelocity) {
+        entity.velocity.y = this.terminalVelocity;
+      }
+    }
+
+    // 1) Horizontal movement & resolution
+    entity.position.x += entity.velocity.x * dt;
+    this._resolveHorizontalTileCollisions(entity);
+
+    // 2) Vertical movement & resolution
+    entity.position.y += entity.velocity.y * dt;
+    entity.grounded = false;
+    this._resolveVerticalTileCollisions(entity, onHitCeiling);
+  }
+
+  _resolveHorizontalTileCollisions(entity) {
+    const box = entity.getHitbox();
+    const startTileX = Math.floor(box.left / GameConfig.WORLD.TILE_SIZE);
+    const endTileX = Math.floor(box.right / GameConfig.WORLD.TILE_SIZE);
+    const startTileY = Math.floor(box.top / GameConfig.WORLD.TILE_SIZE);
+    const endTileY = Math.floor(box.bottom / GameConfig.WORLD.TILE_SIZE);
+
+    for (let ty = startTileY; ty <= endTileY; ty++) {
+      for (let tx = startTileX; tx <= endTileX; tx++) {
+        const tileId = this.tileMap.getTile(tx, ty);
+        if (this.tileMap.isSolid(tileId)) {
+          this._tempTileBox.set(
+            tx * GameConfig.WORLD.TILE_SIZE,
+            ty * GameConfig.WORLD.TILE_SIZE,
+            GameConfig.WORLD.TILE_SIZE,
+            GameConfig.WORLD.TILE_SIZE
+          );
+
+          if (box.intersects(this._tempTileBox)) {
+            if (entity.velocity.x > 0) {
+              entity.position.x = this._tempTileBox.left - entity.hitboxOffset.x - entity.hitboxSize.x;
+              entity.velocity.x = 0;
+              entity.onWallHit?.('right');
+            } else if (entity.velocity.x < 0) {
+              entity.position.x = this._tempTileBox.right - entity.hitboxOffset.x;
+              entity.velocity.x = 0;
+              entity.onWallHit?.('left');
+            }
+          }
+        }
       }
     }
   }
 
-  resolvePlatformCollision(entity, platforms) {
-    entity.isGrounded = false;
-    for (const plat of platforms) {
-      const box = new AABB(plat.x, plat.y, plat.w, plat.h);
-      const entityBox = new AABB(entity.pos.x, entity.pos.y, entity.width, entity.height);
+  _resolveVerticalTileCollisions(entity, onHitCeiling) {
+    const box = entity.getHitbox();
+    const startTileX = Math.floor(box.left / GameConfig.WORLD.TILE_SIZE);
+    const endTileX = Math.floor(box.right / GameConfig.WORLD.TILE_SIZE);
+    const startTileY = Math.floor(box.top / GameConfig.WORLD.TILE_SIZE);
+    const endTileY = Math.floor(box.bottom / GameConfig.WORLD.TILE_SIZE);
 
-      if (entityBox.intersects(box)) {
-        // Vertical collision from top
-        const prevY = entity.pos.y - entity.vel.y * 0.016;
-        if (prevY + entity.height <= plat.y + 6) {
-          entity.pos.y = plat.y - entity.height;
-          entity.vel.y = 0;
-          entity.isGrounded = true;
-        } else if (prevY >= plat.y + plat.h - 6) {
-          entity.pos.y = plat.y + plat.h;
-          entity.vel.y = 0;
-        } else {
-          // Horizontal resolution
-          if (entity.vel.x > 0) {
-            entity.pos.x = plat.x - entity.width;
-          } else if (entity.vel.x < 0) {
-            entity.pos.x = plat.x + plat.w;
+    for (let ty = startTileY; ty <= endTileY; ty++) {
+      for (let tx = startTileX; tx <= endTileX; tx++) {
+        const tileId = this.tileMap.getTile(tx, ty);
+        if (this.tileMap.isSolid(tileId)) {
+          this._tempTileBox.set(
+            tx * GameConfig.WORLD.TILE_SIZE,
+            ty * GameConfig.WORLD.TILE_SIZE,
+            GameConfig.WORLD.TILE_SIZE,
+            GameConfig.WORLD.TILE_SIZE
+          );
+
+          if (box.intersects(this._tempTileBox)) {
+            if (entity.velocity.y > 0) {
+              // Landing on top of tile
+              entity.position.y = this._tempTileBox.top - entity.hitboxOffset.y - entity.hitboxSize.y;
+              entity.velocity.y = 0;
+              entity.grounded = true;
+            } else if (entity.velocity.y < 0) {
+              // Hitting tile from underneath
+              entity.position.y = this._tempTileBox.bottom - entity.hitboxOffset.y;
+              entity.velocity.y = 0;
+              if (onHitCeiling) {
+                onHitCeiling(tx, ty, tileId);
+              }
+            }
           }
-          entity.vel.x = 0;
         }
       }
     }

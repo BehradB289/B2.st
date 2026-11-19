@@ -1,71 +1,73 @@
 /**
- * @file Physics.js
- * @description AABB Collision Detection and Solid Resolution Physics Engine.
+ * B2.st Studio - Mario Game Engine
+ * Axis-Aligned Bounding Box (AABB) Physics System
+ * @module src/engine/Physics
  */
-export class Physics {
-  constructor() {
-    this.gravity = 1800; // px/s^2
-    this.terminalVelocityY = 700;
+
+import { Vector2D } from './Vector2D.js';
+
+export class AABB {
+  constructor(x, y, width, height) {
+    this.pos = new Vector2D(x, y);
+    this.size = new Vector2D(width, height);
   }
 
-  /**
-   * Standard Axis-Aligned Bounding Box (AABB) intersection test.
-   */
-  static checkAABB(a, b) {
+  get left() { return this.pos.x; }
+  get right() { return this.pos.x + this.size.x; }
+  get top() { return this.pos.y; }
+  get bottom() { return this.pos.y + this.size.y; }
+
+  intersects(other) {
     return (
-      a.x < b.x + b.width &&
-      a.x + a.width > b.x &&
-      a.y < b.y + b.height &&
-      a.y + a.height > b.y
+      this.left < other.right &&
+      this.right > other.left &&
+      this.top < other.bottom &&
+      this.bottom > other.top
     );
   }
+}
 
-  /**
-   * Resolves entity collisions against a solid obstacle tile with discrete axis separation.
-   * @param {Entity} entity
-   * @param {Object} obstacle {x, y, width, height, type}
-   */
-  resolveCollision(entity, obstacle) {
-    if (!Physics.checkAABB(entity, obstacle)) {
-      return false;
+export class PhysicsEngine {
+  constructor() {
+    this.gravity = 980; // px/s^2
+    this.maxVelocityY = 600;
+  }
+
+  applyGravity(entity, deltaTime) {
+    if (!entity.isGrounded) {
+      entity.vel.y += this.gravity * deltaTime;
+      if (entity.vel.y > this.maxVelocityY) {
+        entity.vel.y = this.maxVelocityY;
+      }
     }
+  }
 
-    // Overlap depths
-    const overlapLeft = (entity.x + entity.width) - obstacle.x;
-    const overlapRight = (obstacle.x + obstacle.width) - entity.x;
-    const overlapTop = (entity.y + entity.height) - obstacle.y;
-    const overlapBottom = (obstacle.y + obstacle.height) - entity.y;
+  resolvePlatformCollision(entity, platforms) {
+    entity.isGrounded = false;
+    for (const plat of platforms) {
+      const box = new AABB(plat.x, plat.y, plat.w, plat.h);
+      const entityBox = new AABB(entity.pos.x, entity.pos.y, entity.width, entity.height);
 
-    // Minimum overlap axis determines penetration direction
-    const minOverlapX = Math.min(overlapLeft, overlapRight);
-    const minOverlapY = Math.min(overlapTop, overlapBottom);
-
-    if (minOverlapY < minOverlapX) {
-      if (overlapTop < overlapBottom) {
-        // Landing on top of an obstacle
-        entity.y = obstacle.y - entity.height;
-        entity.velocity.y = 0;
-        entity.isGrounded = true;
-      } else {
-        // Hitting head on the ceiling / brick
-        entity.y = obstacle.y + obstacle.height;
-        entity.velocity.y = Math.max(0, entity.velocity.y);
-        if (typeof entity.onHeadBump === 'function') {
-          entity.onHeadBump(obstacle);
+      if (entityBox.intersects(box)) {
+        // Vertical collision from top
+        const prevY = entity.pos.y - entity.vel.y * 0.016;
+        if (prevY + entity.height <= plat.y + 6) {
+          entity.pos.y = plat.y - entity.height;
+          entity.vel.y = 0;
+          entity.isGrounded = true;
+        } else if (prevY >= plat.y + plat.h - 6) {
+          entity.pos.y = plat.y + plat.h;
+          entity.vel.y = 0;
+        } else {
+          // Horizontal resolution
+          if (entity.vel.x > 0) {
+            entity.pos.x = plat.x - entity.width;
+          } else if (entity.vel.x < 0) {
+            entity.pos.x = plat.x + plat.w;
+          }
+          entity.vel.x = 0;
         }
       }
-    } else {
-      if (overlapLeft < overlapRight) {
-        // Wall on right
-        entity.x = obstacle.x - entity.width;
-        entity.velocity.x = 0;
-      } else {
-        // Wall on left
-        entity.x = obstacle.x + obstacle.width;
-        entity.velocity.x = 0;
-      }
     }
-
-    return true;
   }
 }

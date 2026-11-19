@@ -1,120 +1,82 @@
 #!/usr/bin/env bash
 # ==============================================================================
 # B2.st Studio - Automated Deployment Script
-# Project: Mario HTML5 Canvas Engine
+# Zero-Downtime Deployment & Health Verification Pipeline
 # ==============================================================================
 
 set -euo pipefail
 
-# Visual formatting
-readonly COLOR_CYAN='\033[0;36m'
-readonly COLOR_GREEN='\033[0;32m'
-readonly COLOR_YELLOW='\033[1;33m'
-readonly COLOR_RED='\033[0;31m'
-readonly COLOR_RESET='\033[0m'
+# رنگ‌ها جهت نمایش وضعیت خروجی در ترمینال
+GREEN='\033[0;32m'
+RED='\033[0;31m'
+YELLOW='\033[1;33m'
+CYAN='\033[0;36m'
+NC='\033[0m' # No Color
 
-log_info() {
-    printf "${COLOR_CYAN}[B2.st INFO]${COLOR_RESET} %s\n" "$1"
-}
-
-log_success() {
-    printf "${COLOR_GREEN}[B2.st SUCCESS]${COLOR_RESET} %s\n" "$1"
-}
-
-log_warn() {
-    printf "${COLOR_YELLOW}[B2.st WARN]${COLOR_RESET} %s\n" "$1"
-}
-
-log_error() {
-    printf "${COLOR_RED}[B2.st ERROR]${COLOR_RESET} %s\n" "$1"
-}
-
-banner() {
-    cat << "EOF"
-  ____ ___       _     __  __            _       
- | __ )___ \ ___| |_  |  \/  | __ _ _ __(_) ___  
- |  _ \ __) / __| __| | |\/| |/ _` | '__| |/ _ \ 
- | |_) / __/\__ \ |_  | |  | | (_| | |  | | (_) |
- |____/_____|___/\__| |_|  |_|\__,_|_|  |_|\___/ 
-          ENGINE DEPLOYMENT PIPELINE
-EOF
-}
-
-banner
-
-# Step 1: Root directory navigation
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ROOT_DIR="$(dirname "$SCRIPT_DIR")"
-cd "$ROOT_DIR"
-log_info "Working directory: $ROOT_DIR"
-
-# Step 2: Prerequisites validation
-log_info "Verifying container orchestration tools..."
-if ! command -v docker >/dev/null 2>&1; then
-    log_error "Docker engine is not installed or not in PATH."
-    exit 1
-fi
-
-COMPOSE_CMD=""
-if docker compose version >/dev/null 2>&1; then
-    COMPOSE_CMD="docker compose"
-elif command -v docker-compose >/dev/null 2>&1; then
-    COMPOSE_CMD="docker-compose"
-else
-    log_error "Docker Compose is required but not found."
-    exit 1
-fi
-log_info "Using compose driver: $COMPOSE_CMD"
-
-# Step 3: Environment Setup
-if [ ! -f .env ]; then
-    if [ -f config/.env.example ]; then
-        log_warn "No .env found. Initializing from config/.env.example..."
-        cp config/.env.example .env
-    else
-        touch .env
-    fi
-fi
-
-# Load variables
-export $(grep -v '^#' .env | xargs -r) 2>/dev/null || true
-TARGET_PORT="${PORT:-8080}"
-
-# Step 4: Building container image
-log_info "Building production Docker image for Mario Web Engine..."
-$COMPOSE_CMD build --pull mario-game
-
-# Step 5: Rolling launch
-log_info "Launching service on port $TARGET_PORT..."
-$COMPOSE_CMD up -d --remove-orphans mario-game
-
-# Step 6: Health verification loop
-log_info "Running health probe verification on http://127.0.0.1:${TARGET_PORT}/healthz..."
+PORT="${PORT:-8080}"
+COMPOSE_FILE="docker-compose.yml"
+CONTAINER_NAME="b2st_mario_web"
+HEALTHCHECK_URL="http://127.0.0.1:${PORT}/healthz"
 MAX_ATTEMPTS=20
-ATTEMPT=1
-HEALTHY=false
+WAIT_SECONDS=2
 
-while [ $ATTEMPT -le $MAX_ATTEMPTS ]; do
-    if curl -s -f "http://127.0.0.1:${TARGET_PORT}/healthz" >/dev/null 2>&1; then
-        HEALTHY=true
+echo -e "${CYAN}====================================================${NC}"
+echo -e "${CYAN}       B2.st Studio Deployment Pipeline: MARIO       ${NC}"
+echo -e "${CYAN}====================================================${NC}"
+
+# ۱. اعتبارسنجی ابزارهای مورد نیاز
+command -v docker >/dev/null 2>&1 || { 
+    echo -e "${RED}[ERROR] Docker نصب نیست یا در PATH موجود نمی‌باشد.${NC}" >&2; exit 1; 
+}
+
+# ۲. اجرای آزمون‌های واحد و صحت‌سنجی فیزیک و گرانش به صورت لوکال (در صورت وجود نود)
+if command -v npm >/dev/null 2>&1; then
+    echo -e "${YELLOW}[1/4] Running pre-flight automated test suite...${NC}"
+    npm test || {
+        echo -e "${RED}[ERROR] Unit tests failed! Aborting deployment.${NC}" >&2
+        exit 1
+    }
+    echo -e "${GREEN}[✔] Pre-flight tests passed successfully.${NC}"
+else
+    echo -e "${YELLOW}[1/4] Node.js not detected on host. Test stage will run inside Docker multi-stage build.${NC}"
+fi
+
+# ۳. بیلد ایمیج پروداکشن
+echo -e "${YELLOW}[2/4] Building production Docker image...${NC}"
+docker compose -f "${COMPOSE_FILE}" build --pull
+
+# ۴. راه‌اندازی کانتینر با پیکربندی جدید
+echo -e "${YELLOW}[3/4] Starting service containers...${NC}"
+docker compose -f "${COMPOSE_FILE}" up -d --remove-orphans
+
+# ۵. بازرسی سلامت (Smoke Test & Healthcheck Verification)
+echo -e "${YELLOW}[4/4] Verifying endpoint availability at ${HEALTHCHECK_URL}...${NC}"
+
+attempt=1
+success=0
+
+while [ $attempt -le $MAX_ATTEMPTS ]; do
+    if curl -s -f -o /dev/null "${HEALTHCHECK_URL}"; then
+        success=1
         break
     fi
-    printf "."
-    sleep 1
-    ATTEMPT=$((ATTEMPT + 1))
+    echo -e "Attempt ${attempt}/${MAX_ATTEMPTS}: Service not ready yet. Retrying in ${WAIT_SECONDS}s..."
+    sleep $WAIT_SECONDS
+    attempt=$((attempt + 1))
 done
-printf "\n"
 
-if [ "$HEALTHY" = true ]; then
-    log_success "Deployment completed successfully! Game is running at: http://127.0.0.1:${TARGET_PORT}"
+if [ $success -eq 1 ]; then
+    echo -e "${GREEN}====================================================${NC}"
+    echo -e "${GREEN}[✔] Deployment SUCCESSFUL!${NC}"
+    echo -e "${GREEN}Engine is running live on: http://localhost:${PORT}${NC}"
+    echo -e "${GREEN}Container: ${CONTAINER_NAME}${NC}"
+    echo -e "${GREEN}====================================================${NC}"
+    exit 0
 else
-    log_error "Health check failed after ${MAX_ATTEMPTS} attempts. Inspecting container logs:"
-    $COMPOSE_CMD logs --tail=40 mario-game
+    echo -e "${RED}====================================================${NC}"
+    echo -e "${RED}[✖] Deployment FAILED! Healthcheck timed out.${NC}"
+    echo -e "${RED}Displaying last 30 container log entries:${NC}"
+    docker logs --tail 30 "${CONTAINER_NAME}" || true
+    echo -e "${RED}====================================================${NC}"
     exit 1
 fi
-
-# Step 7: Clean legacy images
-log_info "Purging dangling Docker layers..."
-docker image prune -f >/dev/null 2>&1 || true
-
-log_success "All deployment steps executed cleanly."

@@ -1,97 +1,99 @@
 /**
- * @file Goomba.js
- * @description دشمن پایه بازی (Goomba) با پاترولینگ خودکار و فیزیک AABB
+ * Classic Goomba Enemy Entity
+ * Studio: B2.st
  */
 
-import { Sanitizer } from '../security/Sanitizer.js';
+import { Entity } from './Entity.js';
+import { globalSpriteCache } from '../core/performance_cache.js';
 
-export class Goomba {
-    /**
-     * @param {number} x 
-     * @param {number} y 
-     */
+export class Goomba extends Entity {
     constructor(x, y) {
-        this.x = Sanitizer.sanitizeNumber(x, 200);
-        this.y = Sanitizer.sanitizeNumber(y, 100);
-        this.width = 28;
-        this.height = 28;
-        this.vx = -40;
-        this.vy = 0;
-        this.isDead = false;
-        this.deadTimer = 0;
+        super(x, y, 16, 16);
+        this.tag = 'enemy';
+        this.vel.x = -35; // Default patrol velocity to the left
+        this.squished = false;
+        this.squishTimer = 0;
     }
 
-    /**
-     * @param {number} dt 
-     * @param {import('../world/Level.js').Level} level 
-     */
-    update(dt, level) {
-        if (this.isDead) {
-            this.deadTimer += dt;
+    update(dt) {
+        if (this.squished) {
+            this.squishTimer += dt;
+            if (this.squishTimer > 0.45) {
+                this.isAlive = false;
+            }
             return;
         }
 
-        // اعمال گرانش
-        this.vy += level.gravity * dt;
-        this.y += this.vy * dt;
+        super.update(dt);
+    }
 
-        // برخورد عمودی با سطح زمین
-        const footY = this.y + this.height;
-        const leftTile = level.getTileAt(this.x + 2, footY);
-        const rightTile = level.getTileAt(this.x + this.width - 2, footY);
-
-        if (leftTile !== 0 || rightTile !== 0) {
-            const row = Math.floor(footY / level.tileSize);
-            this.y = (row * level.tileSize) - this.height;
-            this.vy = 0;
-        }
-
-        // حرکت افقی و بازگشت در برخورد با مانع
-        this.x += this.vx * dt;
-        const wallCheckX = this.vx > 0 ? this.x + this.width : this.x;
-        const wallTile = level.getTileAt(wallCheckX, this.y + (this.height / 2));
-
-        if (wallTile !== 0) {
-            this.vx = -this.vx;
+    onWallCollide(direction) {
+        if (direction === 'left') {
+            this.vel.x = Math.abs(this.vel.x);
+        } else if (direction === 'right') {
+            this.vel.x = -Math.abs(this.vel.x);
         }
     }
 
-    stomp() {
-        this.isDead = true;
-        this.vx = 0;
-        this.vy = 0;
+    squish() {
+        this.squished = true;
+        this.hasGravity = false;
+        this.vel.set(0, 0);
+        this.size.y = 8;
+        this.pos.y += 8;
     }
 
-    /**
-     * @param {CanvasRenderingContext2D} ctx 
-     * @param {number} cameraX 
-     */
-    render(ctx, cameraX) {
-        if (this.deadTimer > 0.4) return;
+    render(ctx, camera) {
+        if (!camera.isInView(this.pos.x, this.pos.y, this.size.x, this.size.y)) return;
 
-        const drawX = Math.floor(this.x - cameraX);
-        const drawY = Math.floor(this.y);
+        const screenX = Math.floor(this.pos.x - camera.x);
+        const screenY = Math.floor(this.pos.y - camera.y);
 
-        if (this.isDead) {
-            ctx.fillStyle = '#78350f';
-            ctx.fillRect(drawX, drawY + 14, this.width, 14);
+        const frame = this.squished ? 'squished' : (Math.floor(this.animTimer * 5) % 2);
+        const cacheKey = `goomba_sprite_${frame}`;
+
+        const sprite = globalSpriteCache.getOrRenderCanvas(cacheKey, 16, 16, (sCtx) => {
+            this._drawGoombaProcedural(sCtx, frame);
+        });
+
+        ctx.drawImage(sprite, screenX, screenY);
+    }
+
+    _drawGoombaProcedural(ctx, frame) {
+        const brown = '#a84400';
+        const black = '#000000';
+        const foot = '#d8a038';
+
+        if (frame === 'squished') {
+            ctx.fillStyle = brown;
+            ctx.fillRect(1, 8, 14, 8);
+            ctx.fillStyle = black;
+            ctx.fillRect(4, 10, 2, 2);
+            ctx.fillRect(10, 10, 2, 2);
             return;
         }
 
-        // بدنه قارچ
-        ctx.fillStyle = '#92400e';
-        ctx.beginPath();
-        ctx.roundRect(drawX, drawY, this.width, this.height - 6, 6);
-        ctx.fill();
+        // Mushroom head
+        ctx.fillStyle = brown;
+        ctx.fillRect(3, 1, 10, 2);
+        ctx.fillRect(1, 3, 14, 7);
 
-        // پاهای گومبا
-        ctx.fillStyle = '#000000';
-        ctx.fillRect(drawX + 2, drawY + this.height - 6, 8, 6);
-        ctx.fillRect(drawX + this.width - 10, drawY + this.height - 6, 8, 6);
+        // Eyes
+        ctx.fillStyle = foot;
+        ctx.fillRect(4, 5, 3, 4);
+        ctx.fillRect(9, 5, 3, 4);
+        ctx.fillStyle = black;
+        ctx.fillRect(5, 6, 2, 3);
+        ctx.fillRect(9, 6, 2, 3);
 
-        // چشم‌ها
-        ctx.fillStyle = '#ffffff';
-        ctx.fillRect(drawX + 6, drawY + 6, 4, 8);
-        ctx.fillRect(drawX + 18, drawY + 6, 4, 8);
+        // Animated feet
+        ctx.fillStyle = black;
+        if (frame === 0) {
+            ctx.fillRect(1, 12, 5, 4);
+            ctx.fillRect(10, 13, 5, 3);
+        } else {
+            ctx.fillRect(2, 13, 5, 3);
+            ctx.fillRect(10, 12, 5, 4);
+        }
     }
 }

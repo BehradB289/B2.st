@@ -1,24 +1,33 @@
 {
-  "name": "@b2st/super-mario-engine",
+  "name": "b2st-mario-html5",
   "version": "1.0.0",
-  "description": "Modular NES Super Mario Engine with Canvas 2D and ECS Architecture",
+  "description": "Modular NES Mario Engine with Lightweight ECS, Canvas 2D, Management CLI and Health Check Services",
   "type": "module",
-  "private": true,
+  "main": "src/cli.js",
+  "bin": {
+    "mario-cli": "./src/cli.js"
+  },
   "scripts": {
-    "start": "node -e \"console.log('Production served via Docker/Nginx')\"",
-    "test": "node --test tests/**/*.test.js",
-    "docker:build": "docker compose build",
-    "docker:up": "docker compose up -d",
-    "docker:down": "docker compose down",
-    "docker:dev": "docker compose -f docker-compose.dev.yml up"
+    "start": "node src/cli.js serve",
+    "serve": "node src/cli.js serve",
+    "cli": "node src/cli.js",
+    "health": "node src/cli.js health",
+    "test": "node src/cli.js test",
+    "validate:level": "node src/cli.js validate-level"
   },
   "keywords": [
-    "super-mario",
+    "mario",
     "game-engine",
     "ecs",
-    "canvas-2d",
-    "b2st"
+    "html5-canvas",
+    "cli",
+    "health-check",
+    "prometheus",
+    "nes"
   ],
   "author": "B2.st Studio",
-  "license": "UNLICENSED"
+  "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0"
+  }
 }

@@ -1,228 +1,313 @@
 /**
- * B2.st Studio - Cyber Security & Performance Optimization Engine
- * Module: MemoryGuard (Zero-Leak Lifecycle & Runtime Sanitizer)
- * Target: Mario HTML5 Game Engine
- * Layer: L3 (Resource Tracking) & L7 (Runtime Heap Hardening)
+ * B2.st Cybersecurity & Engine Core Division
+ * Module: MemoryGuard (v3.4.0 High-Performance RAM Optimizer & Leak Sanitizer)
+ * Description: سیستم ۱۰ لایه حفاظت از حافظه، ره‌گیری و ابطال تایمرها، مدیریت Object Pool و مهار زباله‌روب (GC)
  */
 
-class MemoryGuard {
-    #activeTimeouts = new Set();
-    #activeIntervals = new Set();
-    #activeAnimationFrames = new Set();
-    #registeredEvents = new Map();
-    #watchdogIntervalId = null;
-    #maxHeapThresholdMB = 250; // سقف هشدار مصرف حافظه
+'use strict';
 
-    constructor() {
+export class MemoryGuard {
+    // لایه امنیتی ۱: ایزوله‌سازی مخازن تایمرها و Listenerها با Private Fields
+    #timers = new Map();
+    #intervals = new Map();
+    #rafs = new Map();
+    #eventListeners = new Set();
+    #objectPools = new Map();
+    #watchdogTimer = null;
+    
+    // پارامترهای آستانه بحرانی (امنیت سایبری و پایداری موتور)
+    #maxMemoryThresholdMB = 250;
+    #maxTrackedTimers = 500;
+    #metrics = {
+        pooledAllocations: 0,
+        reclaimedObjects: 0,
+        interceptedLeaks: 0,
+        lastHeapSizeMB: 0
+    };
+
+    constructor(options = {}) {
+        this.#maxMemoryThresholdMB = options.maxMemoryMB || 250;
         this.#initWatchdog();
         Object.seal(this);
     }
 
     /**
-     * ثبت و مدیریت امن setTimeout با قابلیت پاک‌سازی تضمینی
-     * @param {Function} handler 
-     * @param {number} timeout 
-     * @param {...any} args 
-     * @returns {number} Timer ID
+     * لایه ۲: ثبات تایمرهای یک‌باره (SetTimeout Guard)
+     * جلوگیری از ماندگاری ارجاعات به توابع بسته (Closure Memory Leaks)
      */
-    safeSetTimeout(handler, timeout, ...args) {
-        let timerId;
-        const wrappedHandler = () => {
-            this.#activeTimeouts.delete(timerId);
+    safeSetTimeout(callback, delay, tag = 'general') {
+        if (this.#timers.size >= this.#maxTrackedTimers) {
+            this.#forcePurgeTag('temporary');
+        }
+
+        let timerId = null;
+        const wrappedCallback = () => {
             try {
-                handler(...args);
-            } catch (err) {
-                console.error(`[MemoryGuard] خطای زمان اجرا در تایمر ${timerId}:`, err);
+                callback();
+            } finally {
+                this.clearTimeout(timerId);
             }
         };
 
-        timerId = window.setTimeout(wrappedHandler, timeout);
-        this.#activeTimeouts.add(timerId);
+        timerId = setTimeout(wrappedCallback, delay);
+        this.#timers.set(timerId, { tag, timestamp: performance.now() });
         return timerId;
     }
 
-    /**
-     * ثبت و ردیابی مستمر setInterval
-     * @param {Function} handler 
-     * @param {number} timeout 
-     * @param {...any} args 
-     * @returns {number} Interval ID
-     */
-    safeSetInterval(handler, timeout, ...args) {
-        const intervalId = window.setInterval((...params) => {
-            try {
-                handler(...params);
-            } catch (err) {
-                this.safeClearInterval(intervalId);
-                console.error(`[MemoryGuard] وقفه بحرانی؛ اینتروال ${intervalId} لغو شد:`, err);
-            }
-        }, timeout, ...args);
+    clearTimeout(timerId) {
+        if (this.#timers.has(timerId)) {
+            clearTimeout(timerId);
+            this.#timers.delete(timerId);
+        }
+    }
 
-        this.#activeIntervals.add(intervalId);
+    /**
+     * لایه ۳: ثبات تایمرهای تناوبی (SetInterval Guard)
+     * رصد و مهار حلقه‌های بی‌پایان در پس‌زمینه
+     */
+    safeSetInterval(callback, interval, tag = 'general') {
+        const intervalId = setInterval(() => {
+            try {
+                callback();
+            } catch (error) {
+                // پاک‌سازی خودکار در صورت بروز خطای تکرارشونده برای جلوگیری از فریز رندر
+                this.clearInterval(intervalId);
+                console.error(`[MemoryGuard::SecWatch] Interval [${tag}] purged due to fatal cycle:`, error);
+            }
+        }, interval);
+
+        this.#intervals.set(intervalId, { tag, timestamp: performance.now() });
         return intervalId;
     }
 
+    clearInterval(intervalId) {
+        if (this.#intervals.has(intervalId)) {
+            clearInterval(intervalId);
+            this.#intervals.delete(intervalId);
+        }
+    }
+
     /**
-     * درخواست فریم رندر ایمن با جلوگیری از پدیده rAF Cascading
-     * @param {FrameRequestCallback} callback 
-     * @returns {number} Frame ID
+     * لایه ۴: مهار درخواست‌های فریم رندر (rAF Optimizer)
+     * باطل‌سازی تمام فریم‌های معلق هنگام تعویض صحنه یا باخت بازیکن
      */
-    safeRequestAnimationFrame(callback) {
-        let frameId;
+    safeRAF(callback, tag = 'render') {
+        let rafId = null;
         const wrappedCallback = (timestamp) => {
-            this.#activeAnimationFrames.delete(frameId);
+            this.#rafs.delete(rafId);
             callback(timestamp);
         };
-        frameId = window.requestAnimationFrame(wrappedCallback);
-        this.#activeAnimationFrames.add(frameId);
-        return frameId;
+
+        rafId = requestAnimationFrame(wrappedCallback);
+        this.#rafs.set(rafId, { tag, timestamp: performance.now() });
+        return rafId;
     }
 
-    /**
-     * پاک‌سازی دستی تایمر انفرادی
-     */
-    safeClearTimeout(id) {
-        if (id && this.#activeTimeouts.has(id)) {
-            window.clearTimeout(id);
-            this.#activeTimeouts.delete(id);
+    cancelRAF(rafId) {
+        if (this.#rafs.has(rafId)) {
+            cancelAnimationFrame(rafId);
+            this.#rafs.delete(rafId);
         }
     }
 
     /**
-     * پاک‌سازی دستی اینتروال انفرادی
+     * لایه ۵: ثبت‌نام متمرکز رویدادها (Event Subscription Guard)
+     * جلوگیری از اتصال رویدادهای تکراری روی window یا Canvas که به DOM نشت می‌کنند
      */
-    safeClearInterval(id) {
-        if (id && this.#activeIntervals.has(id)) {
-            window.clearInterval(id);
-            this.#activeIntervals.delete(id);
-        }
-    }
-
-    /**
-     * پاک‌سازی انفرادی انیمیشن فریم
-     */
-    safeCancelAnimationFrame(id) {
-        if (id && this.#activeAnimationFrames.has(id)) {
-            window.cancelAnimationFrame(id);
-            this.#activeAnimationFrames.delete(id);
-        }
-    }
-
-    /**
-     * مدیریت ثبت و ردیابی EventListenerها برای حذف Zombie Listeners در تغییر مراحل
-     */
-    addTrackedEventListener(target, eventType, listener, options = false) {
-        if (!target || typeof target.addEventListener !== 'function') return;
-
-        target.addEventListener(eventType, listener, options);
-
-        if (!this.#registeredEvents.has(target)) {
-            this.#registeredEvents.set(target, []);
-        }
-        this.#registeredEvents.get(target).push({ eventType, listener, options });
-    }
-
-    /**
-     * پاک‌سازی کلیدهای گوش‌به‌زنگ مربوط به یک عنصر یا کل بازی
-     */
-    purgeEventListeners(specificTarget = null) {
-        const removeGroup = (target, events) => {
-            for (let i = 0; i < events.length; i++) {
-                const { eventType, listener, options } = events[i];
-                target.removeEventListener(eventType, listener, options);
-            }
+    bindEvent(target, eventType, handler, options = {}, tag = 'runtime') {
+        const boundItem = {
+            target: new WeakRef(target),
+            eventType,
+            handler,
+            options,
+            tag
         };
 
-        if (specificTarget) {
-            const events = this.#registeredEvents.get(specificTarget);
-            if (events) {
-                removeGroup(specificTarget, events);
-                this.#registeredEvents.delete(specificTarget);
-            }
+        target.addEventListener(eventType, handler, options);
+        this.#eventListeners.add(boundItem);
+        return boundItem;
+    }
+
+    unbindEvent(boundItem) {
+        if (!this.#eventListeners.has(boundItem)) return;
+        const target = boundItem.target.deref();
+        if (target) {
+            target.removeEventListener(boundItem.eventType, boundItem.handler, boundItem.options);
+        }
+        boundItem.handler = null;
+        this.#eventListeners.delete(boundItem);
+    }
+
+    /**
+     * لایه ۶: استخر اشیاء بهینه (High-Performance Zero-Allocation Object Pool)
+     * حذف Allocations درون حلقه‌های ۶۰ فریم (مانند ذرات، تیرها و دشمنان)
+     */
+    registerPool(poolName, factoryFn, resetFn, initialSize = 32) {
+        const pool = {
+            free: [],
+            busy: new Set(),
+            factory: factoryFn,
+            reset: resetFn
+        };
+
+        for (let i = 0; i < initialSize; i++) {
+            pool.free.push(factoryFn());
+        }
+
+        this.#objectPools.set(poolName, pool);
+    }
+
+    acquire(poolName) {
+        const pool = this.#objectPools.get(poolName);
+        if (!pool) throw new Error(`[MemoryGuard] Unknown Pool: ${poolName}`);
+
+        let obj;
+        if (pool.free.length > 0) {
+            obj = pool.free.pop();
         } else {
-            for (const [target, events] of this.#registeredEvents.entries()) {
-                removeGroup(target, events);
-            }
-            this.#registeredEvents.clear();
+            // گسترش کنترل‌شده و هوشمند
+            obj = pool.factory();
+            this.#metrics.pooledAllocations++;
         }
+
+        pool.busy.add(obj);
+        return obj;
+    }
+
+    release(poolName, obj) {
+        const pool = this.#objectPools.get(poolName);
+        if (!pool || !pool.busy.has(obj)) return;
+
+        pool.busy.delete(obj);
+        pool.reset(obj);
+        pool.free.push(obj);
+        this.#metrics.reclaimedObjects++;
     }
 
     /**
-     * بهینه‌ساز حلقه‌های رندرینگ با پرهیز کامل از GC Thrashing و نشت حافظه ناشی از Closure
-     * @param {Array} collection آرایه ورودی (ماریو، دشمنان، آبجکت‌های پویا)
-     * @param {Function} processor متد پردازش برای هر انتیتی
+     * لایه ۷: الگوریتم O(1) هرس آرایه‌ها (Fast Cull / Swap-and-Pop)
+     * جایگزین متد پرهزینه splice() جهت جلوگیری از شیفت اندیس‌ها و شکستن ارجاعات چرخه‌ای
      */
-    fastEntitySweep(collection, processor) {
-        if (!Array.isArray(collection)) return;
-        
-        let cursor = 0;
-        const total = collection.length;
-
-        // حلقه پیش‌رانده بدون بازتخصیص متغیر در رم
-        while (cursor < total) {
-            const entity = collection[cursor];
-            if (entity && entity.isActive !== false) {
-                processor(entity, cursor);
+    fastCull(entities, predicateToKeep) {
+        let activeCount = entities.length;
+        for (let i = 0; i < activeCount; ) {
+            const entity = entities[i];
+            if (!predicateToKeep(entity)) {
+                // ابطال صریح فیلدها جهت تخلیه سریع توسط GC
+                if (typeof entity.destroy === 'function') {
+                    entity.destroy();
+                }
+                
+                // Swap with the last active element
+                const lastIdx = activeCount - 1;
+                entities[i] = entities[lastIdx];
+                entities[lastIdx] = null; // شکستن ارجاع
+                activeCount--;
+            } else {
+                i++;
             }
-            cursor = (cursor + 1) | 0; // بهینه‌سازی محاسباتی 32 بیتی بیتی وایز
         }
+        entities.length = activeCount;
     }
 
     /**
-     * فرآیند پاک‌سازی فشرده (Hard Purge) حین Game Over یا سوئیچ Scene
+     * لایه ۸: پاک‌سازی دسته‌ای بر اساس برچسب یا پاک‌سازی فراگیر (Scene Flush)
      */
+    clearGroup(targetTag) {
+        for (const [id, meta] of this.#timers.entries()) {
+            if (meta.tag === targetTag) this.clearTimeout(id);
+        }
+        for (const [id, meta] of this.#intervals.entries()) {
+            if (meta.tag === targetTag) this.clearInterval(id);
+        }
+        for (const [id, meta] of this.#rafs.entries()) {
+            if (meta.tag === targetTag) this.cancelRAF(id);
+        }
+        for (const boundItem of [...this.#eventListeners]) {
+            if (boundItem.tag === targetTag) this.unbindEvent(boundItem);
+        }
+    }
+
     purgeAll() {
         // ۱. ابطال تمامی تایمرها
-        for (const timerId of this.#activeTimeouts) {
-            window.clearTimeout(timerId);
+        for (const id of this.#timers.keys()) clearTimeout(id);
+        this.#timers.clear();
+
+        for (const id of this.#intervals.keys()) clearInterval(id);
+        this.#intervals.clear();
+
+        for (const id of this.#rafs.keys()) cancelAnimationFrame(id);
+        this.#rafs.clear();
+
+        // ۲. جداسازی تمام Event Listener ها
+        for (const boundItem of this.#eventListeners) {
+            const target = boundItem.target.deref();
+            if (target) {
+                target.removeEventListener(boundItem.eventType, boundItem.handler, boundItem.options);
+            }
+            boundItem.handler = null;
         }
-        this.#activeTimeouts.clear();
+        this.#eventListeners.clear();
 
-        // ۲. ابطال تمامی اینتروال‌ها
-        for (const intervalId of this.#activeIntervals) {
-            window.clearInterval(intervalId);
+        // ۳. ریست استخرهای اشیاء
+        for (const pool of this.#objectPools.values()) {
+            for (const busyObj of pool.busy) {
+                pool.reset(busyObj);
+                pool.free.push(busyObj);
+            }
+            pool.busy.clear();
         }
-        this.#activeIntervals.clear();
-
-        // ۳. توقف فریم‌های رندر معلق
-        for (const frameId of this.#activeAnimationFrames) {
-            window.cancelAnimationFrame(frameId);
-        }
-        this.#activeAnimationFrames.clear();
-
-        // ۴. پاک‌سازی کامل لیسنرها
-        this.purgeEventListeners();
-
-        console.info('[MemoryGuard] چرخه حیات با موفقیت پاک‌سازی شد. رم در حالت ایزوله.');
     }
 
     /**
-     * واچ‌داگ نظارت بر هدررفت رم (Memory Watchdog)
+     * لایه ۹: مکانیزم Watchdog خودکار و پایش تلمتری Heap
      */
     #initWatchdog() {
-        if (typeof window !== 'undefined' && window.performance && window.performance.memory) {
-            this.#watchdogIntervalId = window.setInterval(() => {
-                const usedHeapMB = (performance.memory.usedJSHeapSize / (1024 * 1024)).toFixed(2);
-                if (usedHeapMB > this.#maxHeapThresholdMB) {
-                    console.warn(`[MemoryGuard ALERT] مصرف غیرعادی رم: ${usedHeapMB}MB. آغاز ریکاوری اضطراری...`);
-                    this.purgeEventListeners(window);
-                }
-            }, 10000);
+        this.#watchdogTimer = setInterval(() => {
+            this.#auditMemory();
+        }, 5000);
+
+        if (typeof window !== 'undefined') {
+            window.addEventListener('beforeunload', () => this.dispose());
         }
+    }
+
+    #auditMemory() {
+        if (typeof performance !== 'undefined' && performance.memory) {
+            const usedMB = performance.memory.usedJSHeapSize / (1024 * 1024);
+            this.#metrics.lastHeapSizeMB = Number(usedMB.toFixed(2));
+
+            if (usedMB > this.#maxMemoryThresholdMB) {
+                console.warn(`[MemoryGuard::ALERT] Heap Spike Detected: ${this.#metrics.lastHeapSizeMB}MB! Triggering emergency cache trim.`);
+                this.#forcePurgeTag('cache');
+                this.#metrics.interceptedLeaks++;
+            }
+        }
+    }
+
+    #forcePurgeTag(tag) {
+        this.clearGroup(tag);
     }
 
     /**
-     * خروج امن و آزادسازی کلیه ناظران سیستم
+     * لایه ۱۰: خروج ایمن و تخریب کامل (Zero Trace Teardown)
      */
-    destroy() {
-        this.purgeAll();
-        if (this.#watchdogIntervalId) {
-            window.clearInterval(this.#watchdogIntervalId);
-            this.#watchdogIntervalId = null;
+    dispose() {
+        if (this.#watchdogTimer) {
+            clearInterval(this.#watchdogTimer);
+            this.#watchdogTimer = null;
         }
+        this.purgeAll();
+        this.#objectPools.clear();
+    }
+
+    getStats() {
+        return {
+            activeTimeouts: this.#timers.size,
+            activeIntervals: this.#intervals.size,
+            activeRAFs: this.#rafs.size,
+            trackedListeners: this.#eventListeners.size,
+            metrics: { ...this.#metrics }
+        };
     }
 }
-
-// صدور نمونه یگانه (Singleton) جهت یکپارچه‌سازی در هسته بازی
-export const memoryGuard = new MemoryGuard();
-export default MemoryGuard;

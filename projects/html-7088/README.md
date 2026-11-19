@@ -12,6 +12,7 @@ projects/html-7088/
 ├── .env.example
 ├── .gitignore
 ├── Dockerfile
+├── config/.env.example
 ├── config/build.js
 ├── config/clean.js
 ├── config/constants.js
@@ -40,6 +41,7 @@ projects/html-7088/
 ├── public/swagger.html
 ├── public/tests.html
 ├── scripts/deploy.sh
+├── scripts/healthcheck.sh
 ├── scripts/rollback.sh
 ├── src/.dockerignore
 ├── src/core/Engine.js

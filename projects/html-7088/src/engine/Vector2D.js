@@ -1,34 +1,58 @@
 /**
- * B2.st Studio - Mario Game Engine
- * 2D Vector Math Component
- * @module src/engine/Vector2D
+ * 2D Mathematical Vector Class
+ * Studio: B2.st
  */
 
 export class Vector2D {
-  constructor(x = 0, y = 0) {
-    this.x = x;
-    this.y = y;
-  }
+    constructor(x = 0, y = 0) {
+        this.x = x;
+        this.y = y;
+    }
 
-  set(x, y) {
-    this.x = x;
-    this.y = y;
-    return this;
-  }
+    set(x, y) {
+        this.x = x;
+        this.y = y;
+        return this;
+    }
 
-  add(vector) {
-    this.x += vector.x;
-    this.y += vector.y;
-    return this;
-  }
+    copy(v) {
+        this.x = v.x;
+        this.y = v.y;
+        return this;
+    }
 
-  multiply(scalar) {
-    this.x *= scalar;
-    this.y *= scalar;
-    return this;
-  }
+    clone() {
+        return new Vector2D(this.x, this.y);
+    }
 
-  clone() {
-    return new Vector2D(this.x, this.y);
-  }
+    add(v) {
+        this.x += v.x;
+        this.y += v.y;
+        return this;
+    }
+
+    sub(v) {
+        this.x -= v.x;
+        this.y -= v.y;
+        return this;
+    }
+
+    multiplyScalar(s) {
+        this.x *= s;
+        this.y *= s;
+        return this;
+    }
+
+    magnitude() {
+        return Math.sqrt(this.x * this.x + this.y * this.y);
+    }
+
+    normalize() {
+        const mag = this.magnitude();
+        if (mag > 0) {
+            this.x /= mag;
+            this.y /= mag;
+        }
+        return this;
+    }
 }

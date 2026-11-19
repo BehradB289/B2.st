@@ -1,52 +1,49 @@
 /**
- * Game Global Configuration & Physics Constants
- * B2.st Studio - Modular Engine Configuration
+ * Game Configuration & Physics Constants
+ * Studio: B2.st
+ * Architecture: Modular OOP / ECS-Lite Canvas Engine
  */
-export const GAME_CONFIG = {
-  // Screen and Tile System
-  TILE_SIZE: 16,
-  VIEWPORT_WIDTH: 256,
-  VIEWPORT_HEIGHT: 240,
-  TARGET_FPS: 60,
-  FIXED_DELTA_TIME: 1 / 60,
 
-  // Kinematics & Physics Limits
-  GRAVITY: 980,              // Pixels / sec^2
-  TERMINAL_VELOCITY: 480,    // Max fall speed in pixels / sec
-  WALK_ACCEL: 240,           // Pixels / sec^2
-  MAX_WALK_SPEED: 120,       // Pixels / sec
-  MAX_RUN_SPEED: 180,        // Pixels / sec
-  FRICTION: 300,             // Ground horizontal friction
-
-  // Jumping Dynamics
-  JUMP_IMPULSE: -320,        // Initial upward velocity impulse
-  BOUNCE_IMPULSE: -220,      // Vertical bounce after stomping enemy
-  HEAD_BUMP_REBOUND: 40,     // Downward velocity when hitting ceiling/block
-
-  // Mario States
-  MARIO_STATE: {
-    SMALL: 'SMALL',
-    SUPER: 'SUPER',
-    DEAD: 'DEAD'
-  },
-
-  // Tile Types
-  TILE_TYPE: {
-    AIR: 0,
-    GROUND: 1,
-    BRICK: 2,
-    QUESTION_BLOCK: 3,
-    EMPTY_BLOCK: 4,
-    PIPE_TOP_LEFT: 5,
-    PIPE_TOP_RIGHT: 6,
-    PIPE_BODY_LEFT: 7,
-    PIPE_BODY_RIGHT: 8
-  },
-
-  // Scoring
-  SCORES: {
-    STOMP_GOOMBA: 100,
-    COIN: 200,
-    BREAK_BRICK: 50
-  }
+export const GameConfig = {
+    canvas: {
+        width: 256,
+        height: 240,
+        scale: 3, // Render scaling factor for crisp retro display
+        fps: 60,
+        backgroundColor: '#5c94fc' // Classic Super Mario Sky Blue
+    },
+    physics: {
+        gravity: 980,             // Pixels per second squared
+        terminalVelocity: 420,    // Maximum downward speed
+        friction: 0.88,           // Horizontal ground friction
+        airFriction: 0.94,        // Horizontal air resistance
+        collisionIterations: 4    // AABB micro-step iterations to eliminate tunneling
+    },
+    player: {
+        walkSpeed: 110,
+        runSpeed: 175,
+        jumpForce: 330,
+        jumpHoldGravityScale: 0.45, // Variable jump height on holding button
+        bounceForce: 210,
+        invulnerabilityTime: 2.0,   // Seconds after being hit
+        hitbox: {
+            small: { width: 12, height: 15 },
+            super: { width: 14, height: 28 }
+        }
+    },
+    tiles: {
+        size: 16
+    },
+    cache: {
+        spriteCacheMax: 256,
+        spriteCacheTTL: 600000,     // 10 minutes
+        spatialGridTTL: 50,         // 50ms dynamic spatial index
+        generalTTL: 30000           // 30 seconds
+    },
+    rateLimits: {
+        jumpRefillRate: 3.5,        // Max 3.5 jumps per second
+        jumpBurst: 1.0,
+        soundTriggerInterval: 45,   // Min ms between same-frequency SFX
+        pauseToggleThrottle: 250    // Milliseconds debounce
+    }
 };

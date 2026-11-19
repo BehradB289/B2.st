@@ -1,95 +1,89 @@
-import { GameConfig } from '../../config/game.config.js';
-
-export const TILES = Object.freeze({
-  AIR: 0,
-  GROUND: 1,
-  BRICK: 2,
-  QUESTION_COIN: 3,
-  QUESTION_MUSHROOM: 4,
-  EMPTY_BLOCK: 5,
-  PIPE_TL: 6,
-  PIPE_TR: 7,
-  PIPE_BL: 8,
-  PIPE_BR: 9,
-  FLAGPOLE: 10,
-  FLAGPOLE_TOP: 11,
-  CASTLE: 12
-});
+import { GAME_CONFIG } from '../../config/game.config.js';
 
 /**
- * Studio B2.st - TileMap Engine & Animated Tile Bumping
+ * Grid-based TileMap Level Representation
  */
 export class TileMap {
-  constructor(widthInTiles = 212, heightInTiles = 15) {
-    this.width = widthInTiles;
-    this.height = heightInTiles;
-    this.tileSize = GameConfig.WORLD.TILE_SIZE;
-    this.tiles = new Uint8Array(this.width * this.height);
-    this.bumpingTiles = new Map(); // key "x,y" => { offset: float, velocity: float }
+  constructor(cols = 100, rows = 15, tileSize = GAME_CONFIG.TILE_SIZE) {
+    this.cols = cols;
+    this.rows = rows;
+    this.tileSize = tileSize;
+    this.tiles = new Uint8Array(cols * rows);
+    this.blockData = new Map(); // coordinates -> state data
   }
 
-  _getIndex(tx, ty) {
-    if (tx < 0 || tx >= this.width || ty < 0 || ty >= this.height) {
-      return -1;
-    }
-    return ty * this.width + tx;
+  getIndex(col, row) {
+    return row * this.cols + col;
   }
 
-  getTile(tx, ty) {
-    const idx = this._getIndex(tx, ty);
-    return idx === -1 ? TILES.AIR : this.tiles[idx];
-  }
-
-  setTile(tx, ty, tileId) {
-    const idx = this._getIndex(tx, ty);
-    if (idx !== -1) {
-      this.tiles[idx] = tileId;
+  setTile(col, row, type, meta = null) {
+    if (col < 0 || col >= this.cols || row < 0 || row >= this.rows) return;
+    this.tiles[this.getIndex(col, row)] = type;
+    if (meta) {
+      this.blockData.set(`${col},${row}`, { ...meta });
     }
   }
 
-  isSolid(tileId) {
-    return [
-      TILES.GROUND,
-      TILES.BRICK,
-      TILES.QUESTION_COIN,
-      TILES.QUESTION_MUSHROOM,
-      TILES.EMPTY_BLOCK,
-      TILES.PIPE_TL,
-      TILES.PIPE_TR,
-      TILES.PIPE_BL,
-      TILES.PIPE_BR,
-      TILES.CASTLE
-    ].includes(tileId);
-  }
-
-  isInteractive(tileId) {
-    return [
-      TILES.BRICK,
-      TILES.QUESTION_COIN,
-      TILES.QUESTION_MUSHROOM
-    ].includes(tileId);
-  }
-
-  bumpTile(tx, ty) {
-    const key = `${tx},${ty}`;
-    if (!this.bumpingTiles.has(key)) {
-      this.bumpingTiles.set(key, { offset: 0, velocity: -85 });
+  getTile(col, row) {
+    if (col < 0 || col >= this.cols || row >= this.rows) {
+      return GAME_CONFIG.TILE_TYPE.GROUND; // Solid world border
     }
+    if (row < 0) {
+      return GAME_CONFIG.TILE_TYPE.AIR; // Air above ceiling
+    }
+    return this.tiles[this.getIndex(col, row)];
   }
 
-  update(dt) {
-    for (const [key, bump] of this.bumpingTiles.entries()) {
-      bump.velocity += 600 * dt;
-      bump.offset += bump.velocity * dt;
+  isSolid(type) {
+    return type !== GAME_CONFIG.TILE_TYPE.AIR;
+  }
 
-      if (bump.offset >= 0) {
-        this.bumpingTiles.delete(key);
+  getSolidTilesInAABB(aabb) {
+    const solidTiles = [];
+
+    const startCol = Math.max(0, Math.floor(aabb.left / this.tileSize));
+    const endCol = Math.min(this.cols - 1, Math.floor((aabb.right - 0.001) / this.tileSize));
+    const startRow = Math.max(0, Math.floor(aabb.top / this.tileSize));
+    const endRow = Math.min(this.rows - 1, Math.floor((aabb.bottom - 0.001) / this.tileSize));
+
+    for (let r = startRow; r <= endRow; r++) {
+      for (let c = startCol; c <= endCol; c++) {
+        const type = this.getTile(c, r);
+        if (this.isSolid(type)) {
+          solidTiles.push({
+            col: c,
+            row: r,
+            type,
+            x: c * this.tileSize,
+            y: r * this.tileSize,
+            width: this.tileSize,
+            height: this.tileSize
+          });
+        }
       }
     }
+    return solidTiles;
   }
 
-  getTileBumpOffset(tx, ty) {
-    const bump = this.bumpingTiles.get(`${tx},${ty}`);
-    return bump ? bump.offset : 0;
+  hitBlockAt(col, row, player) {
+    const type = this.getTile(col, row);
+
+    if (type === GAME_CONFIG.TILE_TYPE.QUESTION_BLOCK) {
+      // Turns into Empty Block & gives coin
+      this.setTile(col, row, GAME_CONFIG.TILE_TYPE.EMPTY_BLOCK);
+      player?.collectCoin();
+      return { triggered: true, type: 'QUESTION_BLOCK_OPENED' };
+    }
+
+    if (type === GAME_CONFIG.TILE_TYPE.BRICK) {
+      if (player?.state === GAME_CONFIG.MARIO_STATE.SUPER) {
+        this.setTile(col, row, GAME_CONFIG.TILE_TYPE.AIR);
+        player.score += GAME_CONFIG.SCORES.BREAK_BRICK;
+        return { triggered: true, type: 'BRICK_BROKEN' };
+      }
+      return { triggered: true, type: 'BRICK_BUMPED' };
+    }
+
+    return { triggered: false };
   }
 }

@@ -97,6 +97,7 @@ projects/html-7088/
 ├── src/entities/Entity.js
 ├── src/entities/Goomba.js
 ├── src/entities/Items.js
+├── src/entities/Koopa.js
 ├── src/entities/Mario.js
 ├── src/entities/Particle.js
 ├── src/entities/SpriteRenderer.js

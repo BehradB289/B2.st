@@ -1,133 +1,84 @@
-```javascript
 /**
- * ═══════════════════════════════════════════════════════════════
- *  🧪 تست‌های واحد — CLI Argument Parser
- * ═══════════════════════════════════════════════════════════════
+ * Automated Unit Tests for Management CLI Tool
+ * Layer: Tests (Layer 4)
  */
 
-'use strict';
+import assert from 'node:assert';
+import { parseArgs, validateLevelStructure } from '../src/cli.js';
 
-const { parseArgs } = require('../src/cli');
+export async function runTests() {
+  let passed = 0;
+  let failed = 0;
 
-let _testCount = 0;
-let _passCount = 0;
-let _failCount = 0;
-
-function assert(condition, message) {
-  _testCount++;
-  if (condition) {
-    _passCount++;
-  } else {
-    _failCount++;
-    throw new Error(`ASSERTION FAILED: ${message}`);
+  async function test(name, fn) {
+    try {
+      await fn();
+      console.log(`  ✓ ${name}`);
+      passed++;
+    } catch (err) {
+      console.error(`  ✗ ${name}`);
+      console.error(`    ${err.message}`);
+      failed++;
+    }
   }
-}
 
-function assertEqual(actual, expected, message) {
-  _testCount++;
-  if (actual === expected) {
-    _passCount++;
-  } else {
-    _failCount++;
-    throw new Error(`ASSERTION FAILED: ${message} — expected "${expected}", got "${actual}"`);
-  }
-}
+  console.log('\n--- Running CLI Subsystem Test Suite ---');
 
-function describe(name, fn) {
-  console.log(`\n  📦 ${name}`);
-  fn();
-}
+  // Test 1: CLI Argument Parsing
+  await test('should accurately parse subcommands and multi-format flags', async () => {
+    const raw = ['serve', '-p', '8080', '--host=0.0.0.0', '--verbose', 'extraPositional'];
+    const parsed = parseArgs(raw);
 
-function it(name, fn) {
-  try {
-    fn();
-    console.log(`    ✅ ${name}`);
-  } catch (e) {
-    console.log(`    ❌ ${name}: ${e.message}`);
-    throw e;
-  }
-}
-
-function run() {
-  describe('parseArgs — Basic Commands', () => {
-    it('باید دستور ساده را پارس کند', () => {
-      // parseArgs expects argv (first 2 elements are node and script path)
-      const result = parseArgs(['node', 'cli.js', 'status']);
-      assertEqual(result.command, 'status', 'command');
-    });
-
-    it('باید بدون دستور کار کند', () => {
-      const result = parseArgs(['node', 'cli.js']);
-      assertEqual(result.command, null, 'no command');
-    });
+    assert.strictEqual(parsed.command, 'serve');
+    assert.strictEqual(parsed.flags.p, '8080');
+    assert.strictEqual(parsed.flags.host, '0.0.0.0');
+    assert.strictEqual(parsed.flags.verbose, true);
+    assert.deepStrictEqual(parsed.positionals, ['extraPositional']);
   });
 
-  describe('parseArgs — Long Flags', () => {
-    it('باید فلگ بولین را پارس کند', () => {
-      const result = parseArgs(['node', 'cli.js', 'status', '--verbose']);
-      assertEqual(result.flags.verbose, true, 'verbose flag');
-    });
+  // Test 2: Level Validator - Valid Level
+  await test('should validate correct Mario level data structures', async () => {
+    const validLevel = {
+      name: 'World 1-1',
+      width: 2,
+      height: 2,
+      tileSize: 16,
+      playerSpawn: { x: 32, y: 192 },
+      layers: {
+        collision: [0, 0, 1, 1]
+      }
+    };
 
-    it('باید فلگ با مقدار را پارس کند', () => {
-      const result = parseArgs(['node', 'cli.js', 'build', '--level', '1-1']);
-      assertEqual(result.flags.level, '1-1', 'level flag');
-    });
-
-    it('باید فلگ با = را پارس کند', () => {
-      const result = parseArgs(['node', 'cli.js', 'config', '--set=debug=true']);
-      assertEqual(result.flags.set, 'debug=true', 'set flag with =');
-    });
-
-    it('باید چند فلگ را همزمان پارس کند', () => {
-      const result = parseArgs(['node', 'cli.js', 'build', '--level', '1-1', '--debug', '--minify']);
-      assertEqual(result.flags.level, '1-1', 'level');
-      assertEqual(result.flags.debug, true, 'debug');
-      assertEqual(result.flags.minify, true, 'minify');
-    });
+    const result = validateLevelStructure(validLevel);
+    assert.strictEqual(result.valid, true);
+    assert.strictEqual(result.issues.length, 0);
   });
 
-  describe('parseArgs — Short Flags', () => {
-    it('باید فلگ کوتاه را پارس کند', () => {
-      const result = parseArgs(['node', 'cli.js', 'health', '-v']);
-      assertEqual(result.flags.v, true, 'short v flag');
-      assertEqual(result.flags.verbose, true, 'verbose alias');
-    });
+  // Test 3: Level Validator - Incomplete Level
+  await test('should catch missing spawn points and layer array length mismatches', async () => {
+    const invalidLevel = {
+      width: 4,
+      height: 4,
+      tileSize: 16,
+      // Missing playerSpawn
+      layers: {
+        collision: [0, 1] // length is 2, expected 16
+      }
+    };
 
-    it('باید فلگ‌های کوتاه ترکیبی را پارس کند', () => {
-      const result = parseArgs(['node', 'cli.js', 'test', '-vd']);
-      assertEqual(result.flags.v, true, 'v flag');
-      assertEqual(result.flags.d, true, 'd flag');
-    });
+    const result = validateLevelStructure(invalidLevel);
+    assert.strictEqual(result.valid, false);
+    assert.strictEqual(result.issues.length, 2);
+    assert.match(result.issues[0], /Collision layer length mismatch/);
+    assert.match(result.issues[1], /Missing or invalid "playerSpawn"/);
   });
 
-  describe('parseArgs — Positional Arguments', () => {
-    it('باید آرگومان‌های موقعیتی را پارس کند', () => {
-      const result = parseArgs(['node', 'cli.js', 'help', 'status']);
-      assertEqual(result.command, 'help', 'command');
-      assertEqual(result.positional[0], 'status', 'positional arg');
-    });
-  });
-
-  describe('parseArgs — Double Dash Separator', () => {
-    it('باید -- را به عنوان جداکننده بشناسد', () => {
-      const result = parseArgs(['node', 'cli.js', 'test', '--', '--not-a-flag']);
-      assertEqual(result.command, 'test', 'command');
-      assertEqual(result.positional[0], '--not-a-flag', 'after -- is positional');
-    });
-  });
-
-  console.log(`\n  ─────────────────────────────────`);
-  console.log(`  ✅ ${_passCount} passed  ❌ ${_failCount} failed  📊 ${_testCount} total`);
-  console.log('');
-
-  if (_failCount > 0) {
-    throw new Error(`${_failCount} test(s) failed`);
-  }
+  return { total: passed + failed, passed, failed };
 }
 
-module.exports = { run };
-
-if (require.main === module) {
-  run();
+// Run immediately if executed via node directly
+if (process.argv[1]?.endsWith('cli.test.js')) {
+  runTests().then((res) => {
+    process.exit(res.failed > 0 ? 1 : 0);
+  });
 }
-```

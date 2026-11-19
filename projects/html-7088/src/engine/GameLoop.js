@@ -1,59 +1,74 @@
-import { GameConfig } from '../../config/game.config.js';
-
 /**
- * Studio B2.st - Deterministic Fixed-Timestep Game Loop
- * Eliminates screen-refresh rate discrepancies (60Hz, 120Hz, 144Hz) using accumulator pattern.
+ * Fixed Timestep Game Loop with Accumulator & Telemetry Hook
+ * Studio: B2.st
+ * Guarantees deterministic physics calculations independent of screen refresh rates.
  */
+
 export class GameLoop {
-  constructor(onUpdate, onRender) {
-    this.onUpdate = onUpdate;
-    this.onRender = onRender;
-    this.fixedDelta = GameConfig.CANVAS.FIXED_DELTA_TIME;
-    this.accumulator = 0;
-    this.lastTime = 0;
-    this.isRunning = false;
-    this.rafId = null;
+    constructor(updateFn, renderFn, targetFps = 60) {
+        this.updateFn = updateFn;
+        this.renderFn = renderFn;
+        this.fixedDelta = 1 / targetFps;
+        this.maxAccumulator = 0.25; // Prevents spiral of death on lag spikes
 
-    this._step = this._step.bind(this);
-  }
+        this.lastTime = 0;
+        this.accumulator = 0;
+        this.isRunning = false;
+        this.animationFrameId = null;
 
-  start() {
-    if (this.isRunning) return;
-    this.isRunning = true;
-    this.lastTime = performance.now();
-    this.accumulator = 0;
-    this.rafId = requestAnimationFrame(this._step);
-  }
-
-  stop() {
-    this.isRunning = false;
-    if (this.rafId) {
-      cancelAnimationFrame(this.rafId);
-      this.rafId = null;
-    }
-  }
-
-  _step(currentTime) {
-    if (!this.isRunning) return;
-
-    let frameDelta = (currentTime - this.lastTime) / 1000;
-    this.lastTime = currentTime;
-
-    // Guard against spiral of death if tab was inactive
-    if (frameDelta > 0.25) {
-      frameDelta = 0.25;
+        // FPS & Performance Profiling
+        this.fps = 60;
+        this.frameCount = 0;
+        this.fpsTimer = 0;
     }
 
-    this.accumulator += frameDelta;
-
-    while (this.accumulator >= this.fixedDelta) {
-      this.onUpdate(this.fixedDelta);
-      this.accumulator -= this.fixedDelta;
+    start() {
+        if (this.isRunning) return;
+        this.isRunning = true;
+        this.lastTime = performance.now();
+        this.accumulator = 0;
+        this.animationFrameId = requestAnimationFrame(this._tick.bind(this));
     }
 
-    const alpha = this.accumulator / this.fixedDelta;
-    this.onRender(alpha);
+    stop() {
+        this.isRunning = false;
+        if (this.animationFrameId) {
+            cancelAnimationFrame(this.animationFrameId);
+        }
+    }
 
-    this.rafId = requestAnimationFrame(this._step);
-  }
+    _tick(currentTime) {
+        if (!this.isRunning) return;
+
+        let frameDelta = (currentTime - this.lastTime) / 1000;
+        this.lastTime = currentTime;
+
+        // Cap excessive frame time (e.g. background tab)
+        if (frameDelta > this.maxAccumulator) {
+            frameDelta = this.maxAccumulator;
+        }
+
+        this.accumulator += frameDelta;
+
+        // Run discrete fixed updates
+        while (this.accumulator >= this.fixedDelta) {
+            this.updateFn(this.fixedDelta);
+            this.accumulator -= this.fixedDelta;
+        }
+
+        // Render current state with alpha interpolation factor
+        const alpha = this.accumulator / this.fixedDelta;
+        this.renderFn(alpha);
+
+        // Calculate actual FPS
+        this.frameCount++;
+        this.fpsTimer += frameDelta;
+        if (this.fpsTimer >= 1.0) {
+            this.fps = this.frameCount;
+            this.frameCount = 0;
+            this.fpsTimer = 0;
+        }
+
+        this.animationFrameId = requestAnimationFrame(this._tick.bind(this));
+    }
 }

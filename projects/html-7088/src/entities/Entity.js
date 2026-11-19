@@ -2,36 +2,35 @@ import { Vector2 } from '../engine/Vector2.js';
 import { AABB } from '../engine/AABB.js';
 
 /**
- * Studio B2.st - Base Entity Class
+ * Base Game Entity (ECS lightweight component/entity hybrid)
  */
 export class Entity {
-  constructor(x = 0, y = 0, width = 16, height = 16) {
-    this.position = new Vector2(x, y);
-    this.velocity = new Vector2(0, 0);
-    this.hitboxOffset = new Vector2(0, 0);
-    this.hitboxSize = new Vector2(width, height);
-    this.renderSize = new Vector2(width, height);
+  constructor(x = 0, y = 0, width = 16, height = 16, tag = 'ENTITY') {
+    this.pos = new Vector2(x, y);
+    this.vel = new Vector2(0, 0);
+    this.size = new Vector2(width, height);
+    this.accelX = 0;
+    this.tag = tag;
 
-    this.grounded = false;
-    this.alive = true;
-    this.shouldRemove = false;
-    this.animTimer = 0;
+    this.isStatic = false;
+    this.hasGravity = true;
+    this.isGrounded = false;
+    this.active = true;
   }
 
-  getHitbox() {
-    return new AABB(
-      this.position.x + this.hitboxOffset.x,
-      this.position.y + this.hitboxOffset.y,
-      this.hitboxSize.x,
-      this.hitboxSize.y
-    );
+  getBounds() {
+    return new AABB(this.pos.x, this.pos.y, this.size.x, this.size.y);
   }
 
   update(dt) {
-    this.animTimer += dt;
+    // Override in derived classes
   }
 
-  render(ctx, camera) {
+  onWallHit(side) {
+    // Override in derived classes
+  }
+
+  onHeadBump(tile) {
     // Override in derived classes
   }
 }

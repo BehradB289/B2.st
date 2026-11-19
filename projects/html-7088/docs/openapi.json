@@ -1,89 +1,68 @@
 {
   "openapi": "3.0.3",
   "info": {
-    "title": "B2.st Super Mario WebEngine REST API",
-    "description": "Interactive RESTful API and Telemetry Service specification for B2.st modular NES Mario game engine, level streaming, leaderboard synchronization, and player state management.",
-    "version": "1.0.0",
+    "title": "B2.st Studio Super Mario Engine API",
+    "description": "مستندات تعاملی و جامع API موتور بازی سوپر ماریو (B2.st Canvas Engine). این سرویس وظیفه بارگذاری استریمینگ مراحل (Tilemap)، مدیریت نشست‌های بازی، همگام‌سازی تله‌متری فیزیک AABB، جدول برترین امتیازها (Leaderboard)، ذخیره‌سازی وضعیت ECS و رجیستری دارایی‌های صوتی و تصویری را بر عهده دارد.",
+    "version": "1.2.0",
     "contact": {
-      "name": "B2.st Studio Core Engineering Team",
-      "url": "https://b2.st",
-      "email": "dev@b2.st"
+      "name": "B2.st Studio Core Game Team",
+      "email": "dev@b2.st",
+      "url": "https://b2.st"
     },
     "license": {
-      "name": "MIT",
+      "name": "MIT License",
       "url": "https://opensource.org/licenses/MIT"
     }
   },
   "servers": [
     {
-      "url": "http://localhost:3000/api/v1",
-      "description": "Local Development Server"
+      "url": "/api/v1",
+      "description": "گیت‌وی محلی بازی (Local Mario Engine Host)"
     },
     {
       "url": "https://mario.b2.st/api/v1",
-      "description": "Production Game Cluster (Global Edge)"
+      "description": "سرور توزیع‌شده ابری استودیو B2.st"
     }
   ],
   "tags": [
     {
-      "name": "Health",
-      "description": "Service heartbeat and diagnostic telemetry"
+      "name": "System & Health",
+      "description": "بررسی وضعیت اتصال سرور و متریک‌های چرخه‌حیات موتور"
     },
     {
-      "name": "Config",
-      "description": "Runtime physics engine parameters and visual viewport settings"
+      "name": "Level Streaming",
+      "description": "دریافت اطلاعات ماتریس تایل‌مپ، مختصات موجودیت‌ها و تنظیمات گرانش"
     },
     {
-      "name": "Levels",
-      "description": "Level layout matrices, entity spawn definitions and validation"
-    },
-    {
-      "name": "Sessions",
-      "description": "Live player gameplay state, checkpoint sync and physics snapshots"
+      "name": "Game Sessions",
+      "description": "مدیریت نشست، همگام‌سازی پوزیشن فیزیکی ماریو و ثبت رویدادهای کنترلی"
     },
     {
       "name": "Leaderboard",
-      "description": "Player high scores, speedrun records and anti-cheat verified completions"
+      "description": "ثبت رکوردهای امتیازی با اعتبارسنجی ضد تقلب و نمایش جدول برترین‌ها"
     },
     {
-      "name": "Telemetry",
-      "description": "High-frequency gameplay event stream (deaths, stomps, coin pickups)"
+      "name": "Save States",
+      "description": "سریال‌سازی و بازگردانی وضعیت کل موجودیت‌های ECS بازی"
+    },
+    {
+      "name": "Assets",
+      "description": "کاتالوگ اطلس اسپریت‌ها و بافرهای صوتی کلاسیک NES"
     }
   ],
   "paths": {
     "/health": {
       "get": {
-        "tags": ["Health"],
-        "summary": "Check API and game engine service status",
-        "description": "Returns cluster health, uptime, memory usage, and operational status for frontend engine hooks.",
-        "operationId": "getHealth",
+        "tags": ["System & Health"],
+        "summary": "وضعیت سلامت موتور و سرور بازی",
+        "description": "اطلاعات مربوط به آپ‌تایم، فریم‌ریت پیش‌فرض (Target FPS) و وضعیت ماژول‌های ECS را برمی‌گرداند.",
         "responses": {
           "200": {
-            "description": "API is operational",
+            "description": "سیستم فعال و آماده خدمت‌رسانی است",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HealthStatus"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/config": {
-      "get": {
-        "tags": ["Config"],
-        "summary": "Retrieve game engine physics and canvas configuration",
-        "description": "Fetches current physics coefficients (gravity, velocities, collision bounds) used by the client simulation loop.",
-        "operationId": "getGameConfig",
-        "responses": {
-          "200": {
-            "description": "Engine configuration parameters",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/EngineConfig"
+                  "$ref": "#/components/schemas/HealthResponse"
                 }
               }
             }
@@ -93,13 +72,12 @@
     },
     "/levels": {
       "get": {
-        "tags": ["Levels"],
-        "summary": "List all playable levels",
-        "description": "Returns metadata catalog of available World and Course maps in the B2.st Mario repository.",
-        "operationId": "listLevels",
+        "tags": ["Level Streaming"],
+        "summary": "فهرست مراحل در دسترس",
+        "description": "دریافت متادیتای تمام مراحل قابل بارگذاری در انجین به همراه تم و طول برحسب تایل.",
         "responses": {
           "200": {
-            "description": "List of level metadata",
+            "description": "لیست مراحل با موفقیت بازیابی شد",
             "content": {
               "application/json": {
                 "schema": {
@@ -116,16 +94,15 @@
     },
     "/levels/{levelId}": {
       "get": {
-        "tags": ["Levels"],
-        "summary": "Fetch full level tilemap and spawn entity definitions",
-        "description": "Retrieves the full 2D grid matrix and entity spawn coordinates for instantiating the course.",
-        "operationId": "getLevelById",
+        "tags": ["Level Streaming"],
+        "summary": "دریافت جزییات ساختاری و تایل‌مپ یک مرحله",
+        "description": "ارائه مپ دوبعدی تایل‌ها، نقاط اسپاون، سالید بلاک‌ها، لوله‌های تعاملی و انمی‌های اولیه.",
         "parameters": [
           {
             "name": "levelId",
             "in": "path",
             "required": true,
-            "description": "Unique identifier of the course (e.g. world-1-1)",
+            "description": "شناسه مرحله (مثلاً world-1-1)",
             "schema": {
               "type": "string",
               "example": "world-1-1"
@@ -134,7 +111,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Complete level schema including matrix and spawns",
+            "description": "داده‌های کامل مرحله تحویل داده شد",
             "content": {
               "application/json": {
                 "schema": {
@@ -144,51 +121,11 @@
             }
           },
           "404": {
-            "description": "Level not found",
+            "description": "مرحله مورد نظر یافت نشد",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/levels/{levelId}/validate": {
-      "post": {
-        "tags": ["Levels"],
-        "summary": "Validate custom tilemap matrix geometry",
-        "description": "Validates that a tilemap contains required boundaries, flagpole target, and no unescapable floor pits.",
-        "operationId": "validateLevel",
-        "parameters": [
-          {
-            "name": "levelId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/TileMapMatrix"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Validation result report",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ValidationResult"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -198,10 +135,9 @@
     },
     "/session/start": {
       "post": {
-        "tags": ["Sessions"],
-        "summary": "Initialize a new player game session",
-        "description": "Generates a cryptographic session token and initial state vector for anti-tamper run verification.",
-        "operationId": "startSession",
+        "tags": ["Game Sessions"],
+        "summary": "شروع نشست بازی جدید",
+        "description": "ایجاد یک Session ID یونیک برای ارزیابی فیزیک، شمارش تیک‌های حلقه بازی و پیگیری رویدادها.",
         "requestBody": {
           "required": true,
           "content": {
@@ -214,11 +150,11 @@
         },
         "responses": {
           "201": {
-            "description": "Session initialized successfully",
+            "description": "نشست بازی با موفقیت ایجاد شد",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/GameSession"
+                  "$ref": "#/components/schemas/SessionResponse"
                 }
               }
             }
@@ -228,9 +164,8 @@
     },
     "/session/{sessionId}/state": {
       "get": {
-        "tags": ["Sessions"],
-        "summary": "Get real-time snapshot of active game session",
-        "operationId": "getSessionState",
+        "tags": ["Game Sessions"],
+        "summary": "دریافت آخرین وضعیت تله‌متری فیزیک و ECS ماریو",
         "parameters": [
           {
             "name": "sessionId",
@@ -244,21 +179,11 @@
         ],
         "responses": {
           "200": {
-            "description": "Current snapshot of session state",
+            "description": "وضعیت فیزیک و موجودیت‌ها بازیابی شد",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/PlayerState"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Session expired or not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
+                  "$ref": "#/components/schemas/SessionStateUpdate"
                 }
               }
             }
@@ -266,9 +191,8 @@
         }
       },
       "put": {
-        "tags": ["Sessions"],
-        "summary": "Synchronize Mario position and physics snapshot",
-        "operationId": "updateSessionState",
+        "tags": ["Game Sessions"],
+        "summary": "به‌روزرسانی دوره‌ای فیزیک و وضعیت ماریو از سمت کلاینت",
         "parameters": [
           {
             "name": "sessionId",
@@ -285,21 +209,46 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/PlayerState"
+                "$ref": "#/components/schemas/SessionStateUpdate"
               }
             }
           }
         },
         "responses": {
           "200": {
-            "description": "Session state updated successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PlayerState"
-                }
+            "description": "وضعیت با موفقیت سینک شد"
+          }
+        }
+      }
+    },
+    "/session/{sessionId}/events": {
+      "post": {
+        "tags": ["Game Sessions"],
+        "summary": "ثبت رویداد ورودی یا تعامل فیزیکی (پرش، برخورد، جمع‌آوری سکه)",
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SessionEvent"
               }
             }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "رویداد دریافت و در پایپ‌لاین فیزیک پردازش شد"
           }
         }
       }
@@ -307,14 +256,12 @@
     "/leaderboard": {
       "get": {
         "tags": ["Leaderboard"],
-        "summary": "Fetch top player high scores and speedruns",
-        "operationId": "getLeaderboard",
+        "summary": "دریافت برترین رکوردهای ثبت‌شده ماریو",
         "parameters": [
           {
             "name": "levelId",
             "in": "query",
             "required": false,
-            "description": "Filter by level identifier",
             "schema": {
               "type": "string",
               "default": "world-1-1"
@@ -332,7 +279,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Ranked leaderboard list",
+            "description": "فهرست رتبه‌بندی بازیکنان",
             "content": {
               "application/json": {
                 "schema": {
@@ -348,35 +295,27 @@
       },
       "post": {
         "tags": ["Leaderboard"],
-        "summary": "Submit authenticated score upon level completion",
-        "operationId": "submitScore",
+        "summary": "ثبت رکورد جدید پس از اتمام یا فوت مرحله",
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ScoreSubmission"
+                "$ref": "#/components/schemas/LeaderboardSubmission"
               }
             }
           }
         },
         "responses": {
           "201": {
-            "description": "Score accepted and ranked",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/LeaderboardEntry"
-                }
-              }
-            }
+            "description": "رکورد بررسی، اعتبارسنجی و ثبت گردید"
           },
           "400": {
-            "description": "Invalid submission or failed checksum",
+            "description": "عدم تطابق چک‌سام فیزیک یا خطای تقلب",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiError"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -384,33 +323,66 @@
         }
       }
     },
-    "/telemetry/events": {
+    "/savegame/save": {
       "post": {
-        "tags": ["Telemetry"],
-        "summary": "Ingest batch of game physics events and metrics",
-        "description": "Collects telemetry points including jump counts, enemy stomps, pit deaths, and power-up events.",
-        "operationId": "submitTelemetry",
+        "tags": ["Save States"],
+        "summary": "ذخیره اسنپ‌شات کامل از موتور بازی در دیتابیس محلی یا ابری",
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/TelemetryBatch"
+                "$ref": "#/components/schemas/SaveGamePayload"
               }
             }
           }
         },
         "responses": {
-          "202": {
-            "description": "Telemetry ingested for analytics aggregation",
+          "200": {
+            "description": "اسنپ‌شات با موفقیت پایدارسازی شد"
+          }
+        }
+      }
+    },
+    "/savegame/load/{saveId}": {
+      "get": {
+        "tags": ["Save States"],
+        "summary": "بازیابی اسنپ‌شات ذخیره‌شده بازی بر مبنای شناسه",
+        "parameters": [
+          {
+            "name": "saveId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "داده‌های اسنپ‌شات وضعیت بازیابی شد",
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "recorded": { "type": "integer", "example": 5 },
-                    "status": { "type": "string", "example": "queued" }
-                  }
+                  "$ref": "#/components/schemas/SaveGamePayload"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/assets/manifest": {
+      "get": {
+        "tags": ["Assets"],
+        "summary": "دریافت کاتالوگ منابع گرافیکی، مختصات اطلس اسپریت‌ها و بافرهای صدا",
+        "responses": {
+          "200": {
+            "description": "مانیفست کامل دارایی‌های استودیو B2.st",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssetManifest"
                 }
               }
             }
@@ -420,219 +392,318 @@
     }
   },
   "components": {
+    "securitySchemes": {
+      "ApiKeyAuth": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-Engine-Key",
+        "description": "کلید اختصاصی انجین استودیو B2.st جهت دسترسی به تله‌متری و ذخیره‌سازی"
+      },
+      "BearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    },
     "schemas": {
-      "HealthStatus": {
-        "type": "object",
-        "required": ["status", "uptimeSeconds", "engineVersion", "timestamp"],
-        "properties": {
-          "status": { "type": "string", "example": "healthy" },
-          "uptimeSeconds": { "type": "number", "example": 8420.45 },
-          "engineVersion": { "type": "string", "example": "1.0.0" },
-          "activeSessions": { "type": "integer", "example": 142 },
-          "timestamp": { "type": "string", "format": "date-time", "example": "2025-02-23T12:00:00Z" }
-        }
-      },
-      "EngineConfig": {
+      "HealthResponse": {
         "type": "object",
         "properties": {
-          "canvas": {
-            "type": "object",
-            "properties": {
-              "width": { "type": "integer", "example": 256 },
-              "height": { "type": "integer", "example": 240 },
-              "scale": { "type": "integer", "example": 3 },
-              "backgroundColor": { "type": "string", "example": "#5c94fc" }
-            }
+          "status": {
+            "type": "string",
+            "example": "RUNNING"
           },
-          "physics": {
-            "type": "object",
-            "properties": {
-              "gravity": { "type": "number", "example": 980 },
-              "walkSpeed": { "type": "number", "example": 110 },
-              "runSpeed": { "type": "number", "example": 180 },
-              "jumpForce": { "type": "number", "example": -350 },
-              "tileSize": { "type": "integer", "example": 16 }
-            }
+          "version": {
+            "type": "string",
+            "example": "1.2.0"
+          },
+          "engineFps": {
+            "type": "integer",
+            "example": 60
+          },
+          "activeSessions": {
+            "type": "integer",
+            "example": 4
+          },
+          "physicsEngine": {
+            "type": "string",
+            "example": "B2-AABB-Continuous-v1"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
           }
-        }
-      },
-      "LevelSummary": {
-        "type": "object",
-        "required": ["id", "title", "world", "difficulty"],
-        "properties": {
-          "id": { "type": "string", "example": "world-1-1" },
-          "title": { "type": "string", "example": "Grassland Gateway" },
-          "world": { "type": "string", "example": "1-1" },
-          "timeLimit": { "type": "integer", "example": 400 },
-          "difficulty": { "type": "string", "enum": ["easy", "medium", "hard"], "example": "easy" }
-        }
-      },
-      "LevelDetail": {
-        "type": "object",
-        "required": ["id", "width", "height", "tileSize", "matrix", "spawnMario"],
-        "properties": {
-          "id": { "type": "string", "example": "world-1-1" },
-          "width": { "type": "integer", "example": 1920 },
-          "height": { "type": "integer", "example": 240 },
-          "tileSize": { "type": "integer", "example": 16 },
-          "spawnMario": {
-            "$ref": "#/components/schemas/Vector2D"
-          },
-          "matrix": {
-            "type": "array",
-            "items": {
-              "type": "array",
-              "items": { "type": "integer" }
-            }
-          },
-          "spawns": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/SpawnDefinition"
-            }
-          }
-        }
-      },
-      "SpawnDefinition": {
-        "type": "object",
-        "required": ["type", "x", "y"],
-        "properties": {
-          "type": { "type": "string", "enum": ["goomba", "koopa", "coin", "mushroom"], "example": "goomba" },
-          "x": { "type": "number", "example": 220 },
-          "y": { "type": "number", "example": 190 }
-        }
-      },
-      "TileMapMatrix": {
-        "type": "object",
-        "required": ["rows", "cols", "tiles"],
-        "properties": {
-          "rows": { "type": "integer", "example": 15 },
-          "cols": { "type": "integer", "example": 120 },
-          "tiles": {
-            "type": "array",
-            "items": {
-              "type": "array",
-              "items": { "type": "integer" }
-            }
-          }
-        }
-      },
-      "ValidationResult": {
-        "type": "object",
-        "required": ["isValid", "errors"],
-        "properties": {
-          "isValid": { "type": "boolean", "example": true },
-          "errors": {
-            "type": "array",
-            "items": { "type": "string" },
-            "example": []
-          },
-          "flagPoleDetected": { "type": "boolean", "example": true }
-        }
-      },
-      "SessionStartRequest": {
-        "type": "object",
-        "required": ["playerId", "levelId"],
-        "properties": {
-          "playerId": { "type": "string", "example": "b2st-player-42" },
-          "levelId": { "type": "string", "example": "world-1-1" }
-        }
-      },
-      "GameSession": {
-        "type": "object",
-        "required": ["sessionId", "playerId", "levelId", "startedAt", "token"],
-        "properties": {
-          "sessionId": { "type": "string", "format": "uuid", "example": "a3bb189e-8bf9-4888-9912-ace4e6543002" },
-          "playerId": { "type": "string", "example": "b2st-player-42" },
-          "levelId": { "type": "string", "example": "world-1-1" },
-          "startedAt": { "type": "string", "format": "date-time" },
-          "token": { "type": "string", "example": "jwt.eyJzdWIiOiJiMnN0In0..." }
-        }
-      },
-      "PlayerState": {
-        "type": "object",
-        "required": ["score", "coins", "lives", "timeRemaining", "powerUpState", "position", "velocity"],
-        "properties": {
-          "score": { "type": "integer", "example": 1240 },
-          "coins": { "type": "integer", "example": 8 },
-          "lives": { "type": "integer", "example": 3 },
-          "timeRemaining": { "type": "number", "example": 342.5 },
-          "powerUpState": { "type": "string", "enum": ["SMALL", "SUPER", "INVINCIBLE", "DEAD"], "example": "SMALL" },
-          "position": { "$ref": "#/components/schemas/Vector2D" },
-          "velocity": { "$ref": "#/components/schemas/Vector2D" },
-          "isGrounded": { "type": "boolean", "example": true }
         }
       },
       "Vector2D": {
         "type": "object",
         "required": ["x", "y"],
         "properties": {
-          "x": { "type": "number", "example": 124.5 },
-          "y": { "type": "number", "example": 192.0 }
+          "x": {
+            "type": "number",
+            "format": "float",
+            "example": 128.5
+          },
+          "y": {
+            "type": "number",
+            "format": "float",
+            "example": 384.0
+          }
         }
       },
-      "ScoreSubmission": {
+      "AABBBox": {
         "type": "object",
-        "required": ["sessionId", "playerId", "levelId", "score", "coins", "clearTimeSeconds", "runHash"],
+        "required": ["x", "y", "width", "height"],
         "properties": {
-          "sessionId": { "type": "string", "format": "uuid" },
-          "playerId": { "type": "string", "example": "SpeedDemon99" },
-          "levelId": { "type": "string", "example": "world-1-1" },
-          "score": { "type": "integer", "example": 8500 },
-          "coins": { "type": "integer", "example": 24 },
-          "clearTimeSeconds": { "type": "number", "example": 48.7 },
-          "runHash": { "type": "string", "example": "8f4b23cd70ef118e9a263158c5a01bc8" }
+          "x": { "type": "number", "example": 120.0 },
+          "y": { "type": "number", "example": 380.0 },
+          "width": { "type": "number", "example": 16.0 },
+          "height": { "type": "number", "example": 16.0 }
         }
       },
-      "LeaderboardEntry": {
+      "MarioForm": {
+        "type": "string",
+        "enum": ["SMALL", "SUPER", "FIRE", "STAR_POWER"],
+        "example": "SMALL"
+      },
+      "MarioState": {
         "type": "object",
-        "required": ["rank", "playerId", "score", "coins", "clearTimeSeconds", "submittedAt"],
+        "required": ["position", "velocity", "form", "lives", "score", "coins", "isGrounded"],
         "properties": {
-          "rank": { "type": "integer", "example": 1 },
-          "playerId": { "type": "string", "example": "SpeedDemon99" },
-          "score": { "type": "integer", "example": 8500 },
-          "coins": { "type": "integer", "example": 24 },
-          "clearTimeSeconds": { "type": "number", "example": 48.7 },
-          "submittedAt": { "type": "string", "format": "date-time", "example": "2025-02-23T11:45:00Z" }
+          "position": {
+            "$ref": "#/components/schemas/Vector2D"
+          },
+          "velocity": {
+            "$ref": "#/components/schemas/Vector2D"
+          },
+          "form": {
+            "$ref": "#/components/schemas/MarioForm"
+          },
+          "lives": {
+            "type": "integer",
+            "example": 3
+          },
+          "score": {
+            "type": "integer",
+            "example": 1250
+          },
+          "coins": {
+            "type": "integer",
+            "example": 14
+          },
+          "isGrounded": {
+            "type": "boolean",
+            "example": true
+          },
+          "isFacingRight": {
+            "type": "boolean",
+            "example": true
+          },
+          "invincibleTimer": {
+            "type": "number",
+            "example": 0.0
+          }
         }
       },
-      "TelemetryBatch": {
+      "EntitySnapshot": {
         "type": "object",
-        "required": ["sessionId", "events"],
         "properties": {
-          "sessionId": { "type": "string", "format": "uuid" },
-          "events": {
+          "id": {
+            "type": "string",
+            "example": "goomba-004"
+          },
+          "type": {
+            "type": "string",
+            "enum": ["GOOMBA", "KOOPA", "COIN", "MUSHROOM", "FIRE_FLOWER", "STAR"],
+            "example": "GOOMBA"
+          },
+          "position": {
+            "$ref": "#/components/schemas/Vector2D"
+          },
+          "velocity": {
+            "$ref": "#/components/schemas/Vector2D"
+          },
+          "alive": {
+            "type": "boolean",
+            "example": true
+          }
+        }
+      },
+      "LevelSummary": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "world-1-1"
+          },
+          "name": {
+            "type": "string",
+            "example": "World 1-1 (Classic Plains)"
+          },
+          "theme": {
+            "type": "string",
+            "enum": ["OVERWORLD", "UNDERGROUND", "CASTLE", "UNDERWATER"],
+            "example": "OVERWORLD"
+          },
+          "widthTiles": {
+            "type": "integer",
+            "example": 224
+          },
+          "heightTiles": {
+            "type": "integer",
+            "example": 15
+          },
+          "timeLimit": {
+            "type": "integer",
+            "example": 400
+          }
+        }
+      },
+      "LevelDetail": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "example": "world-1-1" },
+          "name": { "type": "string", "example": "World 1-1" },
+          "tileSize": { "type": "integer", "example": 16 },
+          "gravity": { "type": "number", "example": 0.55 },
+          "backgroundColor": { "type": "string", "example": "#5c94fc" },
+          "playerSpawn": {
+            "$ref": "#/components/schemas/Vector2D"
+          },
+          "matrix": {
+            "type": "array",
+            "description": "ماتریس دوبعدی شماره آی‌دی تایل‌ها برای لایه سالید و بک‌گراند",
+            "items": {
+              "type": "array",
+              "items": { "type": "integer" }
+            }
+          },
+          "initialEntities": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/TelemetryEvent"
+              "$ref": "#/components/schemas/EntitySnapshot"
             }
           }
         }
       },
-      "TelemetryEvent": {
+      "SessionStartRequest": {
         "type": "object",
-        "required": ["eventType", "timestamp"],
+        "required": ["levelId", "playerName"],
         "properties": {
-          "eventType": {
-            "type": "string",
-            "enum": ["JUMP", "STOMP_ENEMY", "COIN_COLLECT", "BLOCK_HIT", "MARIO_DEATH", "FLAGPOLE_REACHED"],
-            "example": "STOMP_ENEMY"
-          },
-          "timestamp": { "type": "number", "example": 14.28 },
-          "coordinates": { "$ref": "#/components/schemas/Vector2D" },
-          "extra": {
-            "type": "object",
-            "additionalProperties": true
+          "levelId": { "type": "string", "example": "world-1-1" },
+          "playerName": { "type": "string", "example": "B2_Gamer" },
+          "retroShaderEnabled": { "type": "boolean", "default": true }
+        }
+      },
+      "SessionResponse": {
+        "type": "object",
+        "properties": {
+          "sessionId": { "type": "string", "format": "uuid", "example": "a1b2c3d4-e5f6-4789-abcd-0123456789ab" },
+          "levelId": { "type": "string", "example": "world-1-1" },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "initialState": { "$ref": "#/components/schemas/MarioState" }
+        }
+      },
+      "SessionStateUpdate": {
+        "type": "object",
+        "properties": {
+          "tick": { "type": "integer", "example": 1420 },
+          "cameraOffset": { "type": "number", "example": 320.0 },
+          "mario": { "$ref": "#/components/schemas/MarioState" },
+          "activeEntities": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/EntitySnapshot" }
           }
         }
       },
-      "ApiError": {
+      "SessionEvent": {
         "type": "object",
-        "required": ["error", "message", "statusCode"],
+        "required": ["eventType", "tick", "details"],
         "properties": {
-          "error": { "type": "string", "example": "NOT_FOUND" },
-          "message": { "type": "string", "example": "Level ID world-9-9 does not exist" },
-          "statusCode": { "type": "integer", "example": 404 }
+          "eventType": {
+            "type": "string",
+            "enum": ["JUMP", "STOMP_ENEMY", "COLLECT_COIN", "BREAK_BRICK", "POWER_UP", "DEATH", "FLAGPOLE_TOUCH"],
+            "example": "STOMP_ENEMY"
+          },
+          "tick": { "type": "integer", "example": 1420 },
+          "details": {
+            "type": "object",
+            "additionalProperties": true,
+            "example": { "enemyId": "goomba-002", "pointsAwarded": 100 }
+          }
+        }
+      },
+      "LeaderboardEntry": {
+        "type": "object",
+        "properties": {
+          "rank": { "type": "integer", "example": 1 },
+          "playerName": { "type": "string", "example": "MarioMaster_B2" },
+          "score": { "type": "integer", "example": 98450 },
+          "coins": { "type": "integer", "example": 68 },
+          "clearTimeSeconds": { "type": "number", "example": 128.4 },
+          "levelId": { "type": "string", "example": "world-1-1" },
+          "achievedAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "LeaderboardSubmission": {
+        "type": "object",
+        "required": ["sessionId", "playerName", "score", "coins", "clearTimeSeconds", "replayChecksum"],
+        "properties": {
+          "sessionId": { "type": "string", "format": "uuid" },
+          "playerName": { "type": "string", "example": "B2_Champion" },
+          "score": { "type": "integer", "example": 45600 },
+          "coins": { "type": "integer", "example": 25 },
+          "clearTimeSeconds": { "type": "number", "example": 194.2 },
+          "replayChecksum": { "type": "string", "example": "sha256-e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855" }
+        }
+      },
+      "SaveGamePayload": {
+        "type": "object",
+        "required": ["saveId", "timestamp", "levelId", "marioState"],
+        "properties": {
+          "saveId": { "type": "string", "example": "slot-1" },
+          "timestamp": { "type": "string", "format": "date-time" },
+          "levelId": { "type": "string", "example": "world-1-1" },
+          "cameraX": { "type": "number", "example": 480.0 },
+          "marioState": { "$ref": "#/components/schemas/MarioState" },
+          "eliminatedEntityIds": {
+            "type": "array",
+            "items": { "type": "string" },
+            "example": ["goomba-001", "goomba-002", "coin-block-014"]
+          }
+        }
+      },
+      "AssetManifest": {
+        "type": "object",
+        "properties": {
+          "spriteSheetUrl": { "type": "string", "example": "/assets/sprites/mario-tileset.png" },
+          "spriteWidth": { "type": "integer", "example": 16 },
+          "spriteHeight": { "type": "integer", "example": 16 },
+          "frames": {
+            "type": "object",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/AABBBox"
+            }
+          },
+          "audioTracks": {
+            "type": "object",
+            "additionalProperties": { "type": "string" },
+            "example": {
+              "theme_overworld": "/assets/audio/overworld.ogg",
+              "jump_small": "/assets/audio/jump-small.wav",
+              "coin": "/assets/audio/coin.wav",
+              "powerup": "/assets/audio/powerup.wav",
+              "die": "/assets/audio/die.wav"
+            }
+          }
+        }
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "code": { "type": "string", "example": "LEVEL_NOT_FOUND" },
+          "message": { "type": "string", "example": "مرحله با شناسه مشخص شده در پایگاه داده انجین یافت نشد." },
+          "timestamp": { "type": "string", "format": "date-time" }
         }
       }
     }

@@ -1,21 +1,23 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# B2.st Studio - Mario Game Engine Probe Script
-# Used by external orchestrators and monitoring agents
+# B2.st Studio - Standalone Runtime Health Probe
 # ==============================================================================
 
 set -euo pipefail
 
 TARGET_HOST="${1:-127.0.0.1}"
 TARGET_PORT="${2:-8080}"
-HEALTH_URL="http://${TARGET_HOST}:${TARGET_PORT}/healthz"
+ENDPOINT="http://${TARGET_HOST}:${TARGET_PORT}/healthz"
 
-STATUS_CODE=$(curl -s -o /dev/null -w "%{http_code}" "$HEALTH_URL" || echo "000")
+response=$(curl -s -w "\n%{http_code}" "${ENDPOINT}" || echo "FAILED")
 
-if [ "$STATUS_CODE" -eq 200 ]; then
-    echo "OK: Mario Engine service is healthy ($STATUS_CODE)."
+status_code=$(echo "$response" | tail -n1)
+body=$(echo "$response" | head -n -1)
+
+if [ "$status_code" -eq 200 ]; then
+    echo "[HEALTHY] Mario engine HTTP 200 OK - Response: ${body}"
     exit 0
 else
-    echo "CRITICAL: Mario Engine service returned HTTP $STATUS_CODE from $HEALTH_URL."
+    echo "[UNHEALTHY] Mario engine probe failed with status: ${status_code}"
     exit 1
 fi

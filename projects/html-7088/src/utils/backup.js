@@ -1,217 +1,152 @@
 /**
  * @file backup.js
- * @description موتور بکاپ‌گیری خودکار، اعتبارسنجی رمزنگاری و بازیابی وضعیت بازی ماریو
- * @author B2.st Cyber Defense & Reliability Unit
- * @version 2.4.0
+ * @description ماژول بازیابی و بکاپ خودکار بازی ماریو - استودیو B2.st
+ * @security سطح حفاظت لایه ۸: هشینگ یکپارچه داده، جلوگیری از دستکاری LocalStorage و مکانیزم Fallback ایمن
  */
 
-class MarioBackupEngine {
-    constructor(options = {}) {
-        this.storageKey = options.storageKey || 'mario_secure_save_v1';
-        this.backupSlotPrefix = options.backupSlotPrefix || 'mario_bk_slot_';
-        this.maxRollingBackups = options.maxRollingBackups || 5;
-        this.autoBackupIntervalMs = options.autoBackupIntervalMs || 60000; // هر ۱ دقیقه
-        this.cryptoKey = null;
-        this.intervalHandle = null;
-        this.lastSnapshotHash = null;
+class SecureBackupEngine {
+    constructor() {
+        this.storageKey = 'B2ST_MARIO_BACKUP_V1';
+        this.maxHistory = 5;
+        this.secretSalt = 'B2st_SecOps_Quantum_Salt_#2025';
+        this.autoBackupInterval = 60000; // هر یک دقیقه
+        this.intervalTimer = null;
     }
 
     /**
-     * مقداردهی اولیه کلید رمزنگاری محلی با استفاده از Web Crypto API
+     * تولید هش SHA-256 جهت راستی‌آزمایی یکپارچگی داده‌ها (Anti-Tampering)
      */
-    async initialize() {
+    async generateChecksum(dataString) {
+        const encoder = new TextEncoder();
+        const data = encoder.encode(dataString + this.secretSalt);
+        const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+        const hashArray = Array.from(new Uint8Array(hashBuffer));
+        return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+    }
+
+    /**
+     * ثبت اسنپ‌شات وضعیت با بررسی صحت و لایه هشینگ
+     */
+    async saveSnapshot(gameState) {
         try {
-            const rawKey = new TextEncoder().encode("B2st-Mario-Quantum-Guarded-Key-2025");
-            const hashBuffer = await crypto.subtle.digest('SHA-256', rawKey);
-            this.cryptoKey = await crypto.subtle.importKey(
-                'raw',
-                hashBuffer,
-                { name: 'HMAC', hash: 'SHA-256' },
-                false,
-                ['sign', 'verify']
-            );
-            this.startAutoBackup();
-            console.info("[B2.st Backup Engine] با موفقیت فعال و امن‌سازی شد.");
-        } catch (err) {
-            console.error("[B2.st Backup Engine] خطا در راه‌اندازی Web Crypto API:", err);
-        }
-    }
+            if (!gameState || typeof gameState !== 'object') {
+                throw new Error('فرمت وضعیت نامعتبر است.');
+            }
 
-    /**
-     * ایجاد امضای دیجیتال برای جلوگیری از دستکاری داده‌ها (Tamper-proof)
-     */
-    async generateSignature(payloadString) {
-        if (!this.cryptoKey) return null;
-        const data = new TextEncoder().encode(payloadString);
-        const signature = await crypto.subtle.sign('HMAC', this.cryptoKey, data);
-        return Array.from(new Uint8Array(signature))
-            .map(b => b.toString(16).padStart(2, '0'))
-            .join('');
-    }
+            const sanitizedState = {
+                score: Math.max(0, Number(gameState.score) || 0),
+                coins: Math.max(0, Number(gameState.coins) || 0),
+                lives: Math.max(1, Math.min(99, Number(gameState.lives) || 3)),
+                level: Math.max(1, Number(gameState.level) || 1),
+                timestamp: Date.now()
+            };
 
-    /**
-     * صحت‌سنجی یکپارچگی داده‌ها بر اساس امضای HMAC
-     */
-    async verifySignature(payloadString, hexSignature) {
-        if (!this.cryptoKey || !hexSignature) return false;
-        try {
-            const sigBytes = new Uint8Array(
-                hexSignature.match(/.{1,2}/g).map(byte => parseInt(byte, 16))
-            );
-            const data = new TextEncoder().encode(payloadString);
-            return await crypto.subtle.verify('HMAC', this.cryptoKey, sigBytes, data);
-        } catch {
+            const serialized = JSON.stringify(sanitizedState);
+            const checksum = await this.generateChecksum(serialized);
+
+            const payload = {
+                data: sanitizedState,
+                checksum: checksum
+            };
+
+            let history = this.getAllBackups();
+            history.unshift(payload);
+
+            if (history.length > this.maxHistory) {
+                history = history.slice(0, this.maxHistory);
+            }
+
+            localStorage.setItem(this.storageKey, JSON.stringify(history));
+            console.info('[B2.st Backup] اسنپ‌شات امن با موفقیت ثبت شد.');
+            return true;
+        } catch (error) {
+            console.error('[B2.st Backup Error] خطا در ذخیره‌سازی اسنپ‌شات:', error);
             return false;
         }
     }
 
     /**
-     * تولید اسنپ‌شات کامل از متغیرهای حیاتی بازی
+     * دریافت تمام نسخه‌ها از دیتابیس لوکال
      */
-    captureState(gameState) {
-        return {
-            timestamp: Date.now(),
-            version: '2.4.0',
-            player: {
-                lives: Number(gameState.lives) || 3,
-                score: Number(gameState.score) || 0,
-                coins: Number(gameState.coins) || 0,
-                power: gameState.power || 0, // 0: Normal, 1: Super
-                x: Math.round(gameState.playerX || 0),
-                y: Math.round(gameState.playerY || 0)
-            },
-            level: {
-                world: gameState.world || '1-1',
-                timeRemaining: Math.round(gameState.timeRemaining || 400),
-                scrollOffset: Math.round(gameState.cameraX || 0)
-            },
-            entropy: crypto.getRandomValues(new Uint32Array(1))[0]
-        };
-    }
-
-    /**
-     * ذخیره‌سازی داده با مکانیزم چرخش اسلات‌ها (Rolling Backup)
-     */
-    async save(gameState) {
+    getAllBackups() {
         try {
-            const rawState = this.captureState(gameState);
-            const serialized = JSON.stringify(rawState);
-            const signature = await this.generateSignature(serialized);
-
-            const record = {
-                data: rawState,
-                signature: signature
-            };
-
-            const recordString = JSON.stringify(record);
-
-            // ذخیره در اسلات اصلی
-            localStorage.setItem(this.storageKey, recordString);
-
-            // اضافه کردن به اسنپ‌شات‌های چرخشی
-            this.rotateBackupSlots(recordString);
-
-            this.lastSnapshotHash = signature;
-            return { success: true, timestamp: rawState.timestamp };
-        } catch (error) {
-            console.error("[B2.st Backup Engine] خطا در ذخیره‌سازی بکاپ:", error);
-            return { success: false, error: error.message };
-        }
-    }
-
-    rotateBackupSlots(serializedRecord) {
-        try {
-            for (let i = this.maxRollingBackups - 1; i >= 1; i--) {
-                const prev = localStorage.getItem(`${this.backupSlotPrefix}${i}`);
-                if (prev) {
-                    localStorage.setItem(`${this.backupSlotPrefix}${i + 1}`, prev);
-                }
-            }
-            localStorage.setItem(`${this.backupSlotPrefix}1`, serializedRecord);
+            const raw = localStorage.getItem(this.storageKey);
+            if (!raw) return [];
+            const parsed = JSON.parse(raw);
+            return Array.isArray(parsed) ? parsed : [];
         } catch (e) {
-            // حافظه LocalStorage تکمیل شده باشد
-            this.purgeOldBackups();
+            console.warn('[B2.st Backup] داده‌های آسیب‌دیده کشف شد. ریست پایگاه انجام شد.');
+            return [];
         }
     }
 
     /**
-     * بازیابی و راستی‌آزمایی آخرین اسنپ‌شات سالم
+     * بارگذاری آخرین نسخه پایدار با ممیزی یکپارچگی
      */
-    async loadLatest() {
-        try {
-            const primary = localStorage.getItem(this.storageKey);
-            if (primary) {
-                const parsed = JSON.parse(primary);
-                const isValid = await this.verifySignature(JSON.stringify(parsed.data), parsed.signature);
-                if (isValid) {
-                    return { success: true, state: parsed.data, slot: 'primary' };
+    async restoreLatest() {
+        const history = this.getAllBackups();
+        if (history.length === 0) {
+            return this.getDefaultState();
+        }
+
+        for (const backup of history) {
+            try {
+                if (!backup.data || !backup.checksum) continue;
+                const serialized = JSON.stringify(backup.data);
+                const calculatedHash = await this.generateChecksum(serialized);
+
+                if (calculatedHash === backup.checksum) {
+                    console.info('[B2.st Backup] بکاپ با امضای معتبر بازگردانی شد:', backup.data);
+                    return backup.data;
+                } else {
+                    console.warn('[B2.st Backup Alert] داده نامعتبر یا دستکاری شده نادیده گرفته شد.');
                 }
-                console.warn("[B2.st Backup Engine] هشدار: داده اسلات اصلی مخدوش است. جستجو در نسخه‌های پشتیبان...");
+            } catch (err) {
+                console.error('[B2.st Backup Error] خطا در صحت‌سنجی نود:', err);
             }
-
-            // فال‌بک به اسلات‌های چرخشی
-            for (let i = 1; i <= this.maxRollingBackups; i++) {
-                const slotKey = `${this.backupSlotPrefix}${i}`;
-                const slotData = localStorage.getItem(slotKey);
-                if (!slotData) continue;
-
-                const parsed = JSON.parse(slotData);
-                const isValid = await this.verifySignature(JSON.stringify(parsed.data), parsed.signature);
-                if (isValid) {
-                    console.info(`[B2.st Backup Engine] بازیابی موفق از اسلات شماره ${i}`);
-                    return { success: true, state: parsed.data, slot: slotKey };
-                }
-            }
-
-            return { success: false, reason: 'هیچ نسخه پشتیبان معتبری یافت نشد.' };
-        } catch (err) {
-            console.error("[B2.st Backup Engine] خطا در بازخوانی بکاپ:", err);
-            return { success: false, error: err.message };
         }
+
+        console.warn('[B2.st Backup] هیچ بکاپ سالمی یافت نشد. استفاده از پروفایل استاندارد.');
+        return this.getDefaultState();
     }
 
     /**
-     * تخلیه اسلات‌های قدیمی در صورت اتمام ظرفیت
+     * خروجی امن پیش‌فرض (Zero-Trust Failover)
      */
-    purgeOldBackups() {
-        for (let i = Math.floor(this.maxRollingBackups / 2); i <= this.maxRollingBackups; i++) {
-            localStorage.removeItem(`${this.backupSlotPrefix}${i}`);
-        }
+    getDefaultState() {
+        return Object.freeze({
+            score: 0,
+            coins: 0,
+            lives: 3,
+            level: 1,
+            timestamp: Date.now()
+        });
     }
 
     /**
-     * زمان‌بندی بکاپ خودکار پیوسته
+     * راه‌اندازی تایمر بکاپ خودکار
      */
-    startAutoBackup() {
-        if (this.intervalHandle) clearInterval(this.intervalHandle);
-        this.intervalHandle = setInterval(() => {
-            if (window.MarioGameInstance && window.MarioGameInstance.isRunning) {
-                this.save(window.MarioGameInstance.getStateSnapshot());
+    initAutoBackup(stateProvider) {
+        if (this.intervalTimer) clearInterval(this.intervalTimer);
+        this.intervalTimer = setInterval(async () => {
+            if (typeof stateProvider === 'function') {
+                const currentState = stateProvider();
+                await this.saveSnapshot(currentState);
             }
-        }, this.autoBackupIntervalMs);
-    }
-
-    stopAutoBackup() {
-        if (this.intervalHandle) clearInterval(this.intervalHandle);
+        }, this.autoBackupInterval);
     }
 
     /**
-     * خروجی فایل دانلودی جهت پشتیبان‌گیری سرد
+     * تخریب و توقف پردازش
      */
-    exportToFile() {
-        const primary = localStorage.getItem(this.storageKey);
-        if (!primary) throw new Error("هیچ دادهای برای ذخیره‌سازی ابری موجود نیست.");
-        const blob = new Blob([primary], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `mario_backup_${Date.now()}.b2st`;
-        a.click();
-        URL.revokeObjectURL(url);
+    dispose() {
+        if (this.intervalTimer) {
+            clearInterval(this.intervalTimer);
+            this.intervalTimer = null;
+        }
     }
 }
 
-// ثبت به عنوان ماژول سراسری محافظت‌شده
 if (typeof window !== 'undefined') {
-    window.MarioBackupEngine = MarioBackupEngine;
+    window.B2stBackup = new SecureBackupEngine();
 }

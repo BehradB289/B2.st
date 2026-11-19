@@ -1,53 +1,105 @@
 /**
- * @file InputHandler.js
- * @description مدیریت پایدار و امن کلیدهای فشرده‌شده بدون نشت حافظه
+ * Low-latency Keyboard & Touch Input Controller
+ * Studio: B2.st
+ * Integrated with RateLimiter to throttle action triggers and prevent key bouncing
  */
+
+import { globalActionLimiter } from '../core/performance_cache.js';
+import { GameConfig } from '../../config/game.config.js';
 
 export class InputHandler {
     constructor() {
-        /** @type {Set<string>} */
-        this.activeKeys = new Set();
+        this.keys = {
+            left: false,
+            right: false,
+            up: false,
+            down: false,
+            jump: false,
+            run: false,
+            pause: false
+        };
 
-        this.allowedKeys = new Set([
-            'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown',
-            'KeyA', 'KeyD', 'KeyW', 'KeyS',
-            'Space'
-        ]);
+        this.jumpPressedLastFrame = false;
+        this.pausePressedLastFrame = false;
+        this.onPauseToggle = null;
 
-        this._bindEvents();
+        this._setupKeyboardListeners();
     }
 
-    _bindEvents() {
-        window.addEventListener('keydown', (event) => {
-            if (this.allowedKeys.has(event.code)) {
-                this.activeKeys.add(event.code);
-                // ممانعت از اسکرول صفحه حین بازی
-                if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.code)) {
-                    event.preventDefault();
+    _setupKeyboardListeners() {
+        window.addEventListener('keydown', (e) => {
+            this._handleKey(e.code, true);
+
+            // Throttle pause toggle with sliding-window limiter
+            if (e.code === 'KeyP' || e.code === 'Escape') {
+                if (globalActionLimiter.throttle('input_pause_toggle', GameConfig.rateLimits.pauseToggleThrottle)) {
+                    if (this.onPauseToggle) this.onPauseToggle();
                 }
             }
         });
 
-        window.addEventListener('keyup', (event) => {
-            if (this.allowedKeys.has(event.code)) {
-                this.activeKeys.delete(event.code);
-            }
+        window.addEventListener('keyup', (e) => {
+            this._handleKey(e.code, false);
         });
+    }
 
-        window.addEventListener('blur', () => {
-            this.clear();
-        });
+    _handleKey(code, isDown) {
+        switch (code) {
+            case 'ArrowLeft':
+            case 'KeyA':
+                this.keys.left = isDown;
+                break;
+            case 'ArrowRight':
+            case 'KeyD':
+                this.keys.right = isDown;
+                break;
+            case 'ArrowDown':
+            case 'KeyS':
+                this.keys.down = isDown;
+                break;
+            case 'ArrowUp':
+            case 'KeyW':
+                this.keys.up = isDown;
+                break;
+            case 'Space':
+            case 'KeyZ':
+                this.keys.jump = isDown;
+                break;
+            case 'ShiftLeft':
+            case 'ShiftRight':
+            case 'KeyX':
+                this.keys.run = isDown;
+                break;
+        }
     }
 
     /**
-     * @param {string[]} codes 
-     * @returns {boolean}
+     * Check if jump key was struck on this exact frame (rising edge)
+     * Throttled by Token Bucket Rate Limiter
      */
-    isPressed(...codes) {
-        return codes.some(code => this.activeKeys.has(code));
+    isJumpTriggered() {
+        const triggered = this.keys.jump && !this.jumpPressedLastFrame;
+        this.jumpPressedLastFrame = this.keys.jump;
+
+        if (triggered) {
+            // Apply token bucket rate limit to jump events
+            return globalActionLimiter.consume(
+                'player_jump_action',
+                GameConfig.rateLimits.jumpBurst,
+                GameConfig.rateLimits.jumpRefillRate
+            );
+        }
+        return false;
     }
 
-    clear() {
-        this.activeKeys.clear();
+    isJumpHeld() {
+        return this.keys.jump;
+    }
+
+    reset() {
+        for (const key in this.keys) {
+            this.keys[key] = false;
+        }
+        this.jumpPressedLastFrame = false;
     }
 }

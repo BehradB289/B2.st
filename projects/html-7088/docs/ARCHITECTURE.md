@@ -1,69 +1,70 @@
-# Architecture & Technical Documentation
+# 🕹️ B2.st Mario 2D Canvas Engine - Architecture & Caching Specification
 
-**Studio:** B2.st  
-**Project:** Super Mario Bros HTML5 ECS Engine  
-**Release:** High-Performance Modular Game Engine with In-Memory Caching & Rate Limiting  
+## 1. Executive Summary
+This document specifies the technical design for the high-performance Super Mario 2D Canvas engine built by studio B2.st. The system combines an Entity-Component-System (ECS-Lite) paradigm with an intelligent in-memory multi-tiered LRU/TTL caching accelerator and a Token Bucket Rate Limiter.
 
 ---
 
-## 1. Architectural Layers Overview
-
-The codebase is organized into four distinct decoupled layers:
+## 2. Layer Topology
 
 ```
-├── config/
-│   └── game_config.js               # Central balance constants & cache config
-├── src/
-│   ├── core/
-│   │   └── performance_cache.js     # Intelligent In-Memory Cache (LRU/TTL) + Token Bucket Rate Limiter
-│   ├── engine/
-│   │   ├── game_loop.js             # Fixed-timestep loop (60 Hz) with interpolation
-│   │   ├── camera.js                # Viewport culling & rightward tracking
-│   │   ├── physics.js               # AABB tile sweep & entity collision solver
-│   │   └── input_handler.js         # Input processor with rate-limited triggers
-│   ├── entities/
-│   │   ├── entity.js                # Base ECS entity
-│   │   ├── mario.js                 # Player state machine & rasterized sprites
-│   │   ├── goomba.js                # Enemy AI & stomp physics
-│   │   └── collectible.js           # Coins and particle fragments
-│   ├── levels/
-│   │   └── level_manager.js         # World 1-1 tile matrix & offscreen chunk caching
-│   └── audio/
-│       └── retro_audio.js           # Procedural Web Audio API NES synthesizer
-├── public/
-│   ├── index.html                   # NES Shell UI, HUD & touch gamepad
-│   ├── style.css                    # CRT scanlines & pixel styling
-│   └── main.js                      # System bootstrapper
-└── tests/
-    ├── test_runner.js               # Zero-dependency test harness
-    ├── performance_cache.test.js    # Caching & Rate Limiting unit tests
-    └── physics.test.js              # AABB & Gravity unit tests
+┌────────────────────────────────────────────────────────┐
+│                   Arcade Shell & HUD                   │
+│              (public/index.html & CSS CRT)             │
+└───────────────────────────┬────────────────────────────┘
+                            │
+┌───────────────────────────▼────────────────────────────┐
+│                  Master Game Controller                │
+│                      (src/main.js)                     │
+├───────────────────────────┬────────────────────────────┤
+│   src/engine/GameLoop     │   src/core/performance_    │
+│   src/engine/Physics      │   cache.js                 │
+│   src/engine/Camera       │   - In-Memory LRU/TTL      │
+│   src/engine/AudioEngine  │   - Token Bucket Limiter   │
+└─────────────┬─────────────┴─────────────┬──────────────┘
+              │                           │
+┌─────────────▼─────────────┐ ┌───────────▼──────────────┐
+│       src/entities/       │ │       src/levels/        │
+│   - Mario (State Machine) │ │   - TileMap (Chunking)   │
+│   - Goomba (Patrol/Squish)│ │   - Level1 (SMB 1-1)     │
+│   - Koopa (Shell Physic)  │ │   - Offscreen Bitmaps    │
+└───────────────────────────┘ └──────────────────────────┘
 ```
 
 ---
 
-## 2. In-Memory Performance Cache & Rate Limiter (`src/core/performance_cache.js`)
+## 3. Intelligent In-Memory Cache (`src/core/performance_cache.js`)
 
-### 2.1 PerformanceCache
-* **Storage Structure:** Native JavaScript `Map` tracking insertion & LRU access ordering.
-* **Eviction Policies:**
-  * **TTL (Time-To-Live):** Configurable per item or defaults to `GAME_CONFIG.CACHE.DEFAULT_TTL_MS`.
-  * **LRU (Least Recently Used):** When capacity exceeds `maxEntries`, the oldest unaccessed item is purged.
-* **Chunk & Sprite Rasterization:** Pre-renders complex vector/pixel drawing instructions onto offscreen `HTMLCanvasElement` buffers and stores them in memory, reducing runtime draw overhead by over 70%.
-* **Telemetry:** Real-time tracking of hits, misses, evictions, and cache hit rate percentage rendered directly onto the HUD.
+### 3.1 LRU (Least Recently Used) Eviction
+- Employs JavaScript `Map` insertion-order guarantees to achieve genuine **$O(1)$** eviction without overhead of doubly linked lists.
+- Accessing an entry via `.get(key)` re-inserts the entry at the tail of the key list.
+- When `size >= maxEntries`, `map.keys().next().value` yields the oldest entry in $O(1)$ time.
 
-### 2.2 Rate Limiter
-* **Algorithm:** Token-Bucket.
-* **Application:** Prevents frame rate spikes caused by spamming jump inputs, generating unbounded particle bursts, or overloading Web Audio oscillators.
+### 3.2 Time-To-Live (TTL) Pruning
+- Supports dual eviction:
+  1. **Lazy Eviction:** Checked during `.get(key)`. Expired entries are deleted immediately.
+  2. **Active Batch Sweep:** Invoked via `.purgeExpired()` periodically by the main loop to clean orphaned spatial indices.
+
+### 3.3 Offscreen Pre-rendering Accelerator
+- Procedural pixel-art sprites (Mario frames, Goomba, Pipes, Bricks) are rendered once to detached HTML5 `OffscreenCanvas` surfaces and cached in `globalSpriteCache`.
+- Replaces thousands of repetitive Canvas2D path drawing commands per second with single `ctx.drawImage` operations.
 
 ---
 
-## 3. Running Unit Tests
+## 4. Rate Limiter Mechanics
 
-### In Node.js:
-```bash
-node tests/physics.test.js
-```
+### 4.1 Token Bucket Algorithm
+- Controls high-frequency continuous actions:
+  $$\text{tokens} = \min(\text{maxTokens}, \text{tokens} + \Delta t \times \text{refillRate})$$
+- Applied to jump commands to eliminate ghost key toggling and physics glitch exploits.
 
-### In Browser:
-Import and run `runner.run()` in the browser developer console or include `test_runner.js` into an HTML harness.
+### 4.2 Sliding Window Throttle
+- Applied to synthesized Web Audio triggers (`playJump`, `playBump`, `playCoin`) to prevent audio buffer overruns and clipping.
+
+---
+
+## 5. Physics & AABB Solver
+- Two-pass axis-independent resolution:
+  1. **X-Axis:** Update position $\rightarrow$ Query nearby tiles in spatial index $\rightarrow$ Clamp position $\rightarrow$ Zero horizontal velocity.
+  2. **Y-Axis:** Update position $\rightarrow$ Query nearby tiles $\rightarrow$ Detect ground or ceiling $\rightarrow$ Trigger event callbacks.
+- Guarantees zero tunneling through blocks and zero corner snags.

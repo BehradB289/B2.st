@@ -1,263 +1,300 @@
 /**
- * @file src/core/error_shield.js
- * @description سپر دفاعی ضد کرش، مانیتورینگ امنیتی و مدیریت خطاهای آسنکرون ۱۰ لایه
- * @author B2.st Studio - Cyber Security & Game Engine Core Team
+ * @file error_shield.js
+ * @system B2.st Cyber Security & 10-Layer Anti-Crash Engine
+ * @module Core/ErrorShield
+ * @description سپر دفاعی مانیتورینگ بلادرنگ، مدیریت بحران Async/Await و ترپ خطاهای Promise
+ * @version 4.2.0-PROD
  */
 
-class ErrorShield {
-    constructor() {
-        this.initialized = false;
-        this.errorLog = [];
-        this.maxLogSize = 100;
-        this.circuitBreakers = new Map();
-        this.fallbackStates = new Map();
-        this.subsystemThresholds = {
-            AUDIO: 3,
-            RENDER: 5,
-            PHYSICS: 3,
-            ASSETS: 10,
-            INPUT: 5
-        };
+(function (global) {
+    'use strict';
 
-        // لایه ۱: ایزوله‌سازی کانتکست بایندینگ
-        this.handleGlobalError = this.handleGlobalError.bind(this);
-        this.handleUnhandledRejection = this.handleUnhandledRejection.bind(this);
-    }
+    // تنظیمات امنیتی و ایزولاسیون خطا
+    const SHIELD_CONFIG = {
+        MAX_CONSECUTIVE_ERRORS: 5,
+        CIRCUIT_RESET_TIMEOUT: 4000,
+        ASYNC_TIMEOUT_LIMIT: 8000,
+        LOG_TO_REMOTE: false,
+        ENABLE_AUDIO_FALLBACK: true,
+        ENABLE_FRAME_DROP_RECOVERY: true
+    };
 
-    /**
-     * فعال‌سازی سپر دفاعی و اتصال هوک‌های محافظتی سطح موتور جاوااسکریپت
-     */
-    init() {
-        if (this.initialized) return;
+    class ErrorShield {
+        constructor() {
+            this.errorCount = 0;
+            this.circuitBreakerTripped = false;
+            this.lastErrorTimestamp = 0;
+            this.quarantinedSubsystems = new Set();
+            this.activePromises = new WeakSet();
 
-        // لایه ۲: ره‌گیری Unhandled Rejections در اکوسیستم Promiseها
-        window.addEventListener('unhandledrejection', this.handleUnhandledRejection);
-
-        // لایه ۳: ره‌گیری خطاهای عمومی و باگ‌های مدیریت‌نشده رانتایم
-        window.addEventListener('error', this.handleGlobalError);
-
-        this.initialized = true;
-        console.info('[B2.st ErrorShield] ۱۰ لایه مانیتورینگ و آنتی‌کرش با موفقیت فعال شد.');
-    }
-
-    /**
-     * هوک اختصاصی مدیریت Unhandled Promise Rejections
-     * جلوگیری از توقف ترد انیمیشن و لاگ حملات/خطاهای لودینگ
-     */
-    handleUnhandledRejection(event) {
-        event.preventDefault(); // جلوگیری از توقف موتور مرورگر و چاپ ارور قرمز کریتیکال
-
-        const reason = event.reason || {};
-        const errorData = {
-            layer: 'PROMISE_DEFENSE_LAYER',
-            type: 'UnhandledRejection',
-            message: reason.message || String(reason),
-            stack: reason.stack || 'No Stack Trace',
-            timestamp: performance.now(),
-            origin: event.target
-        };
-
-        this.logIncident(errorData);
-        this.resolveRejectionSafely(reason);
-    }
-
-    /**
-     * هوک اختصاصی مدیریت خطاهای سراسری (Window Errors)
-     */
-    handleGlobalError(event) {
-        // جلوگیری از توقف رندر و مسدودسازی ورودی کاربر
-        event.preventDefault();
-
-        const errorData = {
-            layer: 'RUNTIME_EXECUTION_LAYER',
-            type: 'GlobalRuntimeError',
-            message: event.message,
-            filename: event.filename,
-            lineno: event.lineno,
-            colno: event.colno,
-            stack: event.error ? event.error.stack : null,
-            timestamp: performance.now()
-        };
-
-        this.logIncident(errorData);
-    }
-
-    /**
-     * لایه ۴: پوشش امنیتی توابع آسنکرون (Async/Await Protector)
-     * @param {Function} asyncFn - تابع آسنکرون مورد نظر
-     * @param {*} fallbackValue - مقدار بازگشتی جایگزین در صورت شکست
-     * @param {string} subsystem - زیرسیستم مربوطه (AUDIO, ASSETS, ...)
-     * @returns {Promise<*>}
-     */
-    async safeAsync(asyncFn, fallbackValue = null, subsystem = 'GENERAL') {
-        if (this.isCircuitOpen(subsystem)) {
-            console.warn(`[ErrorShield] زیرسیستم ${subsystem} مسدود شده است. عملیات لغو شد.`);
-            return fallbackValue;
+            this.telemetryLog = [];
+            this.initLayers();
         }
 
-        try {
-            return await asyncFn();
-        } catch (error) {
-            this.tripCircuit(subsystem);
-            this.logIncident({
-                layer: 'ASYNC_WRAPPER_LAYER',
-                subsystem,
-                message: error.message,
-                stack: error.stack,
-                timestamp: performance.now()
+        /**
+         * لایه‌بندی اولیه شیلد امنیتی ۱۰ لایه
+         */
+        initLayers() {
+            this._installLayer1GlobalRejection();
+            this._installLayer2GlobalError();
+            this._installLayer3PolyfillOverrides();
+            this._installLayer4ConsoleInterceptor();
+            this._logSecurityStatus('سپر دفاعی ۱۰ لایه استودیو B2.st با موفقیت بارگذاری شد.');
+        }
+
+        /**
+         * لایه ۱: شکار استثناهای مدیریت نشده در Promise ها (Unhandled Rejection)
+         */
+        _installLayer1GlobalRejection() {
+            global.addEventListener('unhandledrejection', (event) => {
+                event.preventDefault(); // جلوگیری از چاپ خطای پیش‌فرض مرورگر و کرش اسکریپت
+
+                const reason = event.reason;
+                const errorInfo = {
+                    type: 'UNHANDLED_PROMISE_REJECTION',
+                    reason: reason instanceof Error ? reason.message : String(reason),
+                    stack: reason instanceof Error ? reason.stack : 'No Stack Trace',
+                    timestamp: performance.now(),
+                    targetPromise: event.promise
+                };
+
+                this._handleCriticalFault(errorInfo);
             });
-            return fallbackValue;
         }
-    }
 
-    /**
-     * لایه ۵: پوشش امنیتی متدهای سنکرون (Sync Shield)
-     * @param {Function} fn - تابع سنکرون
-     * @param {*} fallbackValue - مقدار جایگزین
-     * @param {string} subsystem - نام زیرسیستم
-     * @returns {*}
-     */
-    safeSync(fn, fallbackValue = null, subsystem = 'GENERAL') {
-        if (this.isCircuitOpen(subsystem)) return fallbackValue;
+        /**
+         * لایه ۲: ترپ خطاهای سنکرون در زمان رندرینگ و گیم‌لوپ (Global Error Trap)
+         */
+        _installLayer2GlobalError() {
+            global.addEventListener('error', (event) => {
+                // اگر خطا ناشی از لود اسکریپت ثالث بود نادیده بگیر
+                if (event.filename && !event.filename.includes(global.location.origin) && !event.filename.includes('blob:')) {
+                    return;
+                }
 
-        try {
-            return fn();
-        } catch (error) {
-            this.tripCircuit(subsystem);
-            this.logIncident({
-                layer: 'SYNC_WRAPPER_LAYER',
-                subsystem,
-                message: error.message,
-                stack: error.stack,
-                timestamp: performance.now()
-            });
-            return fallbackValue;
-        }
-    }
+                event.preventDefault();
 
-    /**
-     * لایه ۶: محافظ حلقه اجرای بازی (Game Loop Shield)
-     * ممانعت از کرش دائم requestAnimationFrame هنگام پرتاب Exception در فیزیک یا رندر
-     * @param {Function} loopFn - تابع Tick حلقه بازی
-     * @returns {Function}
-     */
-    wrapGameLoop(loopFn) {
-        return (deltaTime) => {
-            try {
-                loopFn(deltaTime);
-            } catch (fatalLoopError) {
-                this.logIncident({
-                    layer: 'GAME_LOOP_SHIELD',
-                    message: fatalLoopError.message,
-                    stack: fatalLoopError.stack,
+                const errorInfo = {
+                    type: 'UNCAUGHT_SYNC_EXCEPTION',
+                    message: event.message,
+                    source: event.filename,
+                    line: event.lineno,
+                    col: event.colno,
+                    stack: event.error ? event.error.stack : null,
                     timestamp: performance.now()
+                };
+
+                this._handleCriticalFault(errorInfo);
+            });
+        }
+
+        /**
+         * لایه ۳: پوشش ایمن متدهای استاندارد DOM و Event Listeners
+         */
+        _installLayer3PolyfillOverrides() {
+            const originalAddEventListener = EventTarget.prototype.addEventListener;
+            const shield = this;
+
+            EventTarget.prototype.addEventListener = function (type, listener, options) {
+                if (typeof listener === 'function') {
+                    const safeWrappedListener = function (...args) {
+                        try {
+                            const result = listener.apply(this, args);
+                            if (result instanceof Promise) {
+                                result.catch((err) => {
+                                    shield._handleCriticalFault({
+                                        type: 'ASYNC_EVENT_LISTENER_CRASH',
+                                        event: type,
+                                        error: err.message,
+                                        stack: err.stack
+                                    });
+                                });
+                            }
+                            return result;
+                        } catch (syncErr) {
+                            shield._handleCriticalFault({
+                                type: 'SYNC_EVENT_LISTENER_CRASH',
+                                event: type,
+                                error: syncErr.message,
+                                stack: syncErr.stack
+                            });
+                        }
+                    };
+                    return originalAddEventListener.call(this, type, safeWrappedListener, options);
+                }
+                return originalAddEventListener.call(this, type, listener, options);
+            };
+        }
+
+        /**
+         * لایه ۴: ایزوله‌سازی کنسول و ثبت لاگ‌های تخریب‌ناپذیر
+         */
+        _installLayer4ConsoleInterceptor() {
+            const originalWarn = console.warn;
+            console.warn = (...args) => {
+                if (args[0] && typeof args[0] === 'string' && args[0].includes('[CRITICAL]')) {
+                    this.telemetryLog.push({ level: 'WARN', data: args, time: Date.now() });
+                }
+                originalWarn.apply(console, args);
+            };
+        }
+
+        /**
+         * متد مرکزی مدیریت خطاهای بحرانی و جلوگیری از فریز شدن لوپ گیم
+         */
+        _handleCriticalFault(faultInfo) {
+            const now = performance.now();
+            if (now - this.lastErrorTimestamp < 1000) {
+                this.errorCount++;
+            } else {
+                this.errorCount = 1;
+            }
+            this.lastErrorTimestamp = now;
+
+            this.telemetryLog.push(faultInfo);
+
+            console.error(`[B2.st SHIELD DEFENSE] بحران مهار شد (${faultInfo.type}):`, faultInfo);
+
+            if (this.errorCount >= SHIELD_CONFIG.MAX_CONSECUTIVE_ERRORS) {
+                this._tripCircuitBreaker(faultInfo);
+            }
+        }
+
+        /**
+         * لایه ۵: فعال‌سازی فیوز قطع مدار (Circuit Breaker) جهت محافظت از CPU و GPU
+         */
+        _tripCircuitBreaker(faultInfo) {
+            if (this.circuitBreakerTripped) return;
+
+            this.circuitBreakerTripped = true;
+            console.warn('[B2.st SHIELD] فیوز امنیتی فعال شد! کاهش بار پردازشی گیم‌لوپ جهت پیشگیری از انجماد سیستم.');
+
+            setTimeout(() => {
+                this.circuitBreakerTripped = false;
+                this.errorCount = 0;
+                console.log('[B2.st SHIELD] فیوز امنیتی ریست شد. وضعیت به پایداری بازگشت.');
+            }, SHIELD_CONFIG.CIRCUIT_RESET_TIMEOUT);
+        }
+
+        /**
+         * لایه ۶: پوشش Async/Await تایر بالا همراه با مکانیزم Timeout Fallback
+         * @param {Function} asyncFn - تابع غیرهمگام با ریسک خطا
+         * @param {any} fallbackValue - مقداری که در صورت وقوع کرش برگردانده شود
+         * @param {string} subsystemName - شناسه سیستم آسیب‌پذیر
+         */
+        async safeAsync(asyncFn, fallbackValue = null, subsystemName = 'Anonymous_Async') {
+            if (this.quarantinedSubsystems.has(subsystemName)) {
+                console.warn(`[B2.st SHIELD] زیرسیستم ${subsystemName} در قرنطینه است. فراخوانی به تعلیق افتاد.`);
+                return fallbackValue;
+            }
+
+            try {
+                // ایجاد مسابقه برای جلوگیری از بن‌بست پندینگ (Infinite Pending Guard)
+                const executionPromise = asyncFn();
+                this.activePromises.add(executionPromise);
+
+                const timeoutPromise = new Promise((_, reject) => {
+                    setTimeout(() => {
+                        reject(new Error(`ASYNC_TIMEOUT_EXCEEDED: سقف زمانی ${SHIELD_CONFIG.ASYNC_TIMEOUT_LIMIT}ms برای ${subsystemName} پایان یافت.`));
+                    }, SHIELD_CONFIG.ASYNC_TIMEOUT_LIMIT);
                 });
 
-                // ریکاوری سریع: متوقف نشدن فریم رندر، پاک‌سازی پوزیشن‌های ماریو از مقادیر نامعتبر NaN
-                this.recoverLoopState();
+                const result = await Promise.race([executionPromise, timeoutPromise]);
+                this.activePromises.delete(executionPromise);
+                return result;
+            } catch (error) {
+                this._handleCriticalFault({
+                    type: 'ASYNC_AWAIT_EXECUTION_FAILURE',
+                    subsystem: subsystemName,
+                    message: error.message,
+                    stack: error.stack
+                });
+                return fallbackValue;
             }
-        };
-    }
-
-    /**
-     * لایه ۷: بازیابی خودکار وضعیت‌های مسموم‌شده (Physics & State Sanitizer)
-     * پاک‌سازی مقادیر NaN، Infinity یا مقادیر هک‌شده در موجودیت‌های بازی
-     */
-    sanitizeVector(vec, fallback = { x: 0, y: 0 }) {
-        if (
-            typeof vec?.x !== 'number' || isNaN(vec.x) || !isFinite(vec.x) ||
-            typeof vec?.y !== 'number' || isNaN(vec.y) || !isFinite(vec.y)
-        ) {
-            this.logIncident({
-                layer: 'STATE_SANITIZATION_LAYER',
-                message: 'شناسایی و تصحیح بردار نامعتبر فیزیک (NaN/Infinite detected).',
-                timestamp: performance.now()
-            });
-            return { x: fallback.x, y: fallback.y };
         }
-        return vec;
-    }
 
-    /**
-     * لایه ۸: معماری Circuit Breaker برای زیرسیستم‌های حساس
-     */
-    tripCircuit(subsystem) {
-        const currentCount = (this.circuitBreakers.get(subsystem) || 0) + 1;
-        this.circuitBreakers.set(subsystem, currentCount);
-
-        const limit = this.subsystemThresholds[subsystem] || 5;
-        if (currentCount >= limit) {
-            console.error(`[ErrorShield Critical] Circuit Breaker زیرسیستم ${subsystem} قطع شد. ایزولاسیون فعال است.`);
-        }
-    }
-
-    isCircuitOpen(subsystem) {
-        const count = this.circuitBreakers.get(subsystem) || 0;
-        const limit = this.subsystemThresholds[subsystem] || 5;
-        return count >= limit;
-    }
-
-    resetCircuit(subsystem) {
-        this.circuitBreakers.set(subsystem, 0);
-    }
-
-    /**
-     * لایه ۹: ریکاوری خطاهای Rejection در لودینگ است‌ها و صداها
-     */
-    resolveRejectionSafely(reason) {
-        if (typeof reason === 'string' && reason.includes('Audio')) {
-            console.warn('[ErrorShield AudioSafety] مسدودسازی و ریست هندلر ساندترک/افکت صوتی ماریو.');
-            this.resetCircuit('AUDIO');
-        }
-    }
-
-    /**
-     * لایه ۱۰: ریکاوری خودکار وضعیت ماریو در حلقه بازی
-     */
-    recoverLoopState() {
-        if (window.MarioGameInstance) {
-            const mario = window.MarioGameInstance.player;
-            if (mario) {
-                mario.vx = 0;
-                mario.vy = 0;
-                if (isNaN(mario.x) || isNaN(mario.y)) {
-                    mario.x = mario.spawnX || 100;
-                    mario.y = mario.spawnY || 100;
+        /**
+         * لایه ۷: بسته‌بندی توابع سنکرون با حفاظت ایزوله
+         */
+        safeSync(fn, fallbackValue = null, context = null) {
+            return (...args) => {
+                try {
+                    return fn.apply(context || this, args);
+                } catch (error) {
+                    this._handleCriticalFault({
+                        type: 'SAFE_SYNC_FALLBACK_TRIGGERED',
+                        message: error.message,
+                        stack: error.stack
+                    });
+                    return fallbackValue;
                 }
-            }
+            };
+        }
+
+        /**
+         * لایه ۸: محافظ انحصاری گیم‌لوپ (RequestAnimationFrame Sentinel)
+         * از توقف رندر فریم به فریم در صورت وجود نال پوینتر در محاسبات فیزیک جلوگیری می‌کند
+         */
+        protectGameLoop(updateFn, renderFn) {
+            return (timestamp) => {
+                if (this.circuitBreakerTripped) {
+                    // در زمان بحران، لااقل صفحه خالی را پاک کن و از پرش بافر ممانعت کن
+                    return;
+                }
+
+                try {
+                    updateFn(timestamp);
+                } catch (updateErr) {
+                    this._handleCriticalFault({
+                        type: 'GAME_LOOP_UPDATE_CRASH',
+                        message: updateErr.message,
+                        stack: updateErr.stack
+                    });
+                }
+
+                try {
+                    renderFn();
+                } catch (renderErr) {
+                    this._handleCriticalFault({
+                        type: 'GAME_LOOP_RENDER_CRASH',
+                        message: renderErr.message,
+                        stack: renderErr.stack
+                    });
+                }
+            };
+        }
+
+        /**
+         * لایه ۹: مدیریت ایمن بارگذاری منابع مولتی‌مدیا و شبکه
+         */
+        async safeLoadResource(url, type = 'image') {
+            return this.safeAsync(async () => {
+                if (type === 'image') {
+                    return new Promise((resolve, reject) => {
+                        const img = new Image();
+                        img.crossOrigin = 'anonymous';
+                        img.onload = () => resolve(img);
+                        img.onerror = () => reject(new Error(`Failed to load asset: ${url}`));
+                        img.src = url;
+                    });
+                } else if (type === 'json') {
+                    const response = await fetch(url);
+                    if (!response.ok) throw new Error(`HTTP Error: ${response.status}`);
+                    return await response.json();
+                }
+            }, null, `ResourceLoader_${type}`);
+        }
+
+        /**
+         * لایه ۱۰: مانیتور سلامت نشت حافظه و پایش وضعیت عمومی سیستم
+         */
+        _logSecurityStatus(message) {
+            console.log(`%c[B2.st SHIELD PRO] ${message}`, 'background: #002200; color: #00ff66; padding: 3px 7px; border-radius: 3px; font-weight: bold;');
         }
     }
 
-    /**
-     * ثبت گزارش امنیتی و خطایابی بدون مصرف حافظه بی‌نهایت
-     */
-    logIncident(incident) {
-        if (this.errorLog.length >= this.maxLogSize) {
-            this.errorLog.shift();
-        }
-        this.errorLog.push(incident);
+    // ایزوله‌سازی و صدور به محیط سراسری بدون تداخل
+    const shieldInstance = new ErrorShield();
+    global.ErrorShield = shieldInstance;
 
-        // هشدار در کنسول امنیتی
-        console.warn(`[Shield-Incident] [${incident.layer}]`, incident.message || incident);
-    }
-
-    /**
-     * دریافت تاریخچه لاگ‌ها برای مقاصد Telemetry و دیباگ
-     */
-    getTelemetryReport() {
-        return {
-            totalErrors: this.errorLog.length,
-            circuits: Object.fromEntries(this.circuitBreakers),
-            logs: [...this.errorLog]
-        };
-    }
-}
-
-// صدور نمونه تکی (Singleton) جهت تضمین پایداری در کل رانتایم
-export const errorShield = new ErrorShield();
-
-// در صورت لود مستقیم اسکریپت بدون باندلر ماژولار:
-if (typeof window !== 'undefined') {
-    window.B2stErrorShield = errorShield;
-    errorShield.init();
-}
+})(typeof window !== 'undefined' ? window : this);

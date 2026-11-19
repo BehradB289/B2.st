@@ -1,44 +1,49 @@
-version: "3.8"
+# ==============================================================================
+# B2.st Studio - Production Docker Compose Stack
+# ==============================================================================
+version: '3.8'
 
 services:
   mario-game:
     build:
       context: .
       dockerfile: Dockerfile
-    image: b2st/mario-game:1.0.0
-    container_name: b2st-mario-engine
+      target: production
+    container_name: b2st_mario_web
     restart: unless-stopped
     ports:
-      - "${PORT:-8080}:80"
+      - "${PORT:-8080}:8080"
     environment:
       - NODE_ENV=production
-      - VIRTUAL_HOST=mario.b2.st
-      - LETSENCRYPT_HOST=mario.b2.st
-    healthcheck:
-      test: ["CMD-SHELL", "curl -f http://127.0.0.1:80/healthz || exit 1"]
-      interval: 15s
-      timeout: 4s
-      retries: 3
-      start_period: 5s
+    security_opt:
+      - no-new-privileges:true
+    read_only: false
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=32m
+      - /var/cache/nginx:rw,noexec,nosuid,size=64m
     deploy:
       resources:
         limits:
-          cpus: "0.50"
-          memory: 128M
+          cpus: '0.50'
+          memory: 256M
         reservations:
-          cpus: "0.10"
-          memory: 32M
-    security_opt:
-      - no-new-privileges:true
+          cpus: '0.10'
+          memory: 64M
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8080/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
     logging:
       driver: "json-file"
       options:
         max-size: "10m"
         max-file: "3"
     networks:
-      - mario-network
+      - b2st_frontend_net
 
 networks:
-  mario-network:
-    name: b2st-mario-net
+  b2st_frontend_net:
+    name: b2st_mario_network
     driver: bridge

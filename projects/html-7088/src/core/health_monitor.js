@@ -1,460 +1,259 @@
-```javascript
 /**
- * ═══════════════════════════════════════════════════════════════
- *  🏥 B2.st Mario — Health Monitor Service
- *  سرویس پایش سلامت سیستم بازی
- * ═══════════════════════════════════════════════════════════════
- *
- *  این ماژول هم در سمت سرور (Node.js / CLI) و هم در سمت
- *  کلاینت (مرورگر / Canvas Game Loop) قابل استفاده است.
- *
- *  Usage (Node):
- *    const HealthMonitor = require('./core/health_monitor');
- *    const monitor = new HealthMonitor({ fpsThreshold: 30 });
- *    monitor.updateMetrics({ fps: 58, memoryUsageMB: 120 });
- *    const report = monitor.getReport();
- *
- *  Usage (Browser):
- *    const monitor = new HealthMonitor();
- *    // Inside game loop:
- *    monitor.tick(deltaTime);
- *    if (monitor.status !== 'healthy') console.warn('Performance issue!');
- * ═══════════════════════════════════════════════════════════════
+ * @file src/core/health_monitor.js
+ * @description Advanced Real-Time Health and Diagnostics Monitor for Mario ECS Game Engine.
+ * Studio: B2.st
  */
 
-'use strict';
+import os from 'node:os';
+import process from 'node:process';
+import { performance } from 'node:perf_hooks';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-class HealthMonitor {
-  /**
-   * @param {Object} config
-   * @param {number} [config.checkIntervalMs=5000]    - فاصله بررسی خودکار (میلی‌ثانیه)
-   * @param {number} [config.memoryThresholdMB=512]   - آستانه حافظه (مگابایت)
-   * @param {number} [config.fpsThreshold=30]         - حداقل FPS قابل قبول
-   * @param {number} [config.maxEntityCount=1000]     - حداکثر تعداد Entity
-   * @param {number} [config.physicsStepThresholdMs=16] - آستانه زمان فیزیک (ms)
-   * @param {number} [config.renderStepThresholdMs=16]  - آستانه زمان رندر (ms)
-   * @param {number} [config.historySize=100]         - حداکثر تعداد رکورد تاریخچه
-   */
-  constructor(config = {}) {
-    this.config = {
-      checkIntervalMs:        config.checkIntervalMs        ?? 5000,
-      memoryThresholdMB:      config.memoryThresholdMB      ?? 512,
-      fpsThreshold:           config.fpsThreshold           ?? 30,
-      maxEntityCount:         config.maxEntityCount         ?? 1000,
-      physicsStepThresholdMs: config.physicsStepThresholdMs ?? 16,
-      renderStepThresholdMs:  config.renderStepThresholdMs  ?? 16,
-      historySize:            config.historySize            ?? 100,
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Load health config
+const configPath = path.resolve(__dirname, '../../config/health.json');
+let healthConfig;
+try {
+  healthConfig = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+} catch (e) {
+  healthConfig = {
+    serviceName: 'b2st-mario-engine',
+    environment: 'development',
+    version: '1.4.0',
+    thresholds: {
+      heapMemoryCriticalPercent: 90,
+      heapMemoryWarningPercent: 75,
+      eventLoopLagWarningMs: 45,
+      eventLoopLagCriticalMs: 120,
+      minimumFpsThreshold: 30,
+      targetFps: 60
+    },
+    server: {
+      defaultPort: 8080,
+      host: '0.0.0.0',
+      enableCors: true
+    },
+    endpoints: {
+      health: "/health",
+      liveness: "/health/live",
+      readiness: "/health/ready",
+      telemetry: "/health/telemetry"
+    }
+  };
+}
+
+export const HealthStatus = {
+  HEALTHY: 'HEALTHY',
+  DEGRADED: 'DEGRADED',
+  CRITICAL: 'CRITICAL'
+};
+
+export class HealthMonitor {
+  constructor(customConfig = {}) {
+    this.config = { ...healthConfig, ...customConfig };
+    this.startTime = Date.now();
+    this.engineMetrics = {
+      fps: 60,
+      activeEntities: 0,
+      renderLagMs: 0,
+      physicsStepTimeMs: 0,
+      activeLevel: 'World 1-1',
+      lastHeartbeat: Date.now()
     };
-
-    this.metrics = {
-      uptime:          0,
-      fps:             60,
-      memoryUsageMB:   0,
-      entityCount:     0,
-      physicsStepMs:   0,
-      renderStepMs:    0,
-      collisionChecks: 0,
-      activeLevel:     null,
-      playerState:     null,
-    };
-
-    this.status   = 'healthy';   // 'healthy' | 'degraded' | 'critical'
-    this.history  = [];
-    this._intervalId = null;
-    this._startTime  = Date.now();
-
-    // FPS calculation (browser-side)
-    this._frameCount   = 0;
-    this._fpsTimer     = 0;
-    this._lastFpsCalc  = 0;
-
-    // Alert callbacks
-    this._alertCallbacks = [];
-  }
-
-  // ─────────────────────────── Metrics Update ───────────────────────────
-
-  /**
-   * به‌روزرسانی متریک‌ها (partial update)
-   * @param {Object} partial - فیلدهای متریک برای به‌روزرسانی
-   */
-  updateMetrics(partial) {
-    if (!partial || typeof partial !== 'object') return;
-    Object.keys(partial).forEach(key => {
-      if (key in this.metrics) {
-        this.metrics[key] = partial[key];
-      }
-    });
+    this.eventLoopLag = 0;
+    this._startLagMonitor();
   }
 
   /**
-   * تیک فریم بازی — برای محاسبه FPS در حلقه بازی مرورگر
-   * @param {number} deltaTime - زمان بین فریم‌ها (ثانیه)
+   * Samples event loop lag periodically using high-resolution timers.
    */
-  tick(deltaTime) {
-    this._frameCount++;
-    this._fpsTimer += deltaTime;
-    this.metrics.uptime = (Date.now() - this._startTime) / 1000;
+  _startLagMonitor() {
+    let lastCheck = performance.now();
+    const interval = 500;
 
-    if (this._fpsTimer >= 1.0) {
-      this.metrics.fps = Math.round(this._frameCount / this._fpsTimer);
-      this._frameCount = 0;
-      this._fpsTimer = 0;
-      this._lastFpsCalc = Date.now();
+    const timer = setInterval(() => {
+      const current = performance.now();
+      const delta = current - lastCheck;
+      this.eventLoopLag = Math.max(0, delta - interval);
+      lastCheck = current;
+    }, interval);
+
+    if (timer.unref) {
+      timer.unref();
     }
   }
 
-  // ─────────────────────────── Health Evaluation ───────────────────────────
-
   /**
-   * ارزیابی سلامت سیستم و تولید گزارش
-   * @returns {HealthReport}
+   * Registers runtime telemetry data reported by the running ECS Mario loop.
+   * @param {Object} metrics 
    */
-  evaluate() {
-    const checks = [];
-    let criticalCount = 0;
-    let failCount = 0;
-
-    // ── Check 1: FPS ──
-    const fpsStatus = this._evaluateCheck(
-      'fps',
-      'نرخ فریم (FPS)',
-      this.metrics.fps,
-      this.config.fpsThreshold,
-      'gte' // greater than or equal
-    );
-    checks.push(fpsStatus);
-
-    // ── Check 2: Memory ──
-    const memStatus = this._evaluateCheck(
-      'memory',
-      'مصرف حافظه (MB)',
-      this.metrics.memoryUsageMB,
-      this.config.memoryThresholdMB,
-      'lte' // less than or equal
-    );
-    checks.push(memStatus);
-
-    // ── Check 3: Entity Count ──
-    const entityStatus = this._evaluateCheck(
-      'entityCount',
-      'تعداد Entity‌ها',
-      this.metrics.entityCount,
-      this.config.maxEntityCount,
-      'lte'
-    );
-    checks.push(entityStatus);
-
-    // ── Check 4: Physics Step ──
-    const physicsStatus = this._evaluateCheck(
-      'physicsStep',
-      'زمان محاسبه فیزیک (ms)',
-      this.metrics.physicsStepMs,
-      this.config.physicsStepThresholdMs,
-      'lte'
-    );
-    checks.push(physicsStatus);
-
-    // ── Check 5: Render Step ──
-    const renderStatus = this._evaluateCheck(
-      'renderStep',
-      'زمان رندر (ms)',
-      this.metrics.renderStepMs,
-      this.config.renderStepThresholdMs,
-      'lte'
-    );
-    checks.push(renderStatus);
-
-    // ── Determine overall status ──
-    checks.forEach(c => {
-      if (c.status === 'fail') failCount++;
-      if (c.status === 'critical') criticalCount++;
-    });
-
-    if (criticalCount > 0 || failCount >= 3) {
-      this.status = 'critical';
-    } else if (failCount > 0) {
-      this.status = 'degraded';
-    } else {
-      this.status = 'healthy';
-    }
-
-    const report = {
-      timestamp:   Date.now(),
-      isoTime:     new Date().toISOString(),
-      status:      this.status,
-      checks,
-      metrics:     { ...this.metrics },
-      config:      { ...this.config },
-      summary:     this._generateSummary(checks),
-    };
-
-    // Store in history
-    this.history.push(report);
-    if (this.history.length > this.config.historySize) {
-      this.history.shift();
-    }
-
-    // Fire alerts if degraded/critical
-    if (this.status !== 'healthy') {
-      this._fireAlerts(report);
-    }
-
-    return report;
-  }
-
-  /**
-   * @private
-   */
-  _evaluateCheck(name, label, value, threshold, comparator) {
-    let status = 'pass';
-    let message = '';
-
-    const numValue = typeof value === 'number' ? value : 0;
-
-    if (comparator === 'gte') {
-      if (numValue < threshold) {
-        status = numValue < threshold * 0.5 ? 'critical' : 'fail';
-        message = `${label}: ${numValue} کمتر از آستانه ${threshold}`;
-      } else {
-        message = `${label}: ${numValue} — سالم`;
-      }
-    } else if (comparator === 'lte') {
-      if (numValue > threshold) {
-        status = numValue > threshold * 2 ? 'critical' : 'fail';
-        message = `${label}: ${numValue} بیشتر از آستانه ${threshold}`;
-      } else {
-        message = `${label}: ${numValue} — سالم`;
-      }
-    }
-
-    return { name, label, status, value: numValue, threshold, message };
-  }
-
-  /**
-   * @private
-   */
-  _generateSummary(checks) {
-    const passed = checks.filter(c => c.status === 'pass').length;
-    const failed = checks.filter(c => c.status === 'fail').length;
-    const critical = checks.filter(c => c.status === 'critical').length;
-    const total = checks.length;
-
-    if (critical > 0) {
-      return `⛔ بحرانی: ${critical} بررسی بحرانی از ${total}`;
-    }
-    if (failed > 0) {
-      return `⚠️ هشدار: ${failed} بررسی ناموفق از ${total}`;
-    }
-    return `✅ سالم: تمام ${total} بررسی موفق`;
-  }
-
-  // ─────────────────────────── Report Access ───────────────────────────
-
-  /**
-   * دریافت گزارش سلامت فعلی
-   * @returns {HealthReport}
-   */
-  getReport() {
-    return this.evaluate();
-  }
-
-  /**
-   * دریافت تاریخچه گزارش‌ها
-   * @param {number} [limit] - حداکثر تعداد رکورد
-   * @returns {HealthReport[]}
-   */
-  getHistory(limit) {
-    if (limit && limit > 0) {
-      return this.history.slice(-limit);
-    }
-    return [...this.history];
-  }
-
-  /**
-   * دریافت خلاصه آماری از تاریخچه
-   * @returns {Object}
-   */
-  getStats() {
-    if (this.history.length === 0) {
-      return { totalChecks: 0, healthyPercent: 0, avgFps: 0, avgMemory: 0 };
-    }
-
-    let healthyCount = 0;
-    let totalFps = 0;
-    let totalMemory = 0;
-
-    this.history.forEach(report => {
-      if (report.status === 'healthy') healthyCount++;
-      totalFps += report.metrics.fps || 0;
-      totalMemory += report.metrics.memoryUsageMB || 0;
-    });
-
-    const count = this.history.length;
-    return {
-      totalChecks:    count,
-      healthyPercent: Math.round((healthyCount / count) * 100),
-      avgFps:         Math.round(totalFps / count),
-      avgMemory:      Math.round((totalMemory / count) * 100) / 100,
-      lastStatus:     this.history[count - 1].status,
-      uptime:         this.metrics.uptime,
+  updateTelemetry(metrics = {}) {
+    this.engineMetrics = {
+      ...this.engineMetrics,
+      ...metrics,
+      lastHeartbeat: Date.now()
     };
   }
 
-  // ─────────────────────────── Periodic Check ───────────────────────────
-
   /**
-   * شروع بررسی دوره‌ای خودکار
-   * @param {Function} [beforeCheck] - تابعی که قبل از هر بررسی اجرا می‌شود
+   * Analyzes heap memory, loop delays, and system state to determine overall status.
+   * @returns {Object} Full diagnostic health report
    */
-  startPeriodicCheck(beforeCheck) {
-    this.stop(); // Clear any existing interval
+  getDiagnostics() {
+    const mem = process.memoryUsage();
+    const heapUsedPercent = Number(((mem.heapUsed / mem.heapTotal) * 100).toFixed(2));
+    const uptimeSec = Number(process.uptime().toFixed(2));
 
-    this._intervalId = setInterval(() => {
-      if (typeof beforeCheck === 'function') {
-        beforeCheck();
-      }
-      this.evaluate();
-    }, this.config.checkIntervalMs);
+    const issues = [];
+    let status = HealthStatus.HEALTHY;
 
-    // Don't prevent Node.js from exiting
-    if (this._intervalId && typeof this._intervalId.unref === 'function') {
-      this._intervalId.unref();
+    // Memory assessment
+    if (heapUsedPercent >= this.config.thresholds.heapMemoryCriticalPercent) {
+      status = HealthStatus.CRITICAL;
+      issues.push(`Heap memory usage critical: ${heapUsedPercent}%`);
+    } else if (heapUsedPercent >= this.config.thresholds.heapMemoryWarningPercent) {
+      status = HealthStatus.DEGRADED;
+      issues.push(`Heap memory usage elevated: ${heapUsedPercent}%`);
     }
-  }
 
-  /**
-   * توقف بررسی دوره‌ای
-   */
-  stop() {
-    if (this._intervalId) {
-      clearInterval(this._intervalId);
-      this._intervalId = null;
+    // Event Loop Lag assessment
+    if (this.eventLoopLag >= this.config.thresholds.eventLoopLagCriticalMs) {
+      status = HealthStatus.CRITICAL;
+      issues.push(`Event loop lag critical: ${this.eventLoopLag.toFixed(2)}ms`);
+    } else if (this.eventLoopLag >= this.config.thresholds.eventLoopLagWarningMs) {
+      if (status !== HealthStatus.CRITICAL) status = HealthStatus.DEGRADED;
+      issues.push(`Event loop lag elevated: ${this.eventLoopLag.toFixed(2)}ms`);
     }
-  }
 
-  // ─────────────────────────── Alert System ───────────────────────────
-
-  /**
-   * ثبت callback برای هشدارها
-   * @param {Function} callback - تابع callback(report)
-   */
-  onAlert(callback) {
-    if (typeof callback === 'function') {
-      this._alertCallbacks.push(callback);
+    // ECS Engine FPS assessment
+    if (this.engineMetrics.fps < this.config.thresholds.minimumFpsThreshold && this.engineMetrics.fps > 0) {
+      if (status !== HealthStatus.CRITICAL) status = HealthStatus.DEGRADED;
+      issues.push(`Game engine FPS dropped below threshold: ${this.engineMetrics.fps} FPS`);
     }
-  }
-
-  /**
-   * حذف callback هشدار
-   * @param {Function} callback
-   */
-  offAlert(callback) {
-    this._alertCallbacks = this._alertCallbacks.filter(cb => cb !== callback);
-  }
-
-  /**
-   * @private
-   */
-  _fireAlerts(report) {
-    this._alertCallbacks.forEach(cb => {
-      try {
-        cb(report);
-      } catch (e) {
-        // Silently ignore alert callback errors
-      }
-    });
-  }
-
-  // ─────────────────────────── Reset ───────────────────────────
-
-  /**
-   * بازنشانی کامل مانیتور
-   */
-  reset() {
-    this.stop();
-    this.history = [];
-    this.status = 'healthy';
-    this.metrics = {
-      uptime:          0,
-      fps:             60,
-      memoryUsageMB:   0,
-      entityCount:     0,
-      physicsStepMs:   0,
-      renderStepMs:    0,
-      collisionChecks: 0,
-      activeLevel:     null,
-      playerState:     null,
-    };
-    this._frameCount = 0;
-    this._fpsTimer = 0;
-    this._startTime = Date.now();
-  }
-
-  // ─────────────────────────── HTTP Response Helper ───────────────────────────
-
-  /**
-   * تولید پاسخ HTTP مناسب برای endpoint سلامت
-   * @returns {{ statusCode: number, headers: Object, body: string }}
-   */
-  toHttpResponse() {
-    const report = this.getReport();
-    const statusCode = report.status === 'healthy' ? 200
-                     : report.status === 'degraded' ? 503
-                     : 500;
 
     return {
-      statusCode,
-      headers: {
-        'Content-Type':    'application/json; charset=utf-8',
-        'Cache-Control':   'no-cache, no-store, must-revalidate',
-        'X-Health-Status': report.status,
-        'X-Health-Checks': `${report.checks.filter(c => c.status === 'pass').length}/${report.checks.length}`,
+      service: this.config.serviceName,
+      version: this.config.version,
+      status,
+      timestamp: new Date().toISOString(),
+      uptimeSeconds: uptimeSec,
+      system: {
+        platform: os.platform(),
+        arch: os.arch(),
+        nodeVersion: process.version,
+        loadAverage: os.loadavg(),
+        freeSystemMemoryBytes: os.freemem(),
+        totalSystemMemoryBytes: os.totalmem()
       },
-      body: JSON.stringify(report, null, 2),
+      process: {
+        pid: process.pid,
+        heapUsedBytes: mem.heapUsed,
+        heapTotalBytes: mem.heapTotal,
+        rssBytes: mem.rss,
+        heapUsedPercent,
+        eventLoopLagMs: Number(this.eventLoopLag.toFixed(2))
+      },
+      engineTelemetry: {
+        ...this.engineMetrics,
+        isEngineResponsive: (Date.now() - this.engineMetrics.lastHeartbeat) < 5000
+      },
+      issues
     };
   }
 
   /**
-   * تولید خروجی متنی برای CLI
-   * @returns {string}
+   * Lightweight liveness check probe.
    */
-  toText() {
-    const report = this.evaluate();
-    const lines = [];
-
-    const statusEmoji = {
-      healthy:  '🟢',
-      degraded: '🟡',
-      critical: '🔴',
+  getLiveness() {
+    return {
+      status: 'UP',
+      uptimeSeconds: Number(process.uptime().toFixed(2)),
+      timestamp: new Date().toISOString()
     };
+  }
 
-    lines.push(`${statusEmoji[report.status] || '⚪'} وضعیت: ${report.status.toUpperCase()}`);
-    lines.push(`📅 زمان: ${report.isoTime}`);
-    lines.push(`⏱  آپتایم: ${report.metrics.uptime.toFixed(1)}s`);
-    lines.push('');
-    lines.push('بررسی‌ها:');
+  /**
+   * Readiness check probe verifying memory and essential components.
+   */
+  getReadiness() {
+    const diagnostics = this.getDiagnostics();
+    const isReady = diagnostics.status !== HealthStatus.CRITICAL;
+    return {
+      ready: isReady,
+      status: diagnostics.status,
+      timestamp: diagnostics.timestamp,
+      issues: diagnostics.issues
+    };
+  }
 
-    report.checks.forEach(check => {
-      const icon = check.status === 'pass' ? '✅' : check.status === 'fail' ? '⚠️' : '❌';
-      lines.push(`  ${icon} ${check.label}: ${check.value} (آستانه: ${check.threshold})`);
-    });
+  /**
+   * Dispatches and handles native Node.js HTTP requests for health check endpoints.
+   * @param {import('node:http').IncomingMessage} req 
+   * @param {import('node:http').ServerResponse} res 
+   * @returns {boolean} True if handled, false if not a health route
+   */
+  handleHttpRequest(req, res) {
+    const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+    const pathname = url.pathname;
+    const endpoints = this.config.endpoints;
 
-    lines.push('');
-    lines.push(report.summary);
+    // Set JSON and CORS headers
+    const headers = {
+      'Content-Type': 'application/json',
+      'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate'
+    };
+    if (this.config.server.enableCors) {
+      headers['Access-Control-Allow-Origin'] = '*';
+      headers['Access-Control-Allow-Methods'] = 'GET, OPTIONS';
+      headers['Access-Control-Allow-Headers'] = 'Content-Type';
+    }
 
-    return lines.join('\n');
+    if (req.method === 'OPTIONS') {
+      res.writeHead(204, headers);
+      res.end();
+      return true;
+    }
+
+    if (req.method !== 'GET') {
+      return false;
+    }
+
+    if (pathname === endpoints.health) {
+      const data = this.getDiagnostics();
+      const statusCode = data.status === HealthStatus.CRITICAL ? 503 : 200;
+      res.writeHead(statusCode, headers);
+      res.end(JSON.stringify(data, null, 2));
+      return true;
+    }
+
+    if (pathname === endpoints.liveness) {
+      const data = this.getLiveness();
+      res.writeHead(200, headers);
+      res.end(JSON.stringify(data, null, 2));
+      return true;
+    }
+
+    if (pathname === endpoints.readiness) {
+      const data = this.getReadiness();
+      const statusCode = data.ready ? 200 : 503;
+      res.writeHead(statusCode, headers);
+      res.end(JSON.stringify(data, null, 2));
+      return true;
+    }
+
+    if (pathname === endpoints.telemetry) {
+      res.writeHead(200, headers);
+      res.end(JSON.stringify(this.engineMetrics, null, 2));
+      return true;
+    }
+
+    return false;
   }
 }
 
-// ─────────────────────────── Export ───────────────────────────
-// Support both CommonJS and ES Module environments
-if (typeof module !== 'undefined' && module.exports) {
-  module.exports = HealthMonitor;
-}
-
-// Browser global
-if (typeof window !== 'undefined') {
-  window.HealthMonitor = HealthMonitor;
-}
-```
+export const defaultHealthMonitor = new HealthMonitor();
+export default HealthMonitor;

@@ -1,56 +1,52 @@
 /**
- * Studio B2.st - Mario Canvas Game Configuration
- * NES Specifications & Physical Constants
+ * Game Global Configuration & Physics Constants
+ * B2.st Studio - Modular Engine Configuration
  */
-export const GameConfig = Object.freeze({
-  CANVAS: {
-    INTERNAL_WIDTH: 256,
-    INTERNAL_HEIGHT: 240,
-    ASPECT_RATIO: 256 / 240,
-    TARGET_FPS: 60,
-    FIXED_DELTA_TIME: 1 / 60
+export const GAME_CONFIG = {
+  // Screen and Tile System
+  TILE_SIZE: 16,
+  VIEWPORT_WIDTH: 256,
+  VIEWPORT_HEIGHT: 240,
+  TARGET_FPS: 60,
+  FIXED_DELTA_TIME: 1 / 60,
+
+  // Kinematics & Physics Limits
+  GRAVITY: 980,              // Pixels / sec^2
+  TERMINAL_VELOCITY: 480,    // Max fall speed in pixels / sec
+  WALK_ACCEL: 240,           // Pixels / sec^2
+  MAX_WALK_SPEED: 120,       // Pixels / sec
+  MAX_RUN_SPEED: 180,        // Pixels / sec
+  FRICTION: 300,             // Ground horizontal friction
+
+  // Jumping Dynamics
+  JUMP_IMPULSE: -320,        // Initial upward velocity impulse
+  BOUNCE_IMPULSE: -220,      // Vertical bounce after stomping enemy
+  HEAD_BUMP_REBOUND: 40,     // Downward velocity when hitting ceiling/block
+
+  // Mario States
+  MARIO_STATE: {
+    SMALL: 'SMALL',
+    SUPER: 'SUPER',
+    DEAD: 'DEAD'
   },
-  WORLD: {
-    TILE_SIZE: 16,
-    GRAVITY: 980,
-    TERMINAL_VELOCITY: 390,
-    TIME_LIMIT: 400
+
+  // Tile Types
+  TILE_TYPE: {
+    AIR: 0,
+    GROUND: 1,
+    BRICK: 2,
+    QUESTION_BLOCK: 3,
+    EMPTY_BLOCK: 4,
+    PIPE_TOP_LEFT: 5,
+    PIPE_TOP_RIGHT: 6,
+    PIPE_BODY_LEFT: 7,
+    PIPE_BODY_RIGHT: 8
   },
-  MARIO: {
-    WALK_ACCEL: 320,
-    RUN_ACCEL: 490,
-    MAX_WALK_SPEED: 105,
-    MAX_RUN_SPEED: 165,
-    FRICTION: 0.86,
-    AIR_FRICTION: 0.94,
-    JUMP_IMPULSE: -320,
-    JUMP_SUSTAIN_ACCEL: -150,
-    MAX_JUMP_HOLD_TIME: 0.28,
-    BOUNCE_IMPULSE: -220,
-    INVULNERABLE_DURATION: 2.0,
-    SMALL_BOUNDS: { x: 2, y: 1, w: 12, h: 15 },
-    SUPER_BOUNDS: { x: 2, y: 2, w: 12, h: 30 }
-  },
-  ENEMIES: {
-    GOOMBA_SPEED: 35,
-    KOOPA_SPEED: 42,
-    SHELL_SPEED: 220
-  },
-  PALETTE: {
-    SKY_BLUE: '#5c94fc',
-    GROUND_BROWN: '#c84c0c',
-    GROUND_ORANGE: '#fc9838',
-    BRICK_BROWN: '#b83400',
-    PIPE_DARK_GREEN: '#00a800',
-    PIPE_LIGHT_GREEN: '#00e800',
-    COIN_GOLD: '#fcd844',
-    WHITE: '#ffffff',
-    BLACK: '#000000',
-    MARIO_RED: '#d82800',
-    MARIO_OVERALL_BLUE: '#0000fc'
-  },
-  API: {
-    BASE_URL: '/api/v1',
-    TIMEOUT_MS: 5000
+
+  // Scoring
+  SCORES: {
+    STOMP_GOOMBA: 100,
+    COIN: 200,
+    BREAK_BRICK: 50
   }
-});
+};

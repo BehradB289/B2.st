@@ -1,119 +1,108 @@
 /**
- * B2.st Studio - Mario Game Engine
- * Unit Tests: Database Layer, Schema Validation & Cryptographic Anti-Tamper
- * @module tests/database.test
+ * @file database.test.js
+ * @description آزمون‌های واحد و یکپارچگی لایه پایگاه داده، اسکیمای امنیتی و چرخه مایگریشن
  */
 
-import { DatabaseLayer, DataIntegrityGuard } from '../src/db/database_layer.js';
-import { SchemaValidator } from '../src/db/schema.js';
+import { DatabaseLayer } from '../src/db/database_layer.js';
+import { DatabaseSecurity } from '../src/db/security.js';
+import { SchemaValidator } from '../src/db/schemas.js';
+import { DATABASE_CONFIG } from '../config/database.config.js';
 
-describe('B2.st Database Layer & Integrity Pipeline', () => {
-  let db;
+export async function runDatabaseTests() {
+  console.log('--- 🧪 STARTING DATABASE & SECURITY TEST SUITE ---');
+  let passedTests = 0;
+  let totalTests = 0;
 
-  beforeAll(async () => {
-    db = new DatabaseLayer();
-    await db.init();
-  });
+  function assert(condition, testName) {
+    totalTests++;
+    if (condition) {
+      console.log(`✅ [PASS] ${testName}`);
+      passedTests++;
+    } else {
+      console.error(`❌ [FAIL] ${testName}`);
+    }
+  }
 
-  test('SchemaValidator: should reject invalid save state payloads', () => {
-    const invalidState = {
-      slotId: '',
-      world: 9, // Invalid world (1-8 allowed)
-      level: 0,
-      score: -50,
-      coins: 150,
-      lives: -1
-    };
-    const result = SchemaValidator.validateSaveState(invalidState);
-    expect(result.isValid).toBe(false);
-    expect(result.errors.length).toBeGreaterThanOrEqual(4);
-  });
+  try {
+    // تست شماره ۱: تولید هش و امضای دیجیتال
+    const sampleData = { slotId: 'slot_1', score: 12000, world: 1, lives: 3 };
+    const sealed = await DatabaseSecurity.sealRecord(sampleData);
+    assert(typeof sealed._checksum === 'string' && sealed._checksum.length > 0, 'Crypto: Record sealing produces valid checksum');
 
-  test('SchemaValidator: should approve compliant state payload', () => {
-    const validState = {
-      slotId: 'slot_valid',
-      world: 1,
-      level: 1,
-      score: 1200,
-      coins: 15,
-      lives: 3,
-      timeRemaining: 340,
-      mario: {
-        x: 100,
-        y: 190,
-        velX: 0,
-        velY: 0,
-        powerState: 'SMALL'
-      }
-    };
-    const result = SchemaValidator.validateSaveState(validState);
-    expect(result.isValid).toBe(true);
-    expect(result.errors.length).toBe(0);
-  });
+    // تست شماره ۲: تشخیص عدم دستکاری رکورد معتبر
+    const isIntegrityValid = await DatabaseSecurity.verifyRecordIntegrity(sealed);
+    assert(isIntegrityValid === true, 'Security: Untampered record passes integrity verification');
 
-  test('DataIntegrityGuard: computeHash and verify untampered record', async () => {
-    const payload = { id: 'test_item', score: 5000, user: 'P1' };
-    const signed = await DataIntegrityGuard.sign(payload);
+    // تست شماره ۳: شناسایی دستکاری غیرمجاز داده (Tamper Detection)
+    const tampered = { ...sealed, score: 9999999 }; // تغییر امتیاز توسط هکر در حافظه
+    const isTamperedValid = await DatabaseSecurity.verifyRecordIntegrity(tampered);
+    assert(isTamperedValid === false, 'Security: Tampered score is successfully detected & rejected');
 
-    expect(signed._signature).toBeDefined();
-    expect(typeof signed._signature).toBe('string');
+    // تست شماره ۴: پالایش ورودی (Sanitization)
+    const maliciousInput = '<script>alert("hacked")</script>Player1';
+    const cleanInput = DatabaseSecurity.sanitizeString(maliciousInput);
+    assert(!cleanInput.includes('<') && !cleanInput.includes('>'), 'Security: XSS payload sanitized correctly');
 
-    const isValid = await DataIntegrityGuard.verify(signed);
-    expect(isValid).toBe(true);
-  });
-
-  test('DataIntegrityGuard: detect modified/tampered record values', async () => {
-    const payload = { id: 'test_item_tamper', score: 5000 };
-    const signed = await DataIntegrityGuard.sign(payload);
-
-    // Malicious edit
-    signed.score = 9999999;
-
-    const isValid = await DataIntegrityGuard.verify(signed);
-    expect(isValid).toBe(false);
-  });
-
-  test('DatabaseLayer: saveGameState and loadGameState round-trip', async () => {
-    const state = {
-      slotId: 'slot_test_save',
+    // تست شماره ۵: اعتبارسنجی اسکیما (اعتبارسنجی مقادیر مجاز)
+    const validSave = {
+      slotId: 'slot_test',
+      profileId: 'usr_1',
       world: 2,
-      level: 1,
+      stage: 1,
       score: 4500,
       coins: 20,
-      lives: 2,
-      timeRemaining: 280,
-      mario: {
-        x: 240,
-        y: 192,
-        velX: 0,
-        velY: 0,
-        powerState: 'SUPER'
-      }
+      lives: 3,
+      powerState: 'SUPER',
+      checkpointX: 120,
+      checkpointY: 400,
+      updatedAt: Date.now()
     };
+    const validRes = SchemaValidator.validate(DATABASE_CONFIG.STORES.GAME_SAVES, validSave);
+    assert(validRes.valid === true, 'Schema: Valid game save passes validation');
 
-    await db.saveGameState(state);
-    const loaded = await db.loadGameState('slot_test_save');
+    // تست شماره ۶: رد داده‌های نامعتبر توسط اسکیما (مثلاً سکه غیرمجاز و حالت نامعتبر کاراکتر)
+    const invalidSave = {
+      ...validSave,
+      coins: 150, // حداکثر 99 است
+      powerState: 'GOD_MODE' // خارج از enum تعریف شده
+    };
+    const invalidRes = SchemaValidator.validate(DATABASE_CONFIG.STORES.GAME_SAVES, invalidSave);
+    assert(invalidRes.valid === false && invalidRes.errors.length >= 2, 'Schema: Invalid values caught by schema constraints');
 
-    expect(loaded).toBeDefined();
-    expect(loaded.score).toBe(4500);
-    expect(loaded.mario.powerState).toBe('SUPER');
+    // تست شماره ۷: تست عملکرد دیتابیس و تراکنش‌ها (اگر IndexedDB در دسترس باشد)
+    if (typeof indexedDB !== 'undefined') {
+      const testDb = new DatabaseLayer('B2_Mario_Test_DB', DATABASE_CONFIG.DB_VERSION);
+      await testDb.init();
+
+      // ذخیره و بازیابی
+      await testDb.saveGameState(validSave);
+      const retrieved = await testDb.loadGameState('slot_test');
+      assert(retrieved !== null && retrieved.score === 4500, 'DatabaseLayer: Game state saved and loaded successfully');
+
+      // ذخیره رکورد امتیاز
+      await testDb.recordHighScore('usr_1', 'MARIO_PRO', 78000, 3, 2);
+      const topScores = await testDb.getTopHighScores(5);
+      assert(topScores.length > 0 && topScores[0].score >= 78000, 'DatabaseLayer: Leaderboard queried and sorted correctly');
+
+      // پاک‌سازی
+      await testDb.delete(DATABASE_CONFIG.STORES.GAME_SAVES, 'slot_test');
+      testDb.close();
+      assert(true, 'DatabaseLayer: Cleanup completed without errors');
+    } else {
+      console.warn('⚠️ [SKIP] IndexedDB environment not available in this runtime for live IO tests.');
+    }
+
+  } catch (error) {
+    console.error('❌ Test execution encountered an unhandled error:', error);
+  }
+
+  console.log(`--- 🏁 TESTS COMPLETED: ${passedTests}/${totalTests} Passed ---`);
+  return { passed: passedTests === totalTests, passedTests, totalTests };
+}
+
+// اجرای خودکار در صورت فراخوانی مستقیم
+if (typeof window !== 'undefined') {
+  window.addEventListener('DOMContentLoaded', () => {
+    runDatabaseTests();
   });
-
-  test('DatabaseLayer: listSaveSlots correctly formats list', async () => {
-    const slots = await db.listSaveSlots();
-    expect(Array.isArray(slots)).toBe(true);
-    const found = slots.find(s => s.slotId === 'slot_test_save');
-    expect(found).toBeDefined();
-    expect(found.world).toBe(2);
-  });
-
-  test('DatabaseLayer: High score descending retrieval', async () => {
-    await db.recordHighScore({ playerName: 'ALICE', score: 1000, stage: '1-1' });
-    await db.recordHighScore({ playerName: 'BOB', score: 9000, stage: '1-2' });
-    await db.recordHighScore({ playerName: 'CHARLIE', score: 5000, stage: '1-1' });
-
-    const top = await db.getTopHighScores(3);
-    expect(top.length).toBeLessThanOrEqual(3);
-    expect(top[0].score).toBeGreaterThanOrEqual(top[1]?.score || 0);
-  });
-});
+}

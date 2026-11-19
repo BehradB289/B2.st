@@ -1,157 +1,95 @@
 import { Entity } from './Entity.js';
-import { SpriteRenderer } from './SpriteRenderer.js';
-import { GameConfig } from '../../config/game.config.js';
-import { Vector2 } from '../engine/Vector2.js';
-
-export const MARIO_STATE = Object.freeze({
-  IDLE: 'IDLE',
-  WALKING: 'WALKING',
-  RUNNING: 'RUNNING',
-  JUMPING: 'JUMPING',
-  FALLING: 'FALLING',
-  DYING: 'DYING',
-  FLAGPOLE: 'FLAGPOLE',
-  VICTORY: 'VICTORY'
-});
+import { GAME_CONFIG } from '../../config/game.config.js';
 
 /**
- * Studio B2.st - Mario Player Entity
+ * Mario Player Entity
+ * Handles input kinematics, state degradation, stomping and jumping.
  */
 export class Mario extends Entity {
-  constructor(x, y) {
-    super(x, y, GameConfig.MARIO.SMALL_BOUNDS.w, GameConfig.MARIO.SMALL_BOUNDS.h);
-    this.hitboxOffset.set(GameConfig.MARIO.SMALL_BOUNDS.x, GameConfig.MARIO.SMALL_BOUNDS.y);
+  constructor(x = 40, y = 100) {
+    super(x, y, 16, 16, 'MARIO');
 
-    this.isSuper = false;
-    this.isFacingLeft = false;
-    this.state = MARIO_STATE.IDLE;
-    this.lives = 3;
+    this.state = GAME_CONFIG.MARIO_STATE.SMALL;
     this.score = 0;
     this.coins = 0;
+    this.lives = 3;
 
-    this.jumpTimer = 0;
+    this.jumpImpulse = GAME_CONFIG.JUMP_IMPULSE;
+    this.walkSpeed = GAME_CONFIG.MAX_WALK_SPEED;
+
     this.invulnerableTimer = 0;
-    this.dyingTimer = 0;
+    this.isFacingRight = true;
   }
 
-  growSuper() {
-    if (!this.isSuper) {
-      this.isSuper = true;
-      this.position.y -= 16;
-      this.hitboxSize.set(GameConfig.MARIO.SUPER_BOUNDS.w, GameConfig.MARIO.SUPER_BOUNDS.h);
-      this.hitboxOffset.set(GameConfig.MARIO.SUPER_BOUNDS.x, GameConfig.MARIO.SUPER_BOUNDS.y);
-    }
-  }
-
-  shrinkSmall() {
-    if (this.isSuper) {
-      this.isSuper = false;
-      this.hitboxSize.set(GameConfig.MARIO.SMALL_BOUNDS.w, GameConfig.MARIO.SMALL_BOUNDS.h);
-      this.hitboxOffset.set(GameConfig.MARIO.SMALL_BOUNDS.x, GameConfig.MARIO.SMALL_BOUNDS.y);
-      this.invulnerableTimer = GameConfig.MARIO.INVULNERABLE_DURATION;
-    }
-  }
-
-  kill(audio) {
-    if (this.state === MARIO_STATE.DYING) return;
-    this.state = MARIO_STATE.DYING;
-    this.velocity.set(0, -310);
-    this.dyingTimer = 0;
-    this.lives--;
-    audio?.playDie();
-  }
-
-  handleInput(input, dt, audio) {
-    if (this.state === MARIO_STATE.DYING || this.state === MARIO_STATE.FLAGPOLE || this.state === MARIO_STATE.VICTORY) {
-      return;
-    }
-
-    const accel = input.isRun ? GameConfig.MARIO.RUN_ACCEL : GameConfig.MARIO.WALK_ACCEL;
-    const maxSpeed = input.isRun ? GameConfig.MARIO.MAX_RUN_SPEED : GameConfig.MARIO.MAX_WALK_SPEED;
-
-    // Left / Right Movement
-    if (input.isLeft) {
-      this.velocity.x -= accel * dt;
-      this.isFacingLeft = true;
-    } else if (input.isRight) {
-      this.velocity.x += accel * dt;
-      this.isFacingLeft = false;
+  setPowerState(state) {
+    this.state = state;
+    if (state === GAME_CONFIG.MARIO_STATE.SUPER) {
+      this.size.y = 32;
     } else {
-      // Apply ground or air friction
-      const friction = this.grounded ? GameConfig.MARIO.FRICTION : GameConfig.MARIO.AIR_FRICTION;
-      this.velocity.x *= Math.pow(friction, dt * 60);
-      if (Math.abs(this.velocity.x) < 2) {
-        this.velocity.x = 0;
-      }
-    }
-
-    // Clamp speed
-    if (this.velocity.x > maxSpeed) this.velocity.x = maxSpeed;
-    if (this.velocity.x < -maxSpeed) this.velocity.x = -maxSpeed;
-
-    // Jump logic
-    if (input.isJumpJustPressed && this.grounded) {
-      this.velocity.y = GameConfig.MARIO.JUMP_IMPULSE;
-      this.grounded = false;
-      this.jumpTimer = GameConfig.MARIO.MAX_JUMP_HOLD_TIME;
-      audio?.playJump();
-    } else if (input.isJump && this.jumpTimer > 0) {
-      this.velocity.y += GameConfig.MARIO.JUMP_SUSTAIN_ACCEL * dt;
-      this.jumpTimer -= dt;
-    } else {
-      this.jumpTimer = 0;
+      this.size.y = 16;
     }
   }
 
-  update(dt, physics, camera) {
-    super.update(dt);
+  moveLeft() {
+    this.accelX = -1;
+    this.vel.x = -this.walkSpeed;
+    this.isFacingRight = false;
+  }
 
+  moveRight() {
+    this.accelX = 1;
+    this.vel.x = this.walkSpeed;
+    this.isFacingRight = true;
+  }
+
+  stopHorizontal() {
+    this.accelX = 0;
+  }
+
+  jump() {
+    if (this.isGrounded) {
+      this.vel.y = this.jumpImpulse;
+      this.isGrounded = false;
+      return true;
+    }
+    return false;
+  }
+
+  bounceAfterStomp() {
+    this.vel.y = GAME_CONFIG.BOUNCE_IMPULSE;
+    this.score += GAME_CONFIG.SCORES.STOMP_GOOMBA;
+  }
+
+  collectCoin() {
+    this.coins += 1;
+    this.score += GAME_CONFIG.SCORES.COIN;
+    if (this.coins >= 100) {
+      this.coins = 0;
+      this.lives += 1;
+    }
+  }
+
+  takeDamage() {
+    if (this.invulnerableTimer > 0) return false;
+
+    if (this.state === GAME_CONFIG.MARIO_STATE.SUPER) {
+      this.setPowerState(GAME_CONFIG.MARIO_STATE.SMALL);
+      this.invulnerableTimer = 2.0; // 2 seconds iframes
+      return true;
+    } else if (this.state === GAME_CONFIG.MARIO_STATE.SMALL) {
+      this.state = GAME_CONFIG.MARIO_STATE.DEAD;
+      this.vel.set(0, -250);
+      this.hasGravity = true;
+      this.isStatic = false;
+      this.lives = Math.max(0, this.lives - 1);
+      return true;
+    }
+    return false;
+  }
+
+  update(dt) {
     if (this.invulnerableTimer > 0) {
-      this.invulnerableTimer -= dt;
+      this.invulnerableTimer = Math.max(0, this.invulnerableTimer - dt);
     }
-
-    if (this.state === MARIO_STATE.DYING) {
-      this.dyingTimer += dt;
-      this.velocity.y += 980 * dt;
-      this.position.y += this.velocity.y * dt;
-      return;
-    }
-
-    if (this.state === MARIO_STATE.FLAGPOLE) {
-      this.velocity.set(0, 80);
-      this.position.y += this.velocity.y * dt;
-      if (this.position.y >= 12 * 16) {
-        this.position.y = 12 * 16;
-        this.state = MARIO_STATE.VICTORY;
-      }
-      return;
-    }
-
-    if (this.state === MARIO_STATE.VICTORY) {
-      this.velocity.x = 40;
-      this.position.x += this.velocity.x * dt;
-      return;
-    }
-
-    physics.updateEntity(this, dt, (tx, ty, tileId) => {
-      // Trigger ceiling hit (brick or question block)
-      this.onHitCeilingBlock?.(tx, ty, tileId);
-    });
-
-    // Clamp Mario to left screen boundary (camera cannot scroll back)
-    if (this.position.x < camera.x) {
-      this.position.x = camera.x;
-      this.velocity.x = 0;
-    }
-
-    // Fall into bottom pit death
-    if (this.position.y > GameConfig.CANVAS.INTERNAL_HEIGHT + 24) {
-      this.kill(null);
-    }
-  }
-
-  render(ctx, camera) {
-    const screen = camera.worldToScreen(this.position.x, this.position.y);
-    SpriteRenderer.drawMario(ctx, screen.x, screen.y, this);
   }
 }

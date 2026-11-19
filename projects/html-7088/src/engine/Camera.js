@@ -1,32 +1,55 @@
-/**
- * B2.st Studio - Mario Game Engine
- * Smooth Scrolling NES-style Viewport Camera
- * @module src/engine/Camera
- */
+import { GameConfig } from '../../config/game.config.js';
 
+/**
+ * Studio B2.st - Classic NES Clamped Scrolling Camera
+ * Prevents Mario from scrolling backwards, strictly follows rightward progression.
+ */
 export class Camera {
-  constructor(viewportWidth, viewportHeight) {
-    this.x = 0;
-    this.y = 0;
+  constructor(viewportWidth = GameConfig.CANVAS.INTERNAL_WIDTH, viewportHeight = GameConfig.CANVAS.INTERNAL_HEIGHT) {
     this.viewportWidth = viewportWidth;
     this.viewportHeight = viewportHeight;
-    this.deadZoneX = viewportWidth * 0.35;
+    this.x = 0;
+    this.y = 0;
+    this.maxLevelWidth = 0;
   }
 
-  update(targetX, levelWidth) {
-    const focusX = targetX - this.deadZoneX;
-    if (focusX > this.x) {
-      this.x = focusX;
+  setLevelWidth(tilesCount) {
+    this.maxLevelWidth = tilesCount * GameConfig.WORLD.TILE_SIZE;
+  }
+
+  update(targetX) {
+    // NES Mario deadzone: target centered at 38% screen width
+    const targetOffset = this.viewportWidth * 0.38;
+    const desiredX = targetX - targetOffset;
+
+    // Camera cannot scroll backwards
+    if (desiredX > this.x) {
+      this.x = desiredX;
     }
-    // Prevent backward scrolling like classic NES SMB
-    const maxX = Math.max(0, levelWidth - this.viewportWidth);
-    if (this.x > maxX) {
-      this.x = maxX;
+
+    // Clamp camera within level bounds
+    const maxScroll = Math.max(0, this.maxLevelWidth - this.viewportWidth);
+    if (this.x > maxScroll) {
+      this.x = maxScroll;
     }
   }
 
   reset() {
     this.x = 0;
     this.y = 0;
+  }
+
+  isVisible(aabb, margin = 32) {
+    return (
+      aabb.right >= this.x - margin &&
+      aabb.left <= this.x + this.viewportWidth + margin
+    );
+  }
+
+  worldToScreen(worldX, worldY) {
+    return {
+      x: Math.floor(worldX - this.x),
+      y: Math.floor(worldY - this.y)
+    };
   }
 }

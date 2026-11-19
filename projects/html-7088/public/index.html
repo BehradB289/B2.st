@@ -3,366 +3,140 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>B2.st Super Mario - Modular Engine</title>
+  <meta http-equiv="X-Content-Type-Options" content="nosniff">
+  <title>Mario HTML5 - B2.st Hardened Edition</title>
   <style>
-    :root {
-      --nes-black: #000000;
-      --nes-white: #ffffff;
-      --nes-sky: #5c94fc;
-      --nes-gold: #fbc02d;
-    }
-
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-      user-select: none;
-    }
-
+    * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
-      background-color: var(--nes-black);
-      color: var(--nes-white);
-      font-family: 'Courier New', Courier, monospace;
-      font-weight: bold;
+      background-color: #5c94fc;
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
       min-height: 100vh;
-      overflow: hidden;
+      font-family: monospace;
+      color: #fff;
     }
-
     #game-container {
-      position: relative;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      box-shadow: 0 0 30px rgba(0, 0, 0, 0.8), 0 0 10px rgba(92, 148, 252, 0.2);
+      border: 4px solid #000;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+      background: #000;
     }
-
-    /* NES Top Retro HUD */
-    #nes-hud {
-      width: 100%;
-      max-width: 768px;
-      display: flex;
-      justify-content: space-between;
-      padding: 12px 24px;
-      background: var(--nes-black);
-      font-size: 16px;
-      letter-spacing: 2px;
-      text-transform: uppercase;
-      z-index: 10;
-    }
-
-    .hud-col {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 4px;
-    }
-
-    .hud-val {
-      color: var(--nes-white);
-    }
-
-    .hud-coin-val {
-      color: var(--nes-gold);
-    }
-
-    #viewport-wrapper {
-      position: relative;
-      background-color: var(--nes-sky);
-      border: 4px solid #222;
-      border-radius: 4px;
-      overflow: hidden;
-    }
-
     canvas {
       display: block;
+      background: #5c94fc;
       image-rendering: pixelated;
-      image-rendering: crisp-edges;
-      background: transparent;
     }
-
-    /* Scanline & CRT Filter */
-    .crt-overlay {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      pointer-events: none;
-      background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%),
-                  linear-gradient(90deg, rgba(255, 0, 0, 0.03), rgba(0, 255, 0, 0.01), rgba(0, 0, 255, 0.03));
-      background-size: 100% 3px, 3px 100%;
-      z-index: 5;
-    }
-
-    #controls-hint {
-      margin-top: 14px;
-      font-size: 12px;
-      color: #888;
-      letter-spacing: 1px;
-    }
-
-    #test-badge {
-      position: absolute;
-      bottom: 12px;
-      right: 12px;
-      font-size: 11px;
-      background: #111;
-      padding: 6px 10px;
-      border: 1px solid #333;
-      border-radius: 4px;
-      color: #0f0;
+    .hud {
+      margin-top: 15px;
+      font-size: 14px;
+      color: #fce4a6;
+      text-shadow: 2px 2px #000;
     }
   </style>
 </head>
 <body>
-
   <div id="game-container">
-    <div id="nes-hud">
-      <div class="hud-col">
-        <span>MARIO</span>
-        <span id="hud-score" class="hud-val">000000</span>
-      </div>
-      <div class="hud-col">
-        <span>COINS</span>
-        <span id="hud-coins" class="hud-coin-val">🪙 x00</span>
-      </div>
-      <div class="hud-col">
-        <span>WORLD</span>
-        <span id="hud-world" class="hud-val">1-1</span>
-      </div>
-      <div class="hud-col">
-        <span>TIME</span>
-        <span id="hud-time" class="hud-val">365</span>
-      </div>
-      <div class="hud-col">
-        <span>LIVES</span>
-        <span id="hud-lives" class="hud-val">❤️ x3</span>
-      </div>
-    </div>
-
-    <div id="viewport-wrapper">
-      <canvas id="gameCanvas" width="256" height="240"></canvas>
-      <div class="crt-overlay"></div>
-    </div>
-
-    <div id="controls-hint">
-      [←/→] or [A/D] Move | [SPACE/W/↑] Jump | B2.st Studio Modular NES Engine
-    </div>
+    <canvas id="marioCanvas" width="480" height="320"></canvas>
   </div>
+  <div class="hud">Use Left / Right Arrows to Move | Space to Jump</div>
 
-  <div id="test-badge">
-    ✓ Pipeline Tests: Run <code>npm test</code>
-  </div>
+  <script>
+    (function () {
+      'use strict';
+      const canvas = document.getElementById('marioCanvas');
+      const ctx = canvas.getContext('2d');
 
-  <script type="module">
-    import { Vector2 } from '../src/engine/Vector2.js';
-    import { AABB } from '../src/engine/AABB.js';
-    import { PhysicsEngine } from '../src/engine/PhysicsEngine.js';
-    import { Camera } from '../src/engine/Camera.js';
-    import { Mario } from '../src/entities/Mario.js';
-    import { Goomba } from '../src/entities/Goomba.js';
-    import { TileMap } from '../src/levels/TileMap.js';
-    import { GAME_CONFIG } from '../config/game.config.js';
+      const gravity = 0.5;
+      const friction = 0.8;
 
-    // Canvas & Context Setup
-    const canvas = document.getElementById('gameCanvas');
-    const ctx = canvas.getContext('2d');
+      const mario = {
+        x: 50,
+        y: 200,
+        width: 24,
+        height: 32,
+        velX: 0,
+        velY: 0,
+        speed: 4,
+        jumping: false,
+        grounded: false,
+        color: '#d82800'
+      };
 
-    // Scale canvas to crisp 3x NES viewport
-    canvas.style.width = '768px';
-    canvas.style.height = '720px';
+      const keys = {};
 
-    // HUD Elements
-    const hudScore = document.getElementById('hud-score');
-    const hudCoins = document.getElementById('hud-coins');
-    const hudLives = document.getElementById('hud-lives');
-    const hudTime = document.getElementById('hud-time');
+      window.addEventListener('keydown', (e) => {
+        keys[e.code] = true;
+      });
 
-    // Systems Init
-    const physics = new PhysicsEngine(GAME_CONFIG);
-    const camera = new Camera(256, 240);
-    const tileMap = new TileMap(120, 15, 16);
-    camera.setBounds(120 * 16);
+      window.addEventListener('keyup', (e) => {
+        keys[e.code] = false;
+      });
 
-    // Build Level 1-1 Segment
-    for (let c = 0; c < 120; c++) {
-      tileMap.setTile(c, 13, GAME_CONFIG.TILE_TYPE.GROUND);
-      tileMap.setTile(c, 14, GAME_CONFIG.TILE_TYPE.GROUND);
-    }
-    // Question blocks & Bricks
-    tileMap.setTile(8, 9, GAME_CONFIG.TILE_TYPE.QUESTION_BLOCK);
-    tileMap.setTile(10, 9, GAME_CONFIG.TILE_TYPE.BRICK);
-    tileMap.setTile(11, 9, GAME_CONFIG.TILE_TYPE.QUESTION_BLOCK);
-    tileMap.setTile(12, 9, GAME_CONFIG.TILE_TYPE.BRICK);
-    tileMap.setTile(13, 9, GAME_CONFIG.TILE_TYPE.QUESTION_BLOCK);
-
-    // Pipe Obstacle
-    tileMap.setTile(20, 11, GAME_CONFIG.TILE_TYPE.GROUND);
-    tileMap.setTile(21, 11, GAME_CONFIG.TILE_TYPE.GROUND);
-    tileMap.setTile(20, 12, GAME_CONFIG.TILE_TYPE.GROUND);
-    tileMap.setTile(21, 12, GAME_CONFIG.TILE_TYPE.GROUND);
-
-    // Entities
-    const mario = new Mario(32, 192);
-    const enemies = [
-      new Goomba(160, 192),
-      new Goomba(280, 192),
-      new Goomba(450, 192)
-    ];
-
-    mario.onHeadBump = (tile) => {
-      tileMap.hitBlockAt(tile.col, tile.row, mario);
-    };
-
-    // Keyboard Controller
-    const keys = {};
-    window.addEventListener('keydown', (e) => {
-      keys[e.code] = true;
-      if (['Space', 'ArrowUp', 'KeyW'].includes(e.code)) {
-        mario.jump();
-      }
-    });
-    window.addEventListener('keyup', (e) => {
-      keys[e.code] = false;
-    });
-
-    let levelTime = 400;
-    let timeAccumulator = 0;
-
-    // Game Loop
-    let lastTime = performance.now();
-    function gameLoop(now) {
-      const dt = Math.min((now - lastTime) / 1000, 0.05);
-      lastTime = now;
-
-      // Handle Inputs
-      if (keys['ArrowLeft'] || keys['KeyA']) {
-        mario.moveLeft();
-      } else if (keys['ArrowRight'] || keys['KeyD']) {
-        mario.moveRight();
-      } else {
-        mario.stopHorizontal();
-      }
-
-      // Update Physics & Step
-      const allEntities = [mario, ...enemies];
-      for (const enemy of enemies) {
-        if (!enemy.active) continue;
-        const contact = physics.resolveDynamicPair(mario, enemy);
-        if (contact) {
-          if (contact.type === 'STOMP') {
-            mario.bounceAfterStomp();
-            enemy.squash();
-          } else if (contact.type === 'HORIZONTAL_CONTACT') {
-            mario.takeDamage();
-          }
+      function update() {
+        if (keys['ArrowRight'] || keys['KeyD']) {
+          if (mario.velX < mario.speed) mario.velX++;
         }
-      }
-
-      physics.step(allEntities, tileMap, dt);
-      camera.update(mario);
-
-      // Level Time
-      timeAccumulator += dt;
-      if (timeAccumulator >= 1.0) {
-        levelTime = Math.max(0, levelTime - 1);
-        timeAccumulator -= 1.0;
-      }
-
-      // Update HUD
-      hudScore.textContent = String(mario.score).padStart(6, '0');
-      hudCoins.textContent = `🪙 x${String(mario.coins).padStart(2, '0')}`;
-      hudLives.textContent = `❤️ x${mario.lives}`;
-      hudTime.textContent = String(levelTime).padStart(3, '0');
-
-      // Render
-      render();
-
-      requestAnimationFrame(gameLoop);
-    }
-
-    function render() {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-      // Render Sky
-      ctx.fillStyle = '#5c94fc';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-      // Render Visible Tiles
-      const startCol = Math.max(0, Math.floor(camera.pos.x / 16));
-      const endCol = Math.min(tileMap.cols - 1, Math.ceil((camera.pos.x + 256) / 16));
-
-      for (let r = 0; r < tileMap.rows; r++) {
-        for (let c = startCol; c <= endCol; c++) {
-          const type = tileMap.getTile(c, r);
-          if (type === GAME_CONFIG.TILE_TYPE.AIR) continue;
-
-          const screenX = c * 16 - camera.pos.x;
-          const screenY = r * 16 - camera.pos.y;
-
-          if (type === GAME_CONFIG.TILE_TYPE.GROUND) {
-            ctx.fillStyle = '#d88b28';
-            ctx.fillRect(screenX, screenY, 16, 16);
-            ctx.fillStyle = '#fcb040';
-            ctx.fillRect(screenX, screenY, 16, 2);
-            ctx.fillStyle = '#000000';
-            ctx.strokeRect(screenX, screenY, 16, 16);
-          } else if (type === GAME_CONFIG.TILE_TYPE.BRICK) {
-            ctx.fillStyle = '#b84418';
-            ctx.fillRect(screenX, screenY, 16, 16);
-            ctx.fillStyle = '#000';
-            ctx.strokeRect(screenX, screenY, 16, 16);
-          } else if (type === GAME_CONFIG.TILE_TYPE.QUESTION_BLOCK) {
-            ctx.fillStyle = '#fc9838';
-            ctx.fillRect(screenX, screenY, 16, 16);
-            ctx.fillStyle = '#000';
-            ctx.fillText('?', screenX + 5, screenY + 12);
-            ctx.strokeRect(screenX, screenY, 16, 16);
-          } else if (type === GAME_CONFIG.TILE_TYPE.EMPTY_BLOCK) {
-            ctx.fillStyle = '#8b6f4e';
-            ctx.fillRect(screenX, screenY, 16, 16);
-            ctx.fillStyle = '#000';
-            ctx.strokeRect(screenX, screenY, 16, 16);
-          }
+        if (keys['ArrowLeft'] || keys['KeyA']) {
+          if (mario.velX > -mario.speed) mario.velX--;
         }
-      }
-
-      // Render Enemies
-      for (const enemy of enemies) {
-        if (!enemy.active) continue;
-        const screenPos = camera.worldToScreen(enemy.pos);
-        if (enemy.state === 'SQUASHED') {
-          ctx.fillStyle = '#a84000';
-          ctx.fillRect(screenPos.x, screenPos.y + 10, 16, 6);
-        } else {
-          ctx.fillStyle = '#a84000';
-          ctx.fillRect(screenPos.x, screenPos.y, 16, 16);
-          ctx.fillStyle = '#ffffff';
-          ctx.fillRect(screenPos.x + 3, screenPos.y + 4, 3, 4);
-          ctx.fillRect(screenPos.x + 10, screenPos.y + 4, 3, 4);
-          ctx.fillStyle = '#000000';
-          ctx.fillRect(screenPos.x + 4, screenPos.y + 5, 2, 2);
-          ctx.fillRect(screenPos.x + 10, screenPos.y + 5, 2, 2);
+        if ((keys['Space'] || keys['ArrowUp'] || keys['KeyW']) && !mario.jumping && mario.grounded) {
+          mario.jumping = true;
+          mario.grounded = false;
+          mario.velY = -10;
         }
+
+        mario.velX *= friction;
+        mario.velY += gravity;
+
+        mario.grounded = false;
+        mario.x += mario.velX;
+        mario.y += mario.velY;
+
+        // برخورد با کف زمین
+        const groundLevel = canvas.height - 32;
+        if (mario.y >= groundLevel - mario.height) {
+          mario.y = groundLevel - mario.height;
+          mario.jumping = false;
+          mario.grounded = true;
+          mario.velY = 0;
+        }
+
+        // محدودیت حرکت در صفحه
+        if (mario.x <= 0) mario.x = 0;
+        if (mario.x >= canvas.width - mario.width) mario.x = canvas.width - mario.width;
       }
 
-      // Render Mario
-      const mScreen = camera.worldToScreen(mario.pos);
-      if (mario.invulnerableTimer <= 0 || Math.floor(performance.now() / 100) % 2 === 0) {
-        ctx.fillStyle = '#d82800'; // Mario Red Overalls
-        ctx.fillRect(mScreen.x, mScreen.y, mario.size.x, mario.size.y);
-        ctx.fillStyle = '#0028d8'; // Blue Dungarees
-        ctx.fillRect(mScreen.x + 2, mScreen.y + 8, mario.size.x - 4, mario.size.y - 8);
-        ctx.fillStyle = '#fcb040'; // Cap / Face
-        ctx.fillRect(mScreen.x + 4, mScreen.y + 2, 8, 4);
-      }
-    }
+      function draw() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    requestAnimationFrame(gameLoop);
+        // ترسیم زمین
+        ctx.fillStyle = '#e45c10';
+        ctx.fillRect(0, canvas.height - 32, canvas.width, 32);
+
+        // خط حاشیه زمین
+        ctx.fillStyle = '#00a800';
+        ctx.fillRect(0, canvas.height - 32, canvas.width, 4);
+
+        // ترسیم ماریو
+        ctx.fillStyle = mario.color;
+        ctx.fillRect(mario.x, mario.y, mario.width, mario.height);
+
+        // کلاه و چشم ماریو
+        ctx.fillStyle = '#fcbc3c';
+        ctx.fillRect(mario.x + 4, mario.y + 6, 16, 8);
+        ctx.fillStyle = '#000';
+        ctx.fillRect(mario.x + 14, mario.y + 8, 3, 4);
+      }
+
+      function loop() {
+        update();
+        draw();
+        requestAnimationFrame(loop);
+      }
+
+      requestAnimationFrame(loop);
+    })();
   </script>
 </body>
 </html>

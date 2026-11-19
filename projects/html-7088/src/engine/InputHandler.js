@@ -1,51 +1,62 @@
 /**
- * @file InputHandler.js
- * @description Keyboard state management integrated with Rate Limiter to prevent event floods.
+ * B2.st Studio - Robust Input Controller
+ * سیستم دریافت ورودی با فیلتر امنیتی و جلوگیری از تداخل کلیدها
  */
+"use strict";
+
 export class InputHandler {
-  /**
-   * @param {RateLimiter} rateLimiter
-   */
-  constructor(rateLimiter) {
-    this.keys = new Set();
-    this.rateLimiter = rateLimiter;
+    constructor() {
+        this.keys = new Set();
+        this.validKeys = new Set([
+            "ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown",
+            "KeyA", "KeyD", "KeyW", "KeyS", "Space"
+        ]);
 
-    window.addEventListener('keydown', (e) => {
-      if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(e.code)) {
-        e.preventDefault();
-      }
-      this.keys.add(e.code);
-    });
+        this._onKeyDown = this.handleKeyDown.bind(this);
+        this._onKeyUp = this.handleKeyUp.bind(this);
 
-    window.addEventListener('keyup', (e) => {
-      this.keys.delete(e.code);
-    });
-  }
+        this.bindEvents();
+    }
 
-  isDown(code) {
-    return this.keys.has(code);
-  }
+    bindEvents() {
+        window.addEventListener("keydown", this._onKeyDown);
+        window.addEventListener("keyup", this._onKeyUp);
+    }
 
-  /**
-   * Check for triggered action with rate-limiting safeguard.
-   */
-  isActionTriggered(code, keyName, cooldownMs = 200) {
-    if (!this.keys.has(code)) return false;
-    return this.rateLimiter.throttle(keyName, cooldownMs);
-  }
+    handleKeyDown(e) {
+        if (this.validKeys.has(e.code)) {
+            // جلوگیری از اسکرول صفحه هنگام استفاده از کلیدهای ناوبری
+            e.preventDefault();
+            this.keys.add(e.code);
+        }
+    }
 
-  get horizontalAxis() {
-    let dir = 0;
-    if (this.keys.has('ArrowRight') || this.keys.has('KeyD')) dir += 1;
-    if (this.keys.has('ArrowLeft') || this.keys.has('KeyA')) dir -= 1;
-    return dir;
-  }
+    handleKeyUp(e) {
+        if (this.validKeys.has(e.code)) {
+            e.preventDefault();
+            this.keys.delete(e.code);
+        }
+    }
 
-  get isJumping() {
-    return this.keys.has('ArrowUp') || this.keys.has('KeyW') || this.keys.has('Space') || this.keys.has('KeyZ');
-  }
+    isPressed(keyIdentifier) {
+        return this.keys.has(keyIdentifier);
+    }
 
-  get isRunning() {
-    return this.keys.has('ShiftLeft') || this.keys.has('ShiftRight') || this.keys.has('KeyX');
-  }
+    isLeft() {
+        return this.keys.has("ArrowLeft") || this.keys.has("KeyA");
+    }
+
+    isRight() {
+        return this.keys.has("ArrowRight") || this.keys.has("KeyD");
+    }
+
+    isJump() {
+        return this.keys.has("ArrowUp") || this.keys.has("KeyW") || this.keys.has("Space");
+    }
+
+    destroy() {
+        window.removeEventListener("keydown", this._onKeyDown);
+        window.removeEventListener("keyup", this._onKeyUp);
+        this.keys.clear();
+    }
 }

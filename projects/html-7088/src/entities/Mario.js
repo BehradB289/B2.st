@@ -1,139 +1,163 @@
 /**
- * B2.st Studio - Mario Entity System
- * کنترل کامل رفتارهای فیزیکی، تشخیص برخورد پیشرفته و رفع خطاهای نحوی متغیرها
+ * @file Mario.js
+ * @description کاراکتر اصلی (Mario) با سیستم کنترل، اینرسی، پرش و کالیشن محیطی
  */
-"use strict";
 
-import { Guardian } from "../security/Guardian.js";
+import { Sanitizer } from '../security/Sanitizer.js';
 
 export class Mario {
-    constructor(x = 64, y = 300) {
-        this.x = Guardian.sanitizeNumber(x, 64);
-        this.y = Guardian.sanitizeNumber(y, 300);
-        this.width = 24;
-        this.height = 30;
+    /**
+     * @param {number} x 
+     * @param {number} y 
+     */
+    constructor(x, y) {
+        this.x = Sanitizer.sanitizeNumber(x, 50);
+        this.y = Sanitizer.sanitizeNumber(y, 250);
+        this.width = 26;
+        this.height = 32;
 
         this.vx = 0;
         this.vy = 0;
-
-        // پارامترهای کنترل حرکت و گرانش
         this.speed = 220;
-        this.jumpForce = -450;
-        this.gravity = 980;
-
-        this.isGrounded = false;
-        this.facingLeft = false;
-        this.score = 0;
+        this.jumpForce = -460;
+        this.isOnGround = false;
+        this.facing = 1; // 1: راست, -1: چپ
+        this.isInvulnerable = false;
+        this.invulnerableTimer = 0;
     }
 
+    /**
+     * @param {number} dt 
+     * @param {import('../engine/InputHandler.js').InputHandler} input 
+     * @param {import('../world/Level.js').Level} level 
+     */
     update(dt, input, level) {
-        const safeDt = Guardian.clamp(dt, 0.0, 0.05);
+        // ۱. پردازش ورودی‌های چپ و راست
+        let moveDir = 0;
+        if (input.isPressed('ArrowRight', 'KeyD')) {
+            moveDir += 1;
+            this.facing = 1;
+        }
+        if (input.isPressed('ArrowLeft', 'KeyA')) {
+            moveDir -= 1;
+            this.facing = -1;
+        }
 
-        // 1. محاسبات بردار افقی
-        if (input.isLeft()) {
-            this.vx = -this.speed;
-            this.facingLeft = true;
-        } else if (input.isRight()) {
-            this.vx = this.speed;
-            this.facingLeft = false;
-        } else {
+        this.vx = moveDir * this.speed;
+
+        // ۲. پرش
+        if (this.isOnGround && input.isPressed('Space', 'ArrowUp', 'KeyW')) {
+            this.vy = this.jumpForce;
+            this.isOnGround = false;
+        }
+
+        // ۳. اعمال گرانش
+        this.vy += level.gravity * dt;
+
+        // کلمپ برای جلوگیری از سقوط با سرعت فراتر از بافر فریم
+        this.vy = Math.min(this.vy, 650);
+
+        // ۴. فیزیک و برخورد در راستای X
+        this.x += this.vx * dt;
+        this._resolveHorizontalCollisions(level);
+
+        // ۵. فیزیک و برخورد در راستای Y
+        this.y += this.vy * dt;
+        this.isOnGround = false;
+        this._resolveVerticalCollisions(level);
+
+        // ۶. حفظ در محدوده چپ مپ
+        if (this.x < 0) {
+            this.x = 0;
             this.vx = 0;
         }
 
-        // 2. جهش
-        if (input.isJump() && this.isGrounded) {
-            this.vy = this.jumpForce;
-            this.isGrounded = false;
-        }
-
-        // اعمال گرانش به بردار عمودی
-        this.vy += this.gravity * safeDt;
-
-        // 3. اعمال فیزیک حرکت افقی و مهار برخورد
-        this.x += this.vx * safeDt;
-        this.x = Guardian.sanitizeNumber(this.x, 0);
-        this.checkHorizontalCollisions(level);
-
-        // 4. اعمال فیزیک حرکت عمودی و مهار برخورد
-        this.y += this.vy * safeDt;
-        this.y = Guardian.sanitizeNumber(this.y, 0);
-        this.checkVerticalCollisions(level);
-
-        // 5. بررسی افتادن در گودال و ریست وضعیت
-        if (this.y > 600) {
-            this.respawn();
-        }
-    }
-
-    checkHorizontalCollisions(level) {
-        const ts = level.tileSize;
-        const leftTile = Math.floor(this.x / ts);
-        const rightTile = Math.floor((this.x + this.width) / ts);
-        const topTile = Math.floor(this.y / ts);
-        const bottomTile = Math.floor((this.y + this.height - 1) / ts);
-
-        for (let r = topTile; r <= bottomTile; r++) {
-            if (this.vx > 0 && level.isSolid(rightTile, r)) {
-                this.x = rightTile * ts - this.width;
-                this.vx = 0;
-                break;
-            } else if (this.vx < 0 && level.isSolid(leftTile, r)) {
-                this.x = (leftTile + 1) * ts;
-                this.vx = 0;
-                break;
+        // پردازش وضعیت شکست‌ناپذیری بعد از ضربه
+        if (this.isInvulnerable) {
+            this.invulnerableTimer -= dt;
+            if (this.invulnerableTimer <= 0) {
+                this.isInvulnerable = false;
             }
         }
     }
 
-    checkVerticalCollisions(level) {
-        const ts = level.tileSize;
-        const leftTile = Math.floor((this.x + 2) / ts);
-        const rightTile = Math.floor((this.x + this.width - 2) / ts);
-        const topTile = Math.floor(this.y / ts);
-        const bottomTile = Math.floor((this.y + this.height) / ts);
+    _resolveHorizontalCollisions(level) {
+        const sideOffset = 2;
+        const top = this.y + 4;
+        const bottom = this.y + this.height - 4;
 
-        this.isGrounded = false;
-
-        for (let c = leftTile; c <= rightTile; c++) {
-            if (this.vy > 0 && level.isSolid(c, bottomTile)) {
-                this.y = bottomTile * ts - this.height;
-                this.vy = 0;
-                this.isGrounded = true;
-                break;
-            } else if (this.vy < 0 && level.isSolid(c, topTile)) {
-                this.y = (topTile + 1) * ts;
-                this.vy = 0;
-                break;
+        if (this.vx > 0) {
+            const checkX = this.x + this.width;
+            if (level.getTileAt(checkX, top) !== 0 || level.getTileAt(checkX, bottom) !== 0) {
+                const col = Math.floor(checkX / level.tileSize);
+                this.x = (col * level.tileSize) - this.width - 0.01;
+                this.vx = 0;
+            }
+        } else if (this.vx < 0) {
+            const checkX = this.x;
+            if (level.getTileAt(checkX, top) !== 0 || level.getTileAt(checkX, bottom) !== 0) {
+                const col = Math.floor(checkX / level.tileSize);
+                this.x = ((col + 1) * level.tileSize) + 0.01;
+                this.vx = 0;
             }
         }
     }
 
-    respawn() {
-        this.x = 64;
-        this.y = 300;
-        this.vx = 0;
-        this.vy = 0;
-        this.isGrounded = false;
+    _resolveVerticalCollisions(level) {
+        const left = this.x + 4;
+        const right = this.x + this.width - 4;
+
+        if (this.vy > 0) {
+            const footY = this.y + this.height;
+            if (level.getTileAt(left, footY) !== 0 || level.getTileAt(right, footY) !== 0) {
+                const row = Math.floor(footY / level.tileSize);
+                this.y = (row * level.tileSize) - this.height;
+                this.vy = 0;
+                this.isOnGround = true;
+            }
+        } else if (this.vy < 0) {
+            const headY = this.y;
+            if (level.getTileAt(left, headY) !== 0 || level.getTileAt(right, headY) !== 0) {
+                const row = Math.floor(headY / level.tileSize);
+                this.y = ((row + 1) * level.tileSize) + 0.01;
+                this.vy = 0;
+            }
+        }
     }
 
+    takeHit() {
+        if (this.isInvulnerable) return false;
+        this.isInvulnerable = true;
+        this.invulnerableTimer = 1.5;
+        this.vy = -250;
+        return true;
+    }
+
+    /**
+     * @param {CanvasRenderingContext2D} ctx 
+     * @param {number} cameraX 
+     */
     render(ctx, cameraX) {
+        if (this.isInvulnerable && Math.floor(Date.now() / 60) % 2 === 0) {
+            // افکت چشمک‌زن هنگام صدمه
+            return;
+        }
+
         const drawX = Math.floor(this.x - cameraX);
         const drawY = Math.floor(this.y);
 
-        ctx.save();
+        // کلاه و پیراهن قرمز
+        ctx.fillStyle = '#dc2626';
+        ctx.fillRect(drawX + 4, drawY, this.width - 8, 8); // کلاه
+        ctx.fillRect(drawX + 6, drawY + 8, this.width - 12, 12); // سر و صورت
 
-        // بدنه اصلی ماریو (کلاه و لباس قرمز، لباس کار آبی)
-        ctx.fillStyle = "#FF0000"; // قرمز نمادین ماریو
-        ctx.fillRect(drawX, drawY, this.width, this.height * 0.4);
+        // لباس کار آبی
+        ctx.fillStyle = '#2563eb';
+        ctx.fillRect(drawX + 4, drawY + 16, this.width - 8, 10);
 
-        ctx.fillStyle = "#0000FF"; // آبی لباس
-        ctx.fillRect(drawX, drawY + this.height * 0.4, this.width, this.height * 0.6);
-
-        // صورت و چشم‌ها
-        ctx.fillStyle = "#FCC082"; // رنگ پوست
-        const faceX = this.facingLeft ? drawX : drawX + 8;
-        ctx.fillRect(faceX, drawY + 4, 10, 8);
-
-        ctx.restore();
+        // کفش‌های قهوه‌ای
+        ctx.fillStyle = '#78350f';
+        ctx.fillRect(drawX + 2, drawY + 26, 8, 6);
+        ctx.fillRect(drawX + this.width - 10, drawY + 26, 8, 6);
     }
 }

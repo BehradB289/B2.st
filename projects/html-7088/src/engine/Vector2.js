@@ -1,5 +1,6 @@
 /**
- * Studio B2.st - 2D Vector Math Utility
+ * 2D Vector Math Primitives
+ * Optimized for GC efficiency with chainable mutating methods and pure factories.
  */
 export class Vector2 {
   constructor(x = 0, y = 0) {
@@ -17,10 +18,6 @@ export class Vector2 {
     this.x = v.x;
     this.y = v.y;
     return this;
-  }
-
-  clone() {
-    return new Vector2(this.x, this.y);
   }
 
   add(v) {
@@ -41,37 +38,33 @@ export class Vector2 {
     return this;
   }
 
-  scale(s) {
-    this.x *= s;
-    this.y *= s;
+  scale(scalar) {
+    this.x *= scalar;
+    this.y *= scalar;
     return this;
   }
 
-  lengthSq() {
-    return this.x * this.x + this.y * this.y;
-  }
-
-  length() {
-    return Math.sqrt(this.lengthSq());
+  magnitude() {
+    return Math.hypot(this.x, this.y);
   }
 
   normalize() {
-    const len = this.length();
-    if (len > 0) {
+    const len = this.magnitude();
+    if (len > 0.00001) {
       this.scale(1 / len);
     }
     return this;
   }
 
-  distanceTo(v) {
-    const dx = this.x - v.x;
-    const dy = this.y - v.y;
-    return Math.sqrt(dx * dx + dy * dy);
+  clone() {
+    return new Vector2(this.x, this.y);
   }
 
-  clamp(min, max) {
-    this.x = Math.max(min.x, Math.min(max.x, this.x));
-    this.y = Math.max(min.y, Math.min(max.y, this.y));
-    return this;
+  equals(v, epsilon = 0.001) {
+    return Math.abs(this.x - v.x) <= epsilon && Math.abs(this.y - v.y) <= epsilon;
+  }
+
+  static zero() {
+    return new Vector2(0, 0);
   }
 }
